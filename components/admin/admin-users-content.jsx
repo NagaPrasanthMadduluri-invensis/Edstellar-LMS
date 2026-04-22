@@ -16,13 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, UserPlus, BookOpen, Calendar, Users, MoreVertical, UserX, UserCheck, Trash2 } from "lucide-react";
+import { Search, UserPlus, BookOpen, Calendar, Users, UserX, UserCheck, Trash2 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
@@ -148,48 +145,40 @@ export function AdminUsersContent() {
             const colorClass = AVATAR_COLORS[i % AVATAR_COLORS.length];
             return (
               <Card key={u.id} className="px-4 py-3 hover:shadow-sm transition-shadow">
-                <Box className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarFallback className={`text-sm font-bold ${colorClass}`}>{initials}</AvatarFallback>
-                  </Avatar>
-                  <Box className="flex-1 min-w-0">
-                    <Text as="p" className="text-sm font-semibold">{u.first_name} {u.last_name}</Text>
-                    <Text as="span" className="text-xs text-muted-foreground">{u.email}</Text>
+                <Box className="flex items-center justify-between gap-3">
+                  <Box className="flex items-center gap-3 min-w-0">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarFallback className={`text-sm font-bold ${colorClass}`}>{initials}</AvatarFallback>
+                    </Avatar>
+                    <Box className="min-w-0">
+                      <Box className="flex items-center gap-2">
+                        <Text as="p" className="text-sm font-semibold">{u.first_name} {u.last_name}</Text>
+                        <Badge variant="secondary" className={`text-[10px] shrink-0 ${u.is_active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                          {u.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </Box>
+                      <Text as="span" className="text-xs text-muted-foreground">{u.email}</Text>
+                    </Box>
                   </Box>
-                  <Box className="flex items-center gap-4 shrink-0">
-                    <Box className="flex items-center gap-1.5">
-                      <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                      <Text as="span" className="text-xs text-muted-foreground">{u.assigned_courses} course{u.assigned_courses !== 1 ? "s" : ""}</Text>
-                    </Box>
-                    <Box className="flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                      <Text as="span" className="text-xs text-muted-foreground">
-                        {new Date(u.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                      </Text>
-                    </Box>
-                    <Badge variant="secondary" className={`text-[10px] ${u.is_active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                      {u.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setConfirmDialog({ type: "toggle", user: u })}>
-                          {u.is_active
-                            ? <><UserX className="h-4 w-4 mr-2 text-amber-500" />Deactivate</>
-                            : <><UserCheck className="h-4 w-4 mr-2 text-emerald-500" />Activate</>}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setConfirmDialog({ type: "delete", user: u })}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <Box className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`h-8 text-xs ${u.is_active ? "border-amber-400 text-amber-600 hover:bg-amber-50" : "border-emerald-400 text-emerald-600 hover:bg-emerald-50"}`}
+                      onClick={() => setConfirmDialog({ type: "toggle", user: u })}
+                    >
+                      {u.is_active
+                        ? <><UserX className="h-3.5 w-3.5 mr-1" />Deactivate</>
+                        : <><UserCheck className="h-3.5 w-3.5 mr-1" />Activate</>}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs border-red-400 text-red-600 hover:bg-red-50"
+                      onClick={() => setConfirmDialog({ type: "delete", user: u })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
+                    </Button>
                   </Box>
                 </Box>
               </Card>

@@ -31,15 +31,19 @@ import {
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Search, UserPlus, Users, ExternalLink, BookOpen,
   ClipboardList, CheckCircle2, XCircle, Clock, Trophy,
-  TrendingUp, ChevronDown, ChevronUp, CalendarDays,
+  TrendingUp, ChevronDown, ChevronUp, CalendarDays, UserX, UserCheck,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { createUser } from "@/services/api/admin/admin-api";
+import { createUser, toggleUserStatus } from "@/services/api/admin/admin-api";
 
 const AVATAR_COLORS = [
   "bg-indigo-100 text-indigo-600",
@@ -345,6 +349,8 @@ export function AdminEmployeesContent() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [detailUserId, setDetailUserId] = useState(null);
+  const [confirmToggle, setConfirmToggle] = useState(null); // { id, name, is_active }
+  const [actioning, setActioning] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -357,6 +363,20 @@ export function AdminEmployeesContent() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleToggleStatus = async () => {
+    if (!confirmToggle) return;
+    setActioning(true);
+    try {
+      await toggleUserStatus({ token, userId: confirmToggle.id, is_active: !confirmToggle.is_active });
+      setEmployees((prev) => prev.map((e) => e.id === confirmToggle.id ? { ...e, is_active: !e.is_active } : e));
+      setConfirmToggle(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setActioning(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!form.first_name.trim()) { setFormError("First name is required"); return; }
@@ -515,15 +535,27 @@ export function AdminEmployeesContent() {
                         </Text>
                       </td>
                       <td className="px-4 py-2.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDetailUserId(emp.id)}
-                          className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium gap-1"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          View Details
-                        </Button>
+                        <Box className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={`h-6 px-2 text-[10px] font-medium gap-1 ${emp.is_active ? "border-amber-400 text-amber-600 hover:bg-amber-50" : "border-emerald-400 text-emerald-600 hover:bg-emerald-50"}`}
+                            onClick={() => setConfirmToggle({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, is_active: emp.is_active })}
+                          >
+                            {emp.is_active
+                              ? <><UserX className="h-3 w-3" />Deactivate</>
+                              : <><UserCheck className="h-3 w-3" />Activate</>}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDetailUserId(emp.id)}
+                            className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium gap-1"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            View Details
+                          </Button>
+                        </Box>
                       </td>
                     </tr>
                   );
@@ -533,6 +565,26 @@ export function AdminEmployeesContent() {
           </Box>
         </Card>
       )}
+
+      {/* ── Confirm Toggle Dialog ── */}
+      <AlertDialog open={!!confirmToggle} onOpenChange={(o) => { if (!o) setConfirmToggle(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmToggle?.is_active ? "Deactivate User" : "Activate User"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmToggle?.is_active
+                ? `${confirmToggle?.name} will no longer be able to log in.`
+                : `${confirmToggle?.name} will be able to log in again.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actioning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleToggleStatus} disabled={actioning}>
+              {actioning ? "Please wait..." : confirmToggle?.is_active ? "Deactivate" : "Activate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── User Detail Sheet ── */}
       <UserDetailSheet
