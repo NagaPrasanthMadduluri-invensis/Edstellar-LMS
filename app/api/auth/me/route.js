@@ -5,8 +5,8 @@ export async function GET(request) {
   const payload = requireAuth(request);
   if (!payload) return err("Unauthorized", 401);
 
-  const db = getDb();
-  const user = db.prepare("SELECT * FROM users WHERE id = ? AND is_active = 1").get(payload.userId);
+  const db = await getDb();
+  const user = (await db.execute({ sql: "SELECT * FROM users WHERE id = ? AND is_active = 1", args: [payload.userId] })).rows[0];
   if (!user) return err("User not found", 404);
 
   return ok({

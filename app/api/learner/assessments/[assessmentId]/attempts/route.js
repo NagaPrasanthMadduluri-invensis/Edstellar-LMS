@@ -8,13 +8,12 @@ export async function GET(request, { params }) {
 
   const { assessmentId } = await params;
   const userId = payload.userId;
-  const db = getDb();
+  const db = await getDb();
 
-  const attempts = db.prepare(`
-    SELECT * FROM user_assessment_attempts
-    WHERE assessment_id = ? AND user_id = ?
-    ORDER BY submitted_at DESC
-  `).all(assessmentId, userId);
+  const attempts = (await db.execute({
+    sql: `SELECT * FROM user_assessment_attempts WHERE assessment_id = ? AND user_id = ? ORDER BY submitted_at DESC`,
+    args: [assessmentId, userId],
+  })).rows;
 
   return ok({ attempts });
 }

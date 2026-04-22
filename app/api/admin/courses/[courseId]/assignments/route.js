@@ -4,10 +4,10 @@ import { requireAdmin, ok, err } from "@/lib/auth.js";
 export async function GET(request, { params }) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
   const { courseId } = await params;
-  const db = getDb();
+  const db = await getDb();
 
-  const assignments = db.prepare(`
-    SELECT uca.*, u.first_name, u.last_name, u.email,
+  const assignments = (await db.execute({
+    sql: `SELECT uca.*, u.first_name, u.last_name, u.email,
       (SELECT COUNT(*) FROM user_lesson_completions ulc
        JOIN lessons l ON l.id = ulc.lesson_id
        JOIN course_modules cm ON cm.id = l.module_id
@@ -18,8 +18,9 @@ export async function GET(request, { params }) {
     FROM user_course_assignments uca
     JOIN users u ON u.id = uca.user_id
     WHERE uca.course_id = ?
-    ORDER BY uca.assigned_at DESC
-  `).all(courseId, courseId, courseId);
+    ORDER BY uca.assigned_at DESC`,
+    args: [courseId, courseId, courseId],
+  })).rows;
 
   return ok({ assignments });
 }
@@ -31,15 +32,16 @@ export async function POST(request, { params }) {
   const { user_id } = await request.json();
   if (!user_id) return err("user_id is required");
 
-  const db = getDb();
+  const db = await getDb();
 
-  const user = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'learner'").get(user_id);
+  const user = (await db.execute({ sql: "SELECT id FROM users WHERE id = ? AND role = 'learner'", args: [user_id] })).rows[0];
   if (!user) return err("Learner not found", 404);
 
   try {
-    db.prepare(`
-      INSERT INTO user_course_assignments (user_id, course_id, assigned_by) VALUES (?,?,?)
-    `).run(user_id, courseId, adminPayload.userId);
+    await db.execute({
+      sql: `INSERT INTO user_course_assignments (user_id, course_id, assigned_by) VALUES (?,?,?)`,
+      args: [user_id, courseId, adminPayload.userId],
+    });
   } catch {
     return err("User is already assigned to this course", 409);
   }

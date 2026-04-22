@@ -3,24 +3,27 @@ import { requireAdmin, ok, err } from "@/lib/auth.js";
 
 export async function GET(request) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
-  const db = getDb();
+  const db = await getDb();
 
-  const learners = db.prepare(
+  const learners = (await db.execute(
     "SELECT id, first_name, last_name, email, department FROM users WHERE role = 'learner'"
-  ).all();
+  )).rows;
 
   let completed = 0, inProgress = 0, notStarted = 0, failed = 0;
   const scores = [];
 
-  const learnerStats = learners.map((u) => {
-    const best = db.prepare(`
-      SELECT MAX(percentage) AS score, MAX(is_passed) AS passed, COUNT(*) AS attempts
-      FROM user_assessment_attempts WHERE user_id = ?
-    `).get(u.id);
+  const learnerStats = [];
 
-    const completedLessons = db.prepare(`
-      SELECT COUNT(*) AS cnt FROM user_lesson_completions WHERE user_id = ?
-    `).get(u.id)?.cnt ?? 0;
+  for (const u of learners) {
+    const best = (await db.execute({
+      sql: `SELECT MAX(percentage) AS score, MAX(is_passed) AS passed, COUNT(*) AS attempts FROM user_assessment_attempts WHERE user_id = ?`,
+      args: [u.id],
+    })).rows[0];
+
+    const completedLessons = ((await db.execute({
+      sql: `SELECT COUNT(*) AS cnt FROM user_lesson_completions WHERE user_id = ?`,
+      args: [u.id],
+    })).rows[0]?.cnt) ?? 0;
 
     let status;
     if (best?.passed === 1) { completed++; status = "completed"; }
@@ -31,8 +34,8 @@ export async function GET(request) {
     const score = best?.score != null ? Math.round(best.score) : null;
     if (score != null) scores.push(score);
 
-    return { ...u, status, score };
-  });
+    learnerStats.push({ ...u, status, score });
+  }
 
   const total = learners.length;
   const compRate = total ? Math.round((completed / total) * 100) : 0;
@@ -48,23 +51,33 @@ export async function GET(request) {
     .map((u) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, score: u.score, department: u.department }));
 
   // Dept completion bar chart data
-  const depts = db.prepare(`
+  const depts = (await db.execute(`
     SELECT DISTINCT department FROM users WHERE role = 'learner' AND department IS NOT NULL ORDER BY department
-  `).all().map((r) => r.department);
+  `)).rows.map((r) => r.department);
 
-  const deptCompletion = depts.map((dept) => {
-    const deptUsers = db.prepare("SELECT id FROM users WHERE role='learner' AND department=?").all(dept);
-    const deptCompleted = deptUsers.filter((u) => {
-      const a = db.prepare("SELECT MAX(is_passed) AS p FROM user_assessment_attempts WHERE user_id=?").get(u.id);
-      return a?.p === 1;
-    }).length;
-    return {
+  const deptCompletion = [];
+  for (const dept of depts) {
+    const deptUsers = (await db.execute({
+      sql: "SELECT id FROM users WHERE role='learner' AND department=?",
+      args: [dept],
+    })).rows;
+
+    let deptCompleted = 0;
+    for (const u of deptUsers) {
+      const a = (await db.execute({
+        sql: "SELECT MAX(is_passed) AS p FROM user_assessment_attempts WHERE user_id=?",
+        args: [u.id],
+      })).rows[0];
+      if (a?.p === 1) deptCompleted++;
+    }
+
+    deptCompletion.push({
       dept,
       total: deptUsers.length,
       completed: deptCompleted,
       pct: deptUsers.length ? Math.round((deptCompleted / deptUsers.length) * 100) : 0,
-    };
-  });
+    });
+  }
 
   // Score distribution bins
   const bins = [0, 0, 0, 0, 0];

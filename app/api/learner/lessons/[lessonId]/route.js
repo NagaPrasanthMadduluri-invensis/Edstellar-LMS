@@ -8,31 +8,34 @@ export async function GET(request, { params }) {
 
   const { lessonId } = await params;
   const userId = payload.userId;
-  const db = getDb();
+  const db = await getDb();
 
-  const lesson = db.prepare(`
-    SELECT l.*, cm.title as module_title, cm.course_id
+  const lesson = (await db.execute({
+    sql: `SELECT l.*, cm.title as module_title, cm.course_id
     FROM lessons l
     JOIN course_modules cm ON cm.id = l.module_id
-    WHERE l.id = ? AND l.is_active = 1
-  `).get(lessonId);
+    WHERE l.id = ? AND l.is_active = 1`,
+    args: [lessonId],
+  })).rows[0];
   if (!lesson) return err("Lesson not found", 404);
 
   // Verify the user is assigned to the course
-  const assigned = db.prepare(`
-    SELECT id FROM user_course_assignments WHERE user_id = ? AND course_id = ?
-  `).get(userId, lesson.course_id);
+  const assigned = (await db.execute({
+    sql: `SELECT id FROM user_course_assignments WHERE user_id = ? AND course_id = ?`,
+    args: [userId, lesson.course_id],
+  })).rows[0];
   if (!assigned) return err("Access denied", 403);
 
   // Sequential lock check
-  const moduleLessons = db.prepare(`
-    SELECT l.id,
+  const moduleLessons = (await db.execute({
+    sql: `SELECT l.id,
       CASE WHEN ulc.id IS NOT NULL THEN 'completed' ELSE 'not_started' END as status
     FROM lessons l
     LEFT JOIN user_lesson_completions ulc ON ulc.lesson_id = l.id AND ulc.user_id = ?
     WHERE l.module_id = ? AND l.is_active = 1
-    ORDER BY l.sort_order, l.id
-  `).all(userId, lesson.module_id);
+    ORDER BY l.sort_order, l.id`,
+    args: [userId, lesson.module_id],
+  })).rows;
 
   const posInModule = moduleLessons.findIndex((l) => l.id === Number(lessonId));
 
@@ -41,21 +44,23 @@ export async function GET(request, { params }) {
       return err("This lesson is locked. Complete the previous lesson first.", 403);
     }
   } else if (posInModule === 0) {
-    const mod = db.prepare(`SELECT * FROM course_modules WHERE id = ?`).get(lesson.module_id);
-    const prevModule = db.prepare(`
-      SELECT id FROM course_modules
+    const mod = (await db.execute({ sql: `SELECT * FROM course_modules WHERE id = ?`, args: [lesson.module_id] })).rows[0];
+    const prevModule = (await db.execute({
+      sql: `SELECT id FROM course_modules
       WHERE course_id = ? AND is_active = 1 AND (sort_order < ? OR (sort_order = ? AND id < ?))
-      ORDER BY sort_order DESC, id DESC LIMIT 1
-    `).get(mod.course_id, mod.sort_order, mod.sort_order, mod.id);
+      ORDER BY sort_order DESC, id DESC LIMIT 1`,
+      args: [mod.course_id, mod.sort_order, mod.sort_order, mod.id],
+    })).rows[0];
 
     if (prevModule) {
-      const counts = db.prepare(`
-        SELECT COUNT(*) as total,
+      const counts = (await db.execute({
+        sql: `SELECT COUNT(*) as total,
           SUM(CASE WHEN ulc.id IS NOT NULL THEN 1 ELSE 0 END) as completed
         FROM lessons l
         LEFT JOIN user_lesson_completions ulc ON ulc.lesson_id = l.id AND ulc.user_id = ?
-        WHERE l.module_id = ? AND l.is_active = 1
-      `).get(userId, prevModule.id);
+        WHERE l.module_id = ? AND l.is_active = 1`,
+        args: [userId, prevModule.id],
+      })).rows[0];
 
       if (counts.total > 0 && counts.completed < counts.total) {
         return err("This lesson is locked. Complete all lessons in the previous module first.", 403);
@@ -63,9 +68,10 @@ export async function GET(request, { params }) {
     }
   }
 
-  const completion = db.prepare(`
-    SELECT id FROM user_lesson_completions WHERE user_id = ? AND lesson_id = ?
-  `).get(userId, lessonId);
+  const completion = (await db.execute({
+    sql: `SELECT id FROM user_lesson_completions WHERE user_id = ? AND lesson_id = ?`,
+    args: [userId, lessonId],
+  })).rows[0];
 
   return ok({
     lesson: {

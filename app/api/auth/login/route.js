@@ -6,8 +6,8 @@ export async function POST(request) {
     const { email, password } = await request.json();
     if (!email || !password) return err("Email and password are required");
 
-    const db = getDb();
-    const user = db.prepare("SELECT * FROM users WHERE email = ? AND is_active = 1").get(email.toLowerCase().trim());
+    const db = await getDb();
+    const user = (await db.execute({ sql: "SELECT * FROM users WHERE email = ? AND is_active = 1", args: [email.toLowerCase().trim()] })).rows[0];
     if (!user) return err("Invalid email or password", 401);
 
     const valid = verifyPassword(password, user.password);

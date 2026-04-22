@@ -8,24 +8,25 @@ export async function POST(request, { params }) {
 
   const { lessonId } = await params;
   const userId = payload.userId;
-  const db = getDb();
+  const db = await getDb();
 
-  const lesson = db.prepare(`
-    SELECT l.id, cm.course_id FROM lessons l
-    JOIN course_modules cm ON cm.id = l.module_id
-    WHERE l.id = ?
-  `).get(lessonId);
+  const lesson = (await db.execute({
+    sql: `SELECT l.id, cm.course_id FROM lessons l JOIN course_modules cm ON cm.id = l.module_id WHERE l.id = ?`,
+    args: [lessonId],
+  })).rows[0];
   if (!lesson) return err("Lesson not found", 404);
 
-  const assigned = db.prepare(`
-    SELECT id FROM user_course_assignments WHERE user_id = ? AND course_id = ?
-  `).get(userId, lesson.course_id);
+  const assigned = (await db.execute({
+    sql: `SELECT id FROM user_course_assignments WHERE user_id = ? AND course_id = ?`,
+    args: [userId, lesson.course_id],
+  })).rows[0];
   if (!assigned) return err("Access denied", 403);
 
   try {
-    db.prepare(`
-      INSERT OR IGNORE INTO user_lesson_completions (user_id, lesson_id) VALUES (?,?)
-    `).run(userId, lessonId);
+    await db.execute({
+      sql: `INSERT OR IGNORE INTO user_lesson_completions (user_id, lesson_id) VALUES (?,?)`,
+      args: [userId, lessonId],
+    });
   } catch {
     // Already completed — fine
   }

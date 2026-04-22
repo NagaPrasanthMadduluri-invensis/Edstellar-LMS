@@ -22,16 +22,16 @@ function grade(score) {
 
 export async function GET(request) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
-  const db = getDb();
+  const db = await getDb();
 
   /* ──────────────────────────────────────────────
      Fetch all learners and build per-course rows
   ────────────────────────────────────────────── */
-  const learners = db.prepare(`
+  const learners = (await db.execute(`
     SELECT id, first_name, last_name, email, department, created_at
     FROM users WHERE role = 'learner'
     ORDER BY first_name, last_name
-  `).all();
+  `)).rows;
 
   const progressRows  = [];   // Sheet 1
   const assignRows    = [];   // Sheet 4
@@ -43,13 +43,14 @@ export async function GET(request) {
     const fullName = `${u.first_name} ${u.last_name}`;
     const dept     = u.department || "—";
 
-    const assignments = db.prepare(`
-      SELECT uca.course_id, uca.assigned_at, c.name AS course_name
+    const assignments = (await db.execute({
+      sql: `SELECT uca.course_id, uca.assigned_at, c.name AS course_name
       FROM user_course_assignments uca
       JOIN courses c ON c.id = uca.course_id AND c.is_active = 1
       WHERE uca.user_id = ?
-      ORDER BY uca.assigned_at
-    `).all(u.id);
+      ORDER BY uca.assigned_at`,
+      args: [u.id],
+    })).rows;
 
     if (assignments.length === 0) {
       progressRows.push([seq++, eid, fullName, dept, "—", u.email, "—", "—", "—", "Not Started", 0, "—", "N/A", "—"]);
@@ -58,27 +59,29 @@ export async function GET(request) {
     }
 
     for (const a of assignments) {
-      const counts = db.prepare(`
-        SELECT COUNT(l.id) AS total,
+      const counts = (await db.execute({
+        sql: `SELECT COUNT(l.id) AS total,
           SUM(CASE WHEN ulc.id IS NOT NULL THEN 1 ELSE 0 END) AS completed
         FROM lessons l
         JOIN course_modules cm ON cm.id = l.module_id
         LEFT JOIN user_lesson_completions ulc ON ulc.lesson_id = l.id AND ulc.user_id = ?
-        WHERE cm.course_id = ? AND l.is_active = 1 AND cm.is_active = 1
-      `).get(u.id, a.course_id);
+        WHERE cm.course_id = ? AND l.is_active = 1 AND cm.is_active = 1`,
+        args: [u.id, a.course_id],
+      })).rows[0];
 
       const total     = counts?.total     ?? 0;
       const completed = counts?.completed ?? 0;
       const progress  = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-      const best = db.prepare(`
-        SELECT MAX(uaa.percentage) AS best_score,
+      const best = (await db.execute({
+        sql: `SELECT MAX(uaa.percentage) AS best_score,
                MAX(uaa.is_passed)  AS has_passed,
                COUNT(*)            AS attempt_count
         FROM user_assessment_attempts uaa
         JOIN assessments ass ON ass.id = uaa.assessment_id
-        WHERE uaa.user_id = ? AND ass.course_id = ?
-      `).get(u.id, a.course_id);
+        WHERE uaa.user_id = ? AND ass.course_id = ?`,
+        args: [u.id, a.course_id],
+      })).rows[0];
 
       const bestScore    = best?.best_score    ?? null;
       const hasPassed    = best?.has_passed    === 1;
@@ -128,33 +131,35 @@ export async function GET(request) {
   /* ──────────────────────────────────────────────
      Sheet 2: Department Analytics
   ────────────────────────────────────────────── */
-  const depts = db.prepare(`
+  const depts = (await db.execute(`
     SELECT DISTINCT department FROM users
     WHERE role = 'learner' AND department IS NOT NULL
     ORDER BY department
-  `).all().map((r) => r.department);
+  `)).rows.map((r) => r.department);
 
   const deptRows = [];
   let orgTotal = 0, orgCompleted = 0, orgInProgress = 0, orgOther = 0;
   let orgScoreSum = 0, orgScoreCount = 0;
 
   for (const dept of depts) {
-    const deptUsers = db.prepare(
-      `SELECT id FROM users WHERE department = ? AND role = 'learner'`
-    ).all(dept);
+    const deptUsers = (await db.execute({
+      sql: `SELECT id FROM users WHERE department = ? AND role = 'learner'`,
+      args: [dept],
+    })).rows;
 
     let dCompleted = 0, dInProgress = 0, dOther = 0;
     let dScoreSum = 0, dScoreCount = 0;
 
     for (const du of deptUsers) {
-      const b = db.prepare(`
-        SELECT MAX(percentage) AS score, MAX(is_passed) AS passed, COUNT(*) AS attempts
-        FROM user_assessment_attempts WHERE user_id = ?
-      `).get(du.id);
+      const b = (await db.execute({
+        sql: `SELECT MAX(percentage) AS score, MAX(is_passed) AS passed, COUNT(*) AS attempts FROM user_assessment_attempts WHERE user_id = ?`,
+        args: [du.id],
+      })).rows[0];
 
-      const cl = db.prepare(`
-        SELECT COUNT(ulc.id) AS cnt FROM user_lesson_completions ulc WHERE ulc.user_id = ?
-      `).get(du.id)?.cnt ?? 0;
+      const cl = ((await db.execute({
+        sql: `SELECT COUNT(ulc.id) AS cnt FROM user_lesson_completions ulc WHERE ulc.user_id = ?`,
+        args: [du.id],
+      })).rows[0]?.cnt) ?? 0;
 
       if (b?.passed === 1)        { dCompleted++;  if (b.score != null) { dScoreSum += b.score; dScoreCount++; } }
       else if ((b?.attempts ?? 0) > 0) dOther++;
@@ -183,7 +188,7 @@ export async function GET(request) {
   /* ──────────────────────────────────────────────
      Sheet 3: Leaderboard & Top Scorers
   ────────────────────────────────────────────── */
-  const topScorers = db.prepare(`
+  const topScorers = (await db.execute(`
     SELECT u.id, u.first_name, u.last_name, u.department,
            MAX(uaa.percentage) AS best_score
     FROM users u
@@ -192,7 +197,7 @@ export async function GET(request) {
     GROUP BY u.id
     ORDER BY best_score DESC
     LIMIT 20
-  `).all();
+  `)).rows;
 
   const rankEmoji = ["🥇", "🥈", "🥉"];
   const leaderRows = topScorers.map((s, i) => [

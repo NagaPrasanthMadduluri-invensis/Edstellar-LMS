@@ -8,33 +8,36 @@ export async function GET(request, { params }) {
 
   const { courseId } = await params;
   const userId = payload.userId;
-  const db = getDb();
+  const db = await getDb();
 
   // Verify assignment
-  const assignment = db.prepare(`
-    SELECT * FROM user_course_assignments WHERE user_id = ? AND course_id = ?
-  `).get(userId, courseId);
+  const assignment = (await db.execute({
+    sql: `SELECT * FROM user_course_assignments WHERE user_id = ? AND course_id = ?`,
+    args: [userId, courseId],
+  })).rows[0];
   if (!assignment) return err("You are not enrolled in this course", 403);
 
-  const course = db.prepare("SELECT * FROM courses WHERE id = ? AND is_active = 1").get(courseId);
+  const course = (await db.execute({ sql: "SELECT * FROM courses WHERE id = ? AND is_active = 1", args: [courseId] })).rows[0];
   if (!course) return err("Course not found", 404);
 
-  const modules = db.prepare(`
-    SELECT * FROM course_modules WHERE course_id = ? AND is_active = 1 ORDER BY sort_order, created_at
-  `).all(courseId);
+  const modules = (await db.execute({
+    sql: `SELECT * FROM course_modules WHERE course_id = ? AND is_active = 1 ORDER BY sort_order, created_at`,
+    args: [courseId],
+  })).rows;
 
   let totalLessons = 0;
   let completedLessons = 0;
   let prevModuleComplete = true; // first module is always accessible
 
   for (const m of modules) {
-    const lessons = db.prepare(`
-      SELECT l.*,
+    const lessons = (await db.execute({
+      sql: `SELECT l.*,
         CASE WHEN ulc.id IS NOT NULL THEN 'completed' ELSE 'not_started' END as progress_status
       FROM lessons l
       LEFT JOIN user_lesson_completions ulc ON ulc.lesson_id = l.id AND ulc.user_id = ?
-      WHERE l.module_id = ? AND l.is_active = 1 ORDER BY l.sort_order, l.created_at
-    `).all(userId, m.id);
+      WHERE l.module_id = ? AND l.is_active = 1 ORDER BY l.sort_order, l.created_at`,
+      args: [userId, m.id],
+    })).rows;
 
     const moduleIsLocked = !prevModuleComplete;
     for (let i = 0; i < lessons.length; i++) {
@@ -60,19 +63,20 @@ export async function GET(request, { params }) {
   const assessmentsUnlocked = totalLessons > 0 && completedLessons === totalLessons;
 
   // Assessments for this course
-  const assessments = db.prepare(`
-    SELECT a.*,
+  const assessments = (await db.execute({
+    sql: `SELECT a.*,
       (SELECT COUNT(*) FROM assessment_questions WHERE assessment_id = a.id) as questions_count,
       (SELECT COUNT(*) FROM user_assessment_attempts WHERE assessment_id = a.id AND user_id = ?) as attempt_count,
       (SELECT MAX(percentage) FROM user_assessment_attempts WHERE assessment_id = a.id AND user_id = ?) as best_score
-    FROM assessments a WHERE a.course_id = ? AND a.is_active = 1 ORDER BY a.created_at
-  `).all(userId, userId, courseId);
+    FROM assessments a WHERE a.course_id = ? AND a.is_active = 1 ORDER BY a.created_at`,
+    args: [userId, userId, courseId],
+  })).rows;
 
   for (const a of assessments) {
-    a.last_attempt = db.prepare(`
-      SELECT percentage, is_passed, submitted_at FROM user_assessment_attempts
-      WHERE assessment_id = ? AND user_id = ? ORDER BY submitted_at DESC LIMIT 1
-    `).get(a.id, userId) || null;
+    a.last_attempt = (await db.execute({
+      sql: `SELECT percentage, is_passed, submitted_at FROM user_assessment_attempts WHERE assessment_id = ? AND user_id = ? ORDER BY submitted_at DESC LIMIT 1`,
+      args: [a.id, userId],
+    })).rows[0] || null;
   }
 
   return ok({

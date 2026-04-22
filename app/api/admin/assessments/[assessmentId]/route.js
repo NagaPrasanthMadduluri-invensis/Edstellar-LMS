@@ -4,17 +4,18 @@ import { requireAdmin, ok, err } from "@/lib/auth.js";
 export async function GET(request, { params }) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
   const { assessmentId } = await params;
-  const db = getDb();
+  const db = await getDb();
 
-  const assessment = db.prepare("SELECT * FROM assessments WHERE id = ?").get(assessmentId);
+  const assessment = (await db.execute({ sql: "SELECT * FROM assessments WHERE id = ?", args: [assessmentId] })).rows[0];
   if (!assessment) return err("Assessment not found", 404);
 
-  const questions = db.prepare(`
-    SELECT * FROM assessment_questions WHERE assessment_id = ? ORDER BY sort_order
-  `).all(assessmentId);
+  const questions = (await db.execute({
+    sql: `SELECT * FROM assessment_questions WHERE assessment_id = ? ORDER BY sort_order`,
+    args: [assessmentId],
+  })).rows;
 
   for (const q of questions) {
-    q.options = db.prepare("SELECT * FROM assessment_options WHERE question_id = ?").all(q.id);
+    q.options = (await db.execute({ sql: "SELECT * FROM assessment_options WHERE question_id = ?", args: [q.id] })).rows;
   }
 
   return ok({ assessment, questions });
@@ -26,19 +27,20 @@ export async function PUT(request, { params }) {
   const { title, description, passing_score, is_active } = await request.json();
   if (!title?.trim()) return err("Title is required");
 
-  const db = getDb();
-  db.prepare(`
-    UPDATE assessments SET title=?, description=?, passing_score=?, is_active=? WHERE id=?
-  `).run(title.trim(), description || null, passing_score ?? 60, is_active ? 1 : 0, assessmentId);
+  const db = await getDb();
+  await db.execute({
+    sql: `UPDATE assessments SET title=?, description=?, passing_score=?, is_active=? WHERE id=?`,
+    args: [title.trim(), description || null, passing_score ?? 60, is_active ? 1 : 0, assessmentId],
+  });
 
-  const assessment = db.prepare("SELECT * FROM assessments WHERE id = ?").get(assessmentId);
+  const assessment = (await db.execute({ sql: "SELECT * FROM assessments WHERE id = ?", args: [assessmentId] })).rows[0];
   return ok({ assessment });
 }
 
 export async function DELETE(request, { params }) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
   const { assessmentId } = await params;
-  const db = getDb();
-  db.prepare("DELETE FROM assessments WHERE id = ?").run(assessmentId);
+  const db = await getDb();
+  await db.execute({ sql: "DELETE FROM assessments WHERE id = ?", args: [assessmentId] });
   return ok({ message: "Assessment deleted" });
 }

@@ -8,33 +8,35 @@ export async function GET(request, { params }) {
 
   const { assessmentId } = await params;
   const userId = payload.userId;
-  const db = getDb();
+  const db = await getDb();
 
-  const assessment = db.prepare(`
-    SELECT a.*, c.name as course_name FROM assessments a
-    JOIN courses c ON c.id = a.course_id
-    WHERE a.id = ? AND a.is_active = 1
-  `).get(assessmentId);
+  const assessment = (await db.execute({
+    sql: `SELECT a.*, c.name as course_name FROM assessments a JOIN courses c ON c.id = a.course_id WHERE a.id = ? AND a.is_active = 1`,
+    args: [assessmentId],
+  })).rows[0];
   if (!assessment) return err("Assessment not found", 404);
 
   // Verify assignment to the course
-  const assigned = db.prepare(`
-    SELECT id FROM user_course_assignments WHERE user_id = ? AND course_id = ?
-  `).get(userId, assessment.course_id);
+  const assigned = (await db.execute({
+    sql: `SELECT id FROM user_course_assignments WHERE user_id = ? AND course_id = ?`,
+    args: [userId, assessment.course_id],
+  })).rows[0];
   if (!assigned) return err("Access denied", 403);
 
-  const questions = db.prepare(`
-    SELECT * FROM assessment_questions WHERE assessment_id = ? ORDER BY sort_order
-  `).all(assessmentId);
+  const questions = (await db.execute({
+    sql: `SELECT * FROM assessment_questions WHERE assessment_id = ? ORDER BY sort_order`,
+    args: [assessmentId],
+  })).rows;
 
   for (const q of questions) {
     // Return options WITHOUT is_correct flag to learner
-    q.options = db.prepare("SELECT id, option_text FROM assessment_options WHERE question_id = ?").all(q.id);
+    q.options = (await db.execute({ sql: "SELECT id, option_text FROM assessment_options WHERE question_id = ?", args: [q.id] })).rows;
   }
 
-  const attempt_count = db.prepare(`
-    SELECT COUNT(*) as c FROM user_assessment_attempts WHERE assessment_id = ? AND user_id = ?
-  `).get(assessmentId, userId).c;
+  const attempt_count = (await db.execute({
+    sql: `SELECT COUNT(*) as c FROM user_assessment_attempts WHERE assessment_id = ? AND user_id = ?`,
+    args: [assessmentId, userId],
+  })).rows[0].c;
 
   return ok({ assessment, questions, attempt_count });
 }

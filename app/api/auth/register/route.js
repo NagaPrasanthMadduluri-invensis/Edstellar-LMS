@@ -16,17 +16,17 @@ export async function POST(request) {
     if (!password || password.length < 8) return err("Password must be at least 8 characters", 422, { password: ["Password must be at least 8 characters"] });
     if (!department || !VALID_DEPARTMENTS.includes(department)) return err("Please select a valid department", 422, { department: ["Please select a department"] });
 
-    const db = getDb();
-    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email.toLowerCase().trim());
+    const db = await getDb();
+    const existing = (await db.execute({ sql: "SELECT id FROM users WHERE email = ?", args: [email.toLowerCase().trim()] })).rows[0];
     if (existing) return err("An account with this email already exists", 422, { email: ["Email already in use"] });
 
     const hashed = hashPassword(password);
-    const result = db.prepare(`
-      INSERT INTO users (first_name, last_name, email, password, role, department)
-      VALUES (?, ?, ?, ?, 'learner', ?)
-    `).run(first_name.trim(), last_name.trim(), email.toLowerCase().trim(), hashed, department);
+    const result = await db.execute({
+      sql: `INSERT INTO users (first_name, last_name, email, password, role, department) VALUES (?, ?, ?, ?, 'learner', ?)`,
+      args: [first_name.trim(), last_name.trim(), email.toLowerCase().trim(), hashed, department],
+    });
 
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid);
+    const user = (await db.execute({ sql: "SELECT * FROM users WHERE id = ?", args: [result.lastInsertRowid] })).rows[0];
     const token = signToken({ userId: user.id, role: user.role, email: user.email });
 
     return ok({

@@ -3,9 +3,9 @@ import { requireAdmin, ok, err } from "@/lib/auth.js";
 
 export async function GET(request) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
-  const db = getDb();
+  const db = await getDb();
 
-  const users = db.prepare(`
+  const users = (await db.execute(`
     SELECT u.id, u.first_name, u.last_name, u.email, u.department,
            u.is_active, u.created_at,
            COUNT(DISTINCT uca.course_id) AS assigned_courses
@@ -14,33 +14,36 @@ export async function GET(request) {
     WHERE u.role = 'learner'
     GROUP BY u.id
     ORDER BY u.created_at DESC
-  `).all();
+  `)).rows;
 
-  const employees = users.map((u) => {
-    const totalLessons = db.prepare(`
-      SELECT COUNT(l.id) AS cnt
+  const employees = [];
+
+  for (const u of users) {
+    const totalLessons = ((await db.execute({
+      sql: `SELECT COUNT(l.id) AS cnt
       FROM lessons l
       JOIN course_modules cm ON cm.id = l.module_id
       JOIN user_course_assignments uca ON uca.course_id = cm.course_id AND uca.user_id = ?
-      WHERE l.is_active = 1 AND cm.is_active = 1
-    `).get(u.id)?.cnt ?? 0;
+      WHERE l.is_active = 1 AND cm.is_active = 1`,
+      args: [u.id],
+    })).rows[0]?.cnt) ?? 0;
 
-    const completedLessons = db.prepare(`
-      SELECT COUNT(ulc.id) AS cnt
+    const completedLessons = ((await db.execute({
+      sql: `SELECT COUNT(ulc.id) AS cnt
       FROM user_lesson_completions ulc
       JOIN lessons l ON l.id = ulc.lesson_id
       JOIN course_modules cm ON cm.id = l.module_id
       JOIN user_course_assignments uca ON uca.course_id = cm.course_id AND uca.user_id = ?
-      WHERE ulc.user_id = ?
-    `).get(u.id, u.id)?.cnt ?? 0;
+      WHERE ulc.user_id = ?`,
+      args: [u.id, u.id],
+    })).rows[0]?.cnt) ?? 0;
 
     const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
-    const best = db.prepare(`
-      SELECT MAX(percentage) AS score, MAX(is_passed) AS passed,
-             COUNT(*) AS attempts
-      FROM user_assessment_attempts WHERE user_id = ?
-    `).get(u.id);
+    const best = (await db.execute({
+      sql: `SELECT MAX(percentage) AS score, MAX(is_passed) AS passed, COUNT(*) AS attempts FROM user_assessment_attempts WHERE user_id = ?`,
+      args: [u.id],
+    })).rows[0];
 
     let status;
     if (best?.passed === 1) status = "completed";
@@ -48,7 +51,7 @@ export async function GET(request) {
     else if (completedLessons > 0) status = "in-progress";
     else status = "not-started";
 
-    return {
+    employees.push({
       id: u.id,
       first_name: u.first_name,
       last_name: u.last_name,
@@ -60,8 +63,8 @@ export async function GET(request) {
       progress,
       status,
       score: best?.score != null ? Math.round(best.score) : null,
-    };
-  });
+    });
+  }
 
   return ok({ employees });
 }

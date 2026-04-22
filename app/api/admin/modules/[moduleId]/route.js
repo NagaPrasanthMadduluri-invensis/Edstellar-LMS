@@ -7,19 +7,20 @@ export async function PUT(request, { params }) {
   const { title, description, is_active } = await request.json();
   if (!title?.trim()) return err("Title is required");
 
-  const db = getDb();
-  db.prepare(`
-    UPDATE course_modules SET title=?, description=?, is_active=? WHERE id=?
-  `).run(title.trim(), description || null, is_active ? 1 : 0, moduleId);
+  const db = await getDb();
+  await db.execute({
+    sql: `UPDATE course_modules SET title=?, description=?, is_active=? WHERE id=?`,
+    args: [title.trim(), description || null, is_active ? 1 : 0, moduleId],
+  });
 
-  const module = db.prepare("SELECT * FROM course_modules WHERE id = ?").get(moduleId);
+  const module = (await db.execute({ sql: "SELECT * FROM course_modules WHERE id = ?", args: [moduleId] })).rows[0];
   return ok({ module });
 }
 
 export async function DELETE(request, { params }) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
   const { moduleId } = await params;
-  const db = getDb();
-  db.prepare("DELETE FROM course_modules WHERE id = ?").run(moduleId);
+  const db = await getDb();
+  await db.execute({ sql: "DELETE FROM course_modules WHERE id = ?", args: [moduleId] });
   return ok({ message: "Module deleted" });
 }
