@@ -4,9 +4,6 @@ const nextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
-  experimental: {                                                                                                                                                                                         
-      runtime: 'edge',
-    },  
 };
 
 export default nextConfig;
