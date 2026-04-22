@@ -15,11 +15,18 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, UserPlus, BookOpen, Calendar, Users } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Search, UserPlus, BookOpen, Calendar, Users, MoreVertical, UserX, UserCheck, Trash2 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchUsers, createUser } from "@/services/api/admin/admin-api";
+import { fetchUsers, createUser, toggleUserStatus, deleteUser } from "@/services/api/admin/admin-api";
 
 const AVATAR_COLORS = [
   "bg-indigo-100 text-indigo-600",
@@ -41,6 +48,8 @@ export function AdminUsersContent() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null); // { type: 'delete'|'toggle', user }
+  const [actioning, setActioning] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -69,6 +78,25 @@ export function AdminUsersContent() {
       setFormError(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmDialog) return;
+    setActioning(true);
+    try {
+      if (confirmDialog.type === "delete") {
+        await deleteUser({ token, userId: confirmDialog.user.id });
+        setUsers((prev) => prev.filter((u) => u.id !== confirmDialog.user.id));
+      } else {
+        await toggleUserStatus({ token, userId: confirmDialog.user.id, is_active: !confirmDialog.user.is_active });
+        setUsers((prev) => prev.map((u) => u.id === confirmDialog.user.id ? { ...u, is_active: !u.is_active } : u));
+      }
+      setConfirmDialog(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setActioning(false);
     }
   };
 
@@ -142,6 +170,26 @@ export function AdminUsersContent() {
                     <Badge variant="secondary" className={`text-[10px] ${u.is_active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
                       {u.is_active ? "Active" : "Inactive"}
                     </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setConfirmDialog({ type: "toggle", user: u })}>
+                          {u.is_active
+                            ? <><UserX className="h-4 w-4 mr-2 text-amber-500" />Deactivate</>
+                            : <><UserCheck className="h-4 w-4 mr-2 text-emerald-500" />Activate</>}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setConfirmDialog({ type: "delete", user: u })}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </Box>
                 </Box>
               </Card>
@@ -149,6 +197,34 @@ export function AdminUsersContent() {
           })}
         </Box>
       )}
+
+      {/* ── Confirm Action Dialog ── */}
+      <AlertDialog open={!!confirmDialog} onOpenChange={(o) => { if (!o) setConfirmDialog(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDialog?.type === "delete" ? "Delete User" : confirmDialog?.user?.is_active ? "Deactivate User" : "Activate User"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog?.type === "delete"
+                ? `This will permanently delete ${confirmDialog?.user?.first_name} ${confirmDialog?.user?.last_name} and all their data. This cannot be undone.`
+                : confirmDialog?.user?.is_active
+                  ? `${confirmDialog?.user?.first_name} ${confirmDialog?.user?.last_name} will no longer be able to log in.`
+                  : `${confirmDialog?.user?.first_name} ${confirmDialog?.user?.last_name} will be able to log in again.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actioning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmAction}
+              disabled={actioning}
+              className={confirmDialog?.type === "delete" ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+            >
+              {actioning ? "Please wait..." : confirmDialog?.type === "delete" ? "Delete" : confirmDialog?.user?.is_active ? "Deactivate" : "Activate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Create User Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

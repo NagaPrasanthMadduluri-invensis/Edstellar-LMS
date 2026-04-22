@@ -104,6 +104,14 @@ export async function createUser({ token, data }) {
   return apiClient("/api/admin/users", { method: "POST", token, body: data });
 }
 
+export async function toggleUserStatus({ token, userId, is_active }) {
+  return apiClient(`/api/admin/users/${userId}`, { method: "PATCH", token, body: { is_active } });
+}
+
+export async function deleteUser({ token, userId }) {
+  return apiClient(`/api/admin/users/${userId}`, { method: "DELETE", token });
+}
+
 /* ── Assignments ── */
 
 export async function fetchAssignments({ token, courseId }) {

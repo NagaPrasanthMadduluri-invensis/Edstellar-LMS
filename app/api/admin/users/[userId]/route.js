@@ -1,6 +1,34 @@
 import { getDb } from "@/lib/db/index.js";
 import { requireAdmin, ok, err } from "@/lib/auth.js";
 
+export async function PATCH(request, { params }) {
+  if (!requireAdmin(request)) return err("Unauthorized", 401);
+  const { userId } = await params;
+  const { is_active } = await request.json();
+  const db = await getDb();
+
+  const user = (await db.execute({ sql: "SELECT id, role FROM users WHERE id = ?", args: [userId] })).rows[0];
+  if (!user) return err("User not found", 404);
+  if (user.role === "admin") return err("Cannot modify admin accounts", 403);
+
+  await db.execute({ sql: "UPDATE users SET is_active = ? WHERE id = ?", args: [is_active ? 1 : 0, userId] });
+  const updated = (await db.execute({ sql: "SELECT id, first_name, last_name, email, is_active FROM users WHERE id = ?", args: [userId] })).rows[0];
+  return ok({ user: { ...updated, is_active: updated.is_active === 1 } });
+}
+
+export async function DELETE(request, { params }) {
+  if (!requireAdmin(request)) return err("Unauthorized", 401);
+  const { userId } = await params;
+  const db = await getDb();
+
+  const user = (await db.execute({ sql: "SELECT id, role FROM users WHERE id = ?", args: [userId] })).rows[0];
+  if (!user) return err("User not found", 404);
+  if (user.role === "admin") return err("Cannot delete admin accounts", 403);
+
+  await db.execute({ sql: "DELETE FROM users WHERE id = ?", args: [userId] });
+  return ok({ message: "User deleted" });
+}
+
 export async function GET(request, { params }) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
   const { userId } = await params;
