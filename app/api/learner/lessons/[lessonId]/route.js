@@ -73,6 +73,32 @@ export async function GET(request, { params }) {
     args: [userId, lessonId],
   })).rows[0];
 
+  // Find next lesson — same module first, then first lesson of next module
+  let nextLesson = (await db.execute({
+    sql: `SELECT id FROM lessons
+          WHERE module_id = ? AND is_active = 1
+          AND (sort_order > ? OR (sort_order = ? AND id > ?))
+          ORDER BY sort_order ASC, id ASC LIMIT 1`,
+    args: [lesson.module_id, lesson.sort_order, lesson.sort_order, lesson.id],
+  })).rows[0];
+
+  if (!nextLesson) {
+    const nextModule = (await db.execute({
+      sql: `SELECT id FROM course_modules
+            WHERE course_id = ? AND is_active = 1
+            AND (sort_order > ? OR (sort_order = ? AND id > ?))
+            ORDER BY sort_order ASC, id ASC LIMIT 1`,
+      args: [lesson.course_id, lesson.sort_order, lesson.sort_order, lesson.module_id],
+    })).rows[0];
+
+    if (nextModule) {
+      nextLesson = (await db.execute({
+        sql: `SELECT id FROM lessons WHERE module_id = ? AND is_active = 1 ORDER BY sort_order ASC, id ASC LIMIT 1`,
+        args: [nextModule.id],
+      })).rows[0];
+    }
+  }
+
   return ok({
     lesson: {
       id: lesson.id,
@@ -84,5 +110,6 @@ export async function GET(request, { params }) {
       module: { title: lesson.module_title },
     },
     progress_status: completion ? "completed" : "not_started",
+    next_lesson_id: nextLesson ? Number(nextLesson.id) : null,
   });
 }

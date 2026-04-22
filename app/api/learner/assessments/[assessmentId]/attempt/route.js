@@ -50,7 +50,7 @@ export async function POST(request, { params }) {
     args: [userId, assessmentId, score, total, percentage, is_passed],
   });
 
-  const attemptId = attemptResult.lastInsertRowid;
+  const attemptId = Number(attemptResult.lastInsertRowid);
 
   for (const a of scoredAnswers) {
     await db.execute({

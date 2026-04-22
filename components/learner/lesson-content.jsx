@@ -49,6 +49,11 @@ export function LessonContent({ courseId, lessonId }) {
     try {
       await markLessonComplete({ token, lessonId });
       setStatus("completed");
+      if (data?.next_lesson_id) {
+        router.push(`/my-courses/${courseId}/lessons/${data.next_lesson_id}`);
+      } else {
+        router.push(`/my-courses/${courseId}`);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -144,19 +149,21 @@ export function LessonContent({ courseId, lessonId }) {
 
       {/* ── Video Player ── */}
       {lesson.content_url ? (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden h-[80vh]">
           {isYT ? (
             <YoutubePlayer
               videoId={extractYouTubeId(lesson.content_url)}
               onEnded={() => setVideoEnded(true)}
+              className="h-full"
             />
           ) : isLocal ? (
             <LocalVideoPlayer
               src={lesson.content_url}
               onEnded={() => setVideoEnded(true)}
+              className="h-full"
             />
           ) : (
-            <Box className="aspect-video w-full bg-black">
+            <Box className="h-full w-full bg-black">
               <iframe
                 src={lesson.content_url}
                 className="w-full h-full"
