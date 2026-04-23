@@ -24,7 +24,7 @@ export function TopNav({ portalLabel = "Edstellar LMS" }) {
   return (
     <Box
       as="header"
-      className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between border-b bg-foreground px-4"
+      className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between bg-sidebar px-4"
     >
       <Box className="flex items-center gap-3">
         <SidebarTrigger className="bg-transparent hover:bg-transparent" />

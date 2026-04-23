@@ -536,16 +536,7 @@ export function AdminEmployeesContent() {
                       </td>
                       <td className="px-4 py-2.5">
                         <Box className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className={`h-6 px-2 text-[10px] font-medium gap-1 ${emp.is_active ? "border-amber-400 text-amber-600 hover:bg-amber-50" : "border-emerald-400 text-emerald-600 hover:bg-emerald-50"}`}
-                            onClick={() => setConfirmToggle({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, is_active: emp.is_active })}
-                          >
-                            {emp.is_active
-                              ? <><UserX className="h-3 w-3" />Deactivate</>
-                              : <><UserCheck className="h-3 w-3" />Activate</>}
-                          </Button>
+                         
                           <Button
                             variant="ghost"
                             size="sm"
@@ -554,6 +545,16 @@ export function AdminEmployeesContent() {
                           >
                             <ExternalLink className="h-3 w-3" />
                             View Details
+                          </Button>
+                           <Button
+                            variant="outline"
+                            size="sm"
+                            className={`h-6 px-2 text-[10px] font-medium gap-1 ${emp.is_active ? "border-amber-400 text-amber-600 hover:bg-amber-50" : "border-emerald-400 text-emerald-600 hover:bg-emerald-50"}`}
+                            onClick={() => setConfirmToggle({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, is_active: emp.is_active })}
+                          >
+                            {emp.is_active
+                              ? <><UserX className="h-3 w-3" />Deactivate</>
+                              : <><UserCheck className="h-3 w-3" />Activate</>}
                           </Button>
                         </Box>
                       </td>

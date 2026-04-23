@@ -23,7 +23,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { UserCheck, UserX, Users, BookOpen, CheckCircle2, Clock, Layers, PlayCircle, ClipboardList, GraduationCap, ShieldCheck } from "lucide-react";
+import { UserCheck, UserX, Users, BookOpen, CheckCircle2, Clock, Layers, PlayCircle, ClipboardList, GraduationCap, ShieldCheck, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
@@ -68,6 +69,7 @@ export function AdminAssignLearningContent() {
   const [unassignTarget, setUnassignTarget] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Load courses
   useEffect(() => {
@@ -142,15 +144,24 @@ export function AdminAssignLearningContent() {
   const totalLearners = employees?.length ?? 0;
   const selectedCourse = courses.find((c) => String(c.id) === String(selectedCourseId));
 
-  // Group by department
-  const deptGroups = employees
-    ? employees.reduce((acc, emp) => {
-        const dept = emp.department || "No Department";
-        if (!acc[dept]) acc[dept] = [];
-        acc[dept].push(emp);
-        return acc;
-      }, {})
-    : {};
+  // Filter by search query, then group by department
+  const filteredEmployees = employees
+    ? employees.filter((emp) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          `${emp.first_name} ${emp.last_name}`.toLowerCase().includes(q) ||
+          (emp.email || "").toLowerCase().includes(q)
+        );
+      })
+    : [];
+
+  const deptGroups = filteredEmployees.reduce((acc, emp) => {
+    const dept = emp.department || "No Department";
+    if (!acc[dept]) acc[dept] = [];
+    acc[dept].push(emp);
+    return acc;
+  }, {});
 
   return (
     <Box className="space-y-5">
@@ -166,12 +177,12 @@ export function AdminAssignLearningContent() {
             </CardHeader>
             <CardContent className="px-5 pb-4">
               <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Choose a course" />
+                <SelectTrigger className="h-11 text-sm w-full min-w-0">
+                  <SelectValue placeholder="Choose a course" className="truncate" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-w-[480px]">
                   {courses.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={String(c.id)} className="whitespace-normal break-words py-2">{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -261,6 +272,34 @@ export function AdminAssignLearningContent() {
         </Card>
       </Box>
 
+      {/* ── Search + Assign All ── */}
+      {employees && employees.length > 0 && (
+        <Box className="flex items-center gap-3">
+          <Box className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search employees by name or email…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-10"
+            />
+          </Box>
+          <Button
+            className="h-10 px-4 bg-indigo-500 hover:bg-indigo-600 text-white shrink-0"
+            onClick={async () => {
+              const unassigned = employees.filter((m) => !assignedUserIds.has(m.id));
+              for (const m of unassigned) {
+                try { await assignUser({ token, courseId: selectedCourseId, userId: m.id }); } catch {}
+              }
+              await loadData();
+            }}
+          >
+            <UserCheck className="h-4 w-4 mr-2" />
+            Assign All Employees
+          </Button>
+        </Box>
+      )}
+
       {/* ── Learner Groups by Department ── */}
       {loading || !employees ? (
         <Box className="space-y-3">
@@ -270,6 +309,11 @@ export function AdminAssignLearningContent() {
         <Card className="p-16 text-center">
           <Users className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
           <Text as="p" className="text-sm text-muted-foreground">No learners registered yet.</Text>
+        </Card>
+      ) : filteredEmployees.length === 0 ? (
+        <Card className="p-16 text-center">
+          <Search className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+          <Text as="p" className="text-sm text-muted-foreground">No employees match &quot;{searchQuery}&quot;.</Text>
         </Card>
       ) : (
         Object.entries(deptGroups).sort(([a], [b]) => a.localeCompare(b)).map(([dept, members]) => {
