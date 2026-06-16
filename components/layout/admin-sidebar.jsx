@@ -56,11 +56,11 @@ export function AdminSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarContent>
-        <NavGroup label="Overview" items={adminNav.main} pathname={pathname} />
-        <NavGroup items={adminNav.users} pathname={pathname} />
-        <NavGroup label="Content Management" items={adminNav.content} pathname={pathname} />
-        <NavGroup  items={adminNav.operations} pathname={pathname} />
-        <NavGroup  items={adminNav.communication} pathname={pathname} />
+        <NavGroup items={adminNav.main} pathname={pathname} />
+        <NavGroup label="User Management"   items={adminNav.userManagement}   pathname={pathname} />
+        <NavGroup label="Course Management" items={adminNav.courseManagement} pathname={pathname} />
+        <NavGroup label="Assignments"       items={adminNav.assignments}      pathname={pathname} />
+        <NavGroup label="Analytics"         items={adminNav.analytics}        pathname={pathname} />
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>

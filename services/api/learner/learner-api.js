@@ -38,3 +38,7 @@ export async function submitAssessmentAttempt({ token, assessmentId, answers }) 
 export async function fetchAssessmentAttempts({ token, assessmentId }) {
   return apiClient(`/api/learner/assessments/${assessmentId}/attempts`, { token });
 }
+
+export async function fetchProgress({ token }) {
+  return apiClient("/api/learner/progress", { token });
+}

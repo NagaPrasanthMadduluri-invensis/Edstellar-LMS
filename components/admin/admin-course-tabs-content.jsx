@@ -11,13 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { BookOpen, Layers, ClipboardList, Users, Pencil, CheckCircle2, XCircle } from "lucide-react";
+import {
+  BookOpen, Layers, ClipboardList, Users, Pencil, PlayCircle,
+  Clock, CheckCircle2, XCircle, BarChart3,
+} from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,7 +48,7 @@ export function AdminCourseTabsContent({ courseId }) {
   };
 
   const handleSave = async () => {
-    if (!form.name?.trim()) { setFormError("Name is required"); return; }
+    if (!form.name?.trim()) { setFormError("Course name is required"); return; }
     setSaving(true); setFormError(null);
     try {
       const d = await updateCourse({ token, courseId, data: form });
@@ -60,33 +59,72 @@ export function AdminCourseTabsContent({ courseId }) {
 
   return (
     <Box className="space-y-5">
+
       {/* ── Course Info Card ── */}
       {!course ? (
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-36 w-full rounded-xl" />
       ) : (
-        <Card className="overflow-hidden">
-          <Box className="h-1.5 bg-gradient-to-r from-indigo-500 to-purple-600" />
+        <Card className="overflow-hidden border-l-4 border-l-blue-500">
           <CardContent className="p-5">
             <Box className="flex items-start justify-between gap-4 flex-wrap">
-              <Box className="flex items-start gap-3 flex-1 min-w-0">
-                <Box className="w-11 h-11 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                  <BookOpen className="h-5 w-5 text-indigo-600" />
+
+              {/* Icon + title */}
+              <Box className="flex items-start gap-4 flex-1 min-w-0">
+                <Box className="w-14 h-14 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                  <BookOpen className="h-6 w-6 text-blue-500" />
                 </Box>
                 <Box className="flex-1 min-w-0">
-                  <Box className="flex items-center gap-2 flex-wrap">
-                    <Text as="h2" className="text-base font-bold">{course.name}</Text>
-                    <Badge variant="secondary" className={`text-[10px] ${course.is_active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                      {course.is_active ? <><CheckCircle2 className="h-3 w-3 mr-0.5 inline" />Active</> : <><XCircle className="h-3 w-3 mr-0.5 inline" />Inactive</>}
+                  <Box className="flex items-center gap-2.5 flex-wrap">
+                    <Text as="h2" className="text-lg font-bold">{course.name}</Text>
+                    <Badge className={`text-[11px] font-medium ${course.is_active ? "bg-emerald-100 text-emerald-700 border-0" : "bg-gray-100 text-gray-500 border-0"}`}>
+                      {course.is_active
+                        ? <><CheckCircle2 className="h-3 w-3 mr-1 inline" />Published</>
+                        : <><XCircle className="h-3 w-3 mr-1 inline" />Inactive</>
+                      }
                     </Badge>
                   </Box>
                   {course.description && (
-                    <Text as="p" className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{course.description}</Text>
+                    <Text as="p" className="text-sm text-muted-foreground mt-1 line-clamp-2">{course.description}</Text>
                   )}
+
+                  {/* Quick stats row */}
+                  <Box className="flex items-center gap-5 flex-wrap mt-3">
+                    {[
+                      { icon: Layers,       val: course.modules_count,    label: "Modules"    },
+                      { icon: PlayCircle,   val: course.lessons_count,    label: "Lessons"    },
+                      { icon: ClipboardList,val: course.assessments_count,label: "Assessments"},
+                      { icon: Users,        val: course.enrollments_count,label: "Enrolled"   },
+                    ].map(({ icon: Icon, val, label }) => (
+                      <Box key={label} className="flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground/60" />
+                        <Text as="span" className="text-sm font-semibold">{val ?? 0}</Text>
+                        <Text as="span" className="text-xs text-muted-foreground">{label}</Text>
+                      </Box>
+                    ))}
+                    {course.total_duration_minutes > 0 && (
+                      <Box className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
+                        <Text as="span" className="text-xs text-muted-foreground">
+                          {Math.floor(course.total_duration_minutes / 60) > 0
+                            ? `${Math.floor(course.total_duration_minutes / 60)}h ${course.total_duration_minutes % 60}m`
+                            : `${course.total_duration_minutes}m`
+                          }
+                        </Text>
+                      </Box>
+                    )}
+                    {course.passing_score != null && (
+                      <Box className="flex items-center gap-1.5">
+                        <BarChart3 className="h-3.5 w-3.5 text-muted-foreground/60" />
+                        <Text as="span" className="text-xs text-muted-foreground">Pass: {course.passing_score}%</Text>
+                      </Box>
+                    )}
+                  </Box>
                 </Box>
               </Box>
-              <Button size="sm" variant="outline" onClick={openEdit} className="shrink-0">
+
+              <Button size="sm" variant="outline" onClick={openEdit} className="shrink-0 h-9">
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                Edit
+                Edit Course
               </Button>
             </Box>
           </CardContent>
@@ -95,17 +133,17 @@ export function AdminCourseTabsContent({ courseId }) {
 
       {/* ── Tabs ── */}
       <Tabs defaultValue="modules">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="modules" className="flex items-center gap-1.5">
-            <Layers className="h-3.5 w-3.5" />
+        <TabsList className="grid w-full grid-cols-3 h-11">
+          <TabsTrigger value="modules" className="flex items-center gap-1.5 text-sm">
+            <Layers className="h-4 w-4" />
             Modules & Lessons
           </TabsTrigger>
-          <TabsTrigger value="assessments" className="flex items-center gap-1.5">
-            <ClipboardList className="h-3.5 w-3.5" />
+          <TabsTrigger value="assessments" className="flex items-center gap-1.5 text-sm">
+            <ClipboardList className="h-4 w-4" />
             Assessments
           </TabsTrigger>
-          <TabsTrigger value="assignments" className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" />
+          <TabsTrigger value="assignments" className="flex items-center gap-1.5 text-sm">
+            <Users className="h-4 w-4" />
             Enrolled Users
           </TabsTrigger>
         </TabsList>
@@ -129,30 +167,48 @@ export function AdminCourseTabsContent({ courseId }) {
           <DialogHeader>
             <DialogTitle>Edit Course</DialogTitle>
           </DialogHeader>
-          <Box className="space-y-4 py-2">
-            <Box className="space-y-1.5">
-              <Label>Course Name <Text as="span" className="text-red-500">*</Text></Label>
-              <Input value={form.name || ""} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+          <Box className="space-y-5 py-2">
+            <Box className="space-y-2">
+              <Label className="text-sm font-medium">
+                Course Name <Text as="span" className="text-red-500">*</Text>
+              </Label>
+              <Input
+                placeholder="Course name"
+                value={form.name || ""}
+                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                className="h-10"
+              />
             </Box>
-            <Box className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea rows={3} value={form.description || ""} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+            <Box className="space-y-2">
+              <Label className="text-sm font-medium">Description</Label>
+              <Textarea
+                rows={3}
+                placeholder="Brief course description..."
+                value={form.description || ""}
+                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              />
             </Box>
-            <Box className="flex items-center gap-3">
+            <Box className="flex items-center justify-between rounded-lg border p-4">
+              <Box>
+                <Text as="p" className="text-sm font-medium">Published</Text>
+                <Text as="p" className="text-xs text-muted-foreground">Visible and accessible to enrolled learners</Text>
+              </Box>
               <Switch
                 id="course-active"
                 checked={!!form.is_active}
                 onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
               />
-              <Label htmlFor="course-active">Active (visible to learners)</Label>
             </Box>
-            {formError && <Text as="p" className="text-sm text-red-500">{formError}</Text>}
+            {formError && (
+              <Box className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <Text as="p" className="text-sm text-red-600">{formError}</Text>
+              </Box>
+            )}
           </Box>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
-              {saving ? "Saving..." : "Save Changes"}
+            <Button onClick={handleSave} disabled={saving} className="bg-blue-500 hover:bg-blue-600 text-white">
+              {saving ? "Saving…" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -35,31 +36,29 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Search, UserPlus, Users, ExternalLink, BookOpen,
+  Search, UserPlus, Users, BookOpen,
   ClipboardList, CheckCircle2, XCircle, Clock, Trophy,
-  TrendingUp, ChevronDown, ChevronUp, CalendarDays, UserX, UserCheck,
+  TrendingUp, ChevronDown, ChevronUp, CalendarDays,
+  Upload, Download,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { createUser, toggleUserStatus } from "@/services/api/admin/admin-api";
+import { createUser, toggleUserStatus, deleteUser } from "@/services/api/admin/admin-api";
 
 const AVATAR_COLORS = [
-  "bg-indigo-100 text-indigo-600",
-  "bg-emerald-100 text-emerald-600",
-  "bg-amber-100 text-amber-600",
-  "bg-violet-100 text-violet-600",
-  "bg-pink-100 text-pink-600",
-  "bg-cyan-100 text-cyan-600",
+  "bg-emerald-500 text-white",
+  "bg-orange-500 text-white",
+  "bg-pink-500 text-white",
+  "bg-violet-500 text-white",
+  "bg-blue-500 text-white",
+  "bg-rose-500 text-white",
+  "bg-teal-500 text-white",
+  "bg-amber-500 text-white",
+  "bg-indigo-500 text-white",
+  "bg-cyan-500 text-white",
 ];
-
-const STATUS_CONFIG = {
-  "completed":   { label: "Completed",   className: "bg-emerald-100 text-emerald-700" },
-  "in-progress": { label: "In Progress", className: "bg-blue-100 text-blue-700" },
-  "not-started": { label: "Not Started", className: "bg-gray-100 text-gray-500" },
-  "failed":      { label: "Failed",      className: "bg-red-100 text-red-700" },
-};
 
 const DEPARTMENTS = [
   "Sales", "HR", "Technology", "Finance", "Marketing",
@@ -79,17 +78,16 @@ function AssessmentBlock({ assessment }) {
 
   return (
     <Box className="rounded-xl border bg-background overflow-hidden">
-      {/* Assessment row */}
       <Box className="flex items-center justify-between gap-4 px-4 py-3 flex-wrap">
         <Box className="flex items-center gap-3 flex-1 min-w-0">
           <Box className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
             has_passed ? "bg-emerald-100" : attempt_count > 0 ? "bg-red-100" : "bg-gray-100"
           }`}>
             {has_passed
-              ? <Trophy className="h-4.5 w-4.5 text-emerald-600" />
+              ? <Trophy className="h-4 w-4 text-emerald-600" />
               : attempt_count > 0
-                ? <XCircle className="h-4.5 w-4.5 text-red-500" />
-                : <ClipboardList className="h-4.5 w-4.5 text-gray-400" />
+                ? <XCircle className="h-4 w-4 text-red-500" />
+                : <ClipboardList className="h-4 w-4 text-gray-400" />
             }
           </Box>
           <Box className="min-w-0">
@@ -99,7 +97,6 @@ function AssessmentBlock({ assessment }) {
             </Text>
           </Box>
         </Box>
-
         <Box className="flex items-center gap-3 shrink-0">
           {attempt_count > 0 ? (
             <Badge variant="secondary" className={`text-xs font-semibold px-2.5 py-1 ${
@@ -128,8 +125,6 @@ function AssessmentBlock({ assessment }) {
           )}
         </Box>
       </Box>
-
-      {/* Attempt history */}
       {expanded && attempts.length > 0 && (
         <Box className="border-t bg-muted/20 px-4 py-3 space-y-2">
           <Text as="p" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -185,10 +180,10 @@ function UserDetailSheet({ userId, token, open, onClose }) {
   const initials = user ? `${(user.first_name || "")[0]}${(user.last_name || "")[0]}`.toUpperCase() : "?";
 
   const summaryCards = summary ? [
-    { label: "Courses Assigned", value: summary.coursesAssigned, color: "text-indigo-600", bg: "bg-indigo-50" },
-    { label: "Completed",        value: summary.coursesCompleted, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Assessment Attempts", value: summary.totalAttempts, color: "text-amber-600", bg: "bg-amber-50" },
-    { label: "Best Score",       value: summary.bestScore != null ? `${summary.bestScore}%` : "—", color: summary.bestScore >= 60 ? "text-emerald-600" : "text-red-500", bg: summary.bestScore >= 60 ? "bg-emerald-50" : "bg-red-50" },
+    { label: "Courses Assigned",     value: summary.coursesAssigned,                                         color: "text-indigo-600",  bg: "bg-indigo-50"  },
+    { label: "Completed",            value: summary.coursesCompleted,                                         color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Assessment Attempts",  value: summary.totalAttempts,                                            color: "text-amber-600",   bg: "bg-amber-50"   },
+    { label: "Best Score",           value: summary.bestScore != null ? `${summary.bestScore}%` : "—",        color: summary.bestScore >= 60 ? "text-emerald-600" : "text-red-500", bg: summary.bestScore >= 60 ? "bg-emerald-50" : "bg-red-50" },
   ] : [];
 
   return (
@@ -216,7 +211,6 @@ function UserDetailSheet({ userId, token, open, onClose }) {
 
         {!loading && user && (
           <Box className="space-y-6 pb-6">
-            {/* ── Profile ── */}
             <Box className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border">
               <Avatar className="h-14 w-14 shrink-0">
                 <AvatarFallback className="bg-indigo-100 text-indigo-600 text-xl font-bold">{initials}</AvatarFallback>
@@ -241,7 +235,6 @@ function UserDetailSheet({ userId, token, open, onClose }) {
               </Box>
             </Box>
 
-            {/* ── Summary stats ── */}
             <Box className="grid grid-cols-4 gap-3">
               {summaryCards.map((s) => (
                 <Box key={s.label} className={`${s.bg} rounded-xl p-3 text-center border`}>
@@ -251,7 +244,6 @@ function UserDetailSheet({ userId, token, open, onClose }) {
               ))}
             </Box>
 
-            {/* ── Course breakdown ── */}
             {courses.length === 0 ? (
               <Box className="text-center py-10">
                 <BookOpen className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
@@ -263,11 +255,11 @@ function UserDetailSheet({ userId, token, open, onClose }) {
                   Course Breakdown
                 </Text>
                 {courses.map((c) => {
-                  const isComplete = c.progress === 100;
+                  const isComplete   = c.progress === 100;
                   const isInProgress = !isComplete && c.completedLessons > 0;
-                  const accentBar = isComplete ? "bg-emerald-500" : isInProgress ? "bg-indigo-500" : "bg-gray-300";
-                  const statusLabel = isComplete ? "Completed" : isInProgress ? "In Progress" : "Not Started";
-                  const statusClass = isComplete
+                  const accentBar    = isComplete ? "bg-emerald-500" : isInProgress ? "bg-indigo-500" : "bg-gray-300";
+                  const statusLabel  = isComplete ? "Completed" : isInProgress ? "In Progress" : "Not Started";
+                  const statusClass  = isComplete
                     ? "bg-emerald-100 text-emerald-700"
                     : isInProgress
                       ? "bg-indigo-100 text-indigo-700"
@@ -275,29 +267,22 @@ function UserDetailSheet({ userId, token, open, onClose }) {
 
                   return (
                     <Card key={c.course_id} className="overflow-hidden">
-                      {/* Colored accent bar */}
                       <Box className={`h-1.5 w-full ${accentBar}`} />
-
                       <CardContent className="p-5 space-y-4">
-                        {/* Course title row */}
                         <Box className="flex items-start justify-between gap-3">
                           <Box className="flex items-center gap-3 flex-1 min-w-0">
                             <Box className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
-                              <BookOpen className="h-4.5 w-4.5 text-indigo-600" />
+                              <BookOpen className="h-4 w-4 text-indigo-600" />
                             </Box>
                             <Box className="min-w-0">
                               <Text as="h4" className="text-sm font-bold leading-snug">{c.course_name}</Text>
-                              <Text as="span" className="text-xs text-muted-foreground">
-                                Enrolled {formatDate(c.assigned_at)}
-                              </Text>
+                              <Text as="span" className="text-xs text-muted-foreground">Enrolled {formatDate(c.assigned_at)}</Text>
                             </Box>
                           </Box>
                           <Badge variant="secondary" className={`text-xs shrink-0 px-2.5 py-1 ${statusClass}`}>
                             {statusLabel}
                           </Badge>
                         </Box>
-
-                        {/* Lesson progress */}
                         <Box className="rounded-lg bg-muted/40 border px-4 py-3 space-y-2">
                           <Box className="flex items-center justify-between">
                             <Text as="span" className="text-xs font-semibold flex items-center gap-1.5">
@@ -311,8 +296,6 @@ function UserDetailSheet({ userId, token, open, onClose }) {
                             {c.completedLessons} of {c.totalLessons} lessons completed
                           </Text>
                         </Box>
-
-                        {/* Assessments */}
                         {c.assessments.length > 0 && (
                           <Box className="space-y-2.5">
                             <Text as="p" className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
@@ -339,18 +322,22 @@ function UserDetailSheet({ userId, token, open, onClose }) {
 
 export function AdminEmployeesContent() {
   const { token } = useAuth();
-  const [employees, setEmployees] = useState(null);
-  const [search, setSearch] = useState("");
-  const [filterDept, setFilterDept] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [error, setError] = useState(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState(null);
+  const [employees, setEmployees]       = useState(null);
+  const [search, setSearch]             = useState("");
+  const [filterDept, setFilterDept]     = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");   // active | inactive
+  const [filterProgress, setFilterProgress] = useState("all"); // course completion
+  const [error, setError]               = useState(null);
+  const [dialogOpen, setDialogOpen]     = useState(false);
+  const [form, setForm]                 = useState(EMPTY_FORM);
+  const [saving, setSaving]             = useState(false);
+  const [formError, setFormError]       = useState(null);
   const [detailUserId, setDetailUserId] = useState(null);
   const [confirmToggle, setConfirmToggle] = useState(null); // { id, name, is_active }
-  const [actioning, setActioning] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { id, name }
+  const [actioning, setActioning]       = useState(false);
+  const [selected, setSelected]         = useState(new Set());
+  const [exporting, setExporting]       = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -378,11 +365,26 @@ export function AdminEmployeesContent() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setActioning(true);
+    try {
+      await deleteUser({ token, userId: confirmDelete.id });
+      setEmployees((prev) => prev.filter((e) => e.id !== confirmDelete.id));
+      setSelected((prev) => { const n = new Set(prev); n.delete(confirmDelete.id); return n; });
+      setConfirmDelete(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setActioning(false);
+    }
+  };
+
   const handleCreate = async () => {
     if (!form.first_name.trim()) { setFormError("First name is required"); return; }
-    if (!form.last_name.trim()) { setFormError("Last name is required"); return; }
-    if (!form.email.trim()) { setFormError("Email is required"); return; }
-    if (form.password.length < 6) { setFormError("Password must be at least 6 characters"); return; }
+    if (!form.last_name.trim())  { setFormError("Last name is required");  return; }
+    if (!form.email.trim())      { setFormError("Email is required");       return; }
+    if (form.password.length < 6){ setFormError("Password must be at least 6 characters"); return; }
     setSaving(true); setFormError(null);
     try {
       await createUser({ token, data: form });
@@ -396,178 +398,301 @@ export function AdminEmployeesContent() {
     }
   };
 
-  if (error) return <Card className="p-6 text-center"><Text as="p" className="text-red-500 text-sm">{error}</Text></Card>;
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/admin/export", { headers: { Authorization: `Bearer ${token}` } });
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = "users-export.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (_) {
+      // silent fail
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (error) return (
+    <Card className="p-6 text-center">
+      <Text as="p" className="text-red-500 text-sm">{error}</Text>
+    </Card>
+  );
+
   if (!employees) return (
     <Box className="space-y-2">
-      {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+      {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
     </Box>
   );
 
   const depts = [...new Set(employees.map((e) => e.department).filter(Boolean))].sort();
 
   const filtered = employees.filter((e) => {
-    const matchSearch = `${e.first_name} ${e.last_name} ${e.email}`.toLowerCase().includes(search.toLowerCase());
-    const matchDept = filterDept === "all" || e.department === filterDept;
-    const matchStatus = filterStatus === "all" || e.status === filterStatus;
-    return matchSearch && matchDept && matchStatus;
+    const q = `${e.first_name} ${e.last_name} ${e.email}`.toLowerCase();
+    const matchSearch   = q.includes(search.toLowerCase());
+    const matchDept     = filterDept     === "all" || e.department === filterDept;
+    const matchStatus   = filterStatus   === "all"
+      || (filterStatus   === "active"   && e.is_active)
+      || (filterStatus   === "inactive" && !e.is_active);
+    const matchProgress = filterProgress === "all" || e.status === filterProgress;
+    return matchSearch && matchDept && matchStatus && matchProgress;
   });
 
+  const allSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.id));
+  const toggleAll   = () => {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      allSelected
+        ? filtered.forEach((e) => n.delete(e.id))
+        : filtered.forEach((e) => n.add(e.id));
+      return n;
+    });
+  };
+
   return (
-    <Box className="space-y-4">
-      {/* ── Toolbar ── */}
-      <Box className="flex flex-wrap items-center gap-3">
-        <Box className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-8 text-sm"
-          />
+    <Box>
+      <Card className="overflow-hidden">
+
+        {/* ── Header ── */}
+        <Box className="flex items-center justify-between px-6 py-4 border-b">
+          <Box>
+            <Text as="h2" className="text-base font-bold">All Users</Text>
+            <Text as="p" className="text-xs text-muted-foreground mt-0.5">
+              {filtered.length} of {employees.length} users shown
+            </Text>
+          </Box>
+          <Box className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+              <Upload className="h-3.5 w-3.5" />
+              Bulk Upload
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {exporting ? "Exporting…" : "Export"}
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5 bg-blue-500 hover:bg-blue-600 text-white"
+              onClick={() => { setForm(EMPTY_FORM); setFormError(null); setDialogOpen(true); }}
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              + Add User
+            </Button>
+          </Box>
         </Box>
-        <Select value={filterDept} onValueChange={setFilterDept}>
-          <SelectTrigger className="h-8 text-xs w-[150px]">
-            <SelectValue placeholder="All Departments" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Departments</SelectItem>
-            {depts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="h-8 text-xs w-[140px]">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="in-progress">In Progress</SelectItem>
-            <SelectItem value="not-started">Not Started</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button
-          size="sm"
-          onClick={() => { setForm(EMPTY_FORM); setFormError(null); setDialogOpen(true); }}
-          className="h-8 text-xs bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shrink-0"
-        >
-          <UserPlus className="h-3.5 w-3.5 mr-1.5" />
-          Add User
-        </Button>
-      </Box>
 
-      <Text as="p" className="text-xs text-muted-foreground">
-        {filtered.length} of {employees.length} learner{employees.length !== 1 ? "s" : ""}
-      </Text>
+        {/* ── Filter Bar ── */}
+        <Box className="flex flex-wrap items-center gap-2 px-6 py-3 border-b">
+          <Box className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-9 text-sm"
+            />
+          </Box>
+          {/* All Roles — always learner in this view, kept for UI parity */}
+          <Select defaultValue="all" disabled>
+            <SelectTrigger className="h-9 text-xs w-[110px]">
+              <SelectValue>All Roles</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterDept} onValueChange={setFilterDept}>
+            <SelectTrigger className="h-9 text-xs w-[120px]">
+              <SelectValue placeholder="All Depts" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Depts</SelectItem>
+              {depts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="h-9 text-xs w-[120px]">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterProgress} onValueChange={setFilterProgress}>
+            <SelectTrigger className="h-9 text-xs w-[130px]">
+              <SelectValue placeholder="All Progress" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="not-started">Not Started</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
+        </Box>
 
-      {filtered.length === 0 ? (
-        <Card className="p-10 text-center">
-          <Users className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-          <Text as="p" className="text-sm text-muted-foreground">
-            {search || filterDept !== "all" || filterStatus !== "all"
-              ? "No employees match your filters."
-              : "No learners yet. Add the first user."}
-          </Text>
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
+        {/* ── Table ── */}
+        {filtered.length === 0 ? (
+          <Box className="py-16 text-center">
+            <Users className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+            <Text as="p" className="text-sm text-muted-foreground">
+              {search || filterDept !== "all" || filterStatus !== "all" || filterProgress !== "all"
+                ? "No users match your filters."
+                : "No learners yet. Add the first user."}
+            </Text>
+          </Box>
+        ) : (
           <Box className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-muted/40">
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5">Employee</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5">Department</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5">Status</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5 min-w-[140px]">Progress</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5">Score</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5">Courses</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5">Joined</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-2.5"></th>
+                <tr className="border-b bg-muted/20">
+                  <th className="px-5 py-3 w-10">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label="Select all"
+                    />
+                  </th>
+                  {["User", "Role", "Department", "Status", "Courses", "Completion", "Last Activity", "Actions"].map((h) => (
+                    <th key={h} className="text-left text-[11px] font-semibold text-muted-foreground tracking-wide uppercase px-4 py-3 whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((emp, i) => {
-                  const initials = `${(emp.first_name || "")[0]}${(emp.last_name || "")[0]}`.toUpperCase();
-                  const colorClass = AVATAR_COLORS[i % AVATAR_COLORS.length];
-                  const statusCfg = STATUS_CONFIG[emp.status] || STATUS_CONFIG["not-started"];
+                  const initials    = `${(emp.first_name || "")[0]}${(emp.last_name || "")[0]}`.toUpperCase();
+                  const avatarColor = AVATAR_COLORS[i % AVATAR_COLORS.length];
                   return (
-                    <tr key={emp.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2.5">
-                        <Box className="flex items-center gap-2.5">
-                          <Avatar className="h-7 w-7 shrink-0">
-                            <AvatarFallback className={`text-[10px] font-bold ${colorClass}`}>{initials}</AvatarFallback>
+                    <tr key={emp.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+
+                      {/* Checkbox */}
+                      <td className="px-5 py-3.5">
+                        <Checkbox
+                          checked={selected.has(emp.id)}
+                          onCheckedChange={(v) => setSelected((prev) => {
+                            const n = new Set(prev);
+                            v ? n.add(emp.id) : n.delete(emp.id);
+                            return n;
+                          })}
+                          aria-label={`Select ${emp.first_name}`}
+                        />
+                      </td>
+
+                      {/* User */}
+                      <td className="px-4 py-3.5">
+                        <Box className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 shrink-0">
+                            <AvatarFallback className={`text-xs font-bold ${avatarColor}`}>{initials}</AvatarFallback>
                           </Avatar>
                           <Box>
-                            <Text as="p" className="text-xs font-semibold leading-tight">{emp.first_name} {emp.last_name}</Text>
-                            <Text as="span" className="text-[10px] text-muted-foreground">{emp.email}</Text>
+                            <Text as="p" className="text-sm font-semibold leading-tight">{emp.first_name} {emp.last_name}</Text>
+                            <Text as="span" className="text-[11px] text-muted-foreground">{emp.email}</Text>
                           </Box>
                         </Box>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <Text as="span" className="text-xs text-muted-foreground">{emp.department || "—"}</Text>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0.5 ${statusCfg.className}`}>
-                          {statusCfg.label}
+
+                      {/* Role */}
+                      <td className="px-4 py-3.5">
+                        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold tracking-widest uppercase px-2.5 py-0.5">
+                          Learner
                         </Badge>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <Box className="flex items-center gap-2">
-                          <Progress value={emp.progress} className="h-1.5 flex-1" />
-                          <Text as="span" className="text-[10px] text-muted-foreground w-7 shrink-0">{emp.progress}%</Text>
-                        </Box>
+
+                      {/* Department */}
+                      <td className="px-4 py-3.5">
+                        <Text as="span" className="text-sm">{emp.department || "—"}</Text>
                       </td>
-                      <td className="px-4 py-2.5">
-                        {emp.score != null ? (
-                          <Text as="span" className={`text-xs font-bold ${emp.score >= 60 ? "text-emerald-600" : "text-red-500"}`}>
-                            {emp.score}%
-                          </Text>
+
+                      {/* Status — active / inactive based on is_active */}
+                      <td className="px-4 py-3.5">
+                        {emp.is_active ? (
+                          <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 gap-1.5 font-medium text-xs px-2.5">
+                            <Box className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            Active
+                          </Badge>
                         ) : (
-                          <Text as="span" className="text-xs text-muted-foreground">—</Text>
+                          <Badge className="bg-gray-50 text-gray-400 border border-gray-200 gap-1.5 font-medium text-xs px-2.5">
+                            <Box className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+                            Inactive
+                          </Badge>
                         )}
                       </td>
-                      <td className="px-4 py-2.5">
-                        <Text as="span" className="text-xs text-muted-foreground">{emp.assigned_courses}</Text>
+
+                      {/* Courses */}
+                      <td className="px-4 py-3.5">
+                        <Text as="span" className="text-sm font-bold text-blue-500">{emp.assigned_courses}</Text>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <Text as="span" className="text-[10px] text-muted-foreground">
+
+                      {/* Completion */}
+                      <td className="px-4 py-3.5">
+                        <Box className="flex items-center gap-2 min-w-[120px]">
+                          <Progress value={emp.progress} className="h-1.5 w-20" />
+                          <Text as="span" className="text-xs text-muted-foreground shrink-0">{emp.progress}%</Text>
+                        </Box>
+                      </td>
+
+                      {/* Last Activity */}
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <Text as="span" className="text-sm">
                           {new Date(emp.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                         </Text>
                       </td>
-                      <td className="px-4 py-2.5">
-                        <Box className="flex items-center gap-2">
-                         
+
+                      {/* Actions */}
+                      <td className="px-4 py-3.5">
+                        <Box className="flex items-center gap-1.5">
                           <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDetailUserId(emp.id)}
-                            className="h-6 px-2 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium gap-1"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            View Details
-                          </Button>
-                           <Button
                             variant="outline"
                             size="sm"
-                            className={`h-6 px-2 text-[10px] font-medium gap-1 ${emp.is_active ? "border-amber-400 text-amber-600 hover:bg-amber-50" : "border-emerald-400 text-emerald-600 hover:bg-emerald-50"}`}
+                            className="h-7 px-3 text-xs font-medium"
+                            onClick={() => setDetailUserId(emp.id)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3 text-xs font-medium"
                             onClick={() => setConfirmToggle({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, is_active: emp.is_active })}
                           >
-                            {emp.is_active
-                              ? <><UserX className="h-3 w-3" />Deactivate</>
-                              : <><UserCheck className="h-3 w-3" />Activate</>}
+                            {emp.is_active ? "Deactivate" : "Activate"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3 text-xs font-medium text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                            onClick={() => setConfirmDelete({ id: emp.id, name: `${emp.first_name} ${emp.last_name}` })}
+                          >
+                            Delete
                           </Button>
                         </Box>
                       </td>
+
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </Box>
-        </Card>
-      )}
+        )}
+      </Card>
 
-      {/* ── Confirm Toggle Dialog ── */}
+      {/* ── Confirm Toggle Status ── */}
       <AlertDialog open={!!confirmToggle} onOpenChange={(o) => { if (!o) setConfirmToggle(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -581,7 +706,29 @@ export function AdminEmployeesContent() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={actioning}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleToggleStatus} disabled={actioning}>
-              {actioning ? "Please wait..." : confirmToggle?.is_active ? "Deactivate" : "Activate"}
+              {actioning ? "Please wait…" : confirmToggle?.is_active ? "Deactivate" : "Activate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Confirm Delete ── */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{confirmDelete?.name}</strong> and all their data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actioning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={actioning}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {actioning ? "Deleting…" : "Delete User"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -595,7 +742,7 @@ export function AdminEmployeesContent() {
         onClose={() => setDetailUserId(null)}
       />
 
-      {/* ── Create User Dialog ── */}
+      {/* ── Add User Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -635,9 +782,12 @@ export function AdminEmployeesContent() {
           </Box>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving}
-              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
-              {saving ? "Creating..." : "Add Learner"}
+            <Button
+              onClick={handleCreate}
+              disabled={saving}
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+            >
+              {saving ? "Creating…" : "Add Learner"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -50,32 +50,42 @@ export async function GET(request) {
     .slice(0, 5)
     .map((u) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, score: u.score, department: u.department }));
 
-  // Dept completion bar chart data
-  const depts = (await db.execute(`
-    SELECT DISTINCT department FROM users WHERE role = 'learner' AND department IS NOT NULL ORDER BY department
-  `)).rows.map((r) => r.department);
+  // Dept completion bar chart data — reuse learnerStats to avoid re-querying
+  const depts = [...new Set(learnerStats.map((u) => u.department).filter(Boolean))].sort();
 
   const deptCompletion = [];
   for (const dept of depts) {
-    const deptUsers = (await db.execute({
-      sql: "SELECT id FROM users WHERE role='learner' AND department=?",
-      args: [dept],
-    })).rows;
+    const deptUsers = learnerStats.filter((u) => u.department === dept);
+    const deptTotal = deptUsers.length;
+    const deptCompleted = deptUsers.filter((u) => u.status === "completed").length;
+    const deptInProgress = deptUsers.filter((u) => u.status === "in-progress").length;
 
-    let deptCompleted = 0;
+    let totalMinutes = 0;
     for (const u of deptUsers) {
-      const a = (await db.execute({
-        sql: "SELECT MAX(is_passed) AS p FROM user_assessment_attempts WHERE user_id=?",
+      const row = (await db.execute({
+        sql: `SELECT COALESCE(SUM(l.duration_minutes), 0) AS mins
+              FROM user_lesson_completions ulc
+              JOIN lessons l ON l.id = ulc.lesson_id
+              WHERE ulc.user_id = ?`,
         args: [u.id],
       })).rows[0];
-      if (a?.p === 1) deptCompleted++;
+      totalMinutes += row?.mins ?? 0;
     }
+
+    const deptScores = deptUsers.filter((u) => u.score != null).map((u) => u.score);
+    const avg_score  = deptScores.length
+      ? Math.round(deptScores.reduce((a, b) => a + b, 0) / deptScores.length)
+      : null;
 
     deptCompletion.push({
       dept,
-      total: deptUsers.length,
+      total: deptTotal,
       completed: deptCompleted,
-      pct: deptUsers.length ? Math.round((deptCompleted / deptUsers.length) * 100) : 0,
+      in_progress: deptInProgress,
+      pct: deptTotal ? Math.round((deptCompleted / deptTotal) * 100) : 0,
+      in_progress_pct: deptTotal ? Math.round((deptInProgress / deptTotal) * 100) : 0,
+      hours_learning: Math.round((totalMinutes / 60) * 10) / 10,
+      avg_score,
     });
   }
 
@@ -88,6 +98,10 @@ export async function GET(request) {
     else if (s < 90) bins[3]++;
     else bins[4]++;
   });
+
+  const needsAttention = learnerStats
+    .filter((u) => u.status === "not-started")
+    .map((u) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, department: u.department }));
 
   return ok({
     stats: { total, completed, inProgress, notStarted, failed, compRate, avgScore, passRate },
@@ -106,5 +120,6 @@ export async function GET(request) {
     ],
     deptCompletion,
     topScorers,
+    needsAttention,
   });
 }

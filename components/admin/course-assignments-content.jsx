@@ -7,35 +7,32 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Users, UserPlus, Trash2, CheckCircle2 } from "lucide-react";
+import { Users, UserPlus, Trash2, CheckCircle2, BookOpen } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchAssignments, fetchUsers, assignUser, removeAssignment } from "@/services/api/admin/admin-api";
+
+const AVATAR_COLORS = [
+  "bg-blue-500 text-white",
+  "bg-emerald-500 text-white",
+  "bg-violet-500 text-white",
+  "bg-orange-500 text-white",
+  "bg-pink-500 text-white",
+  "bg-cyan-500 text-white",
+  "bg-amber-500 text-white",
+  "bg-teal-500 text-white",
+];
 
 export function CourseAssignmentsContent({ courseId }) {
   const { token } = useAuth();
@@ -57,9 +54,7 @@ export function CourseAssignmentsContent({ courseId }) {
       ]);
       setAssignments(a.assignments || []);
       setAllUsers(u.users || []);
-    } catch (e) {
-      setError(e.message);
-    }
+    } catch (e) { setError(e.message); }
   }, [token, courseId]);
 
   useEffect(() => { load(); }, [load]);
@@ -75,11 +70,7 @@ export function CourseAssignmentsContent({ courseId }) {
       setDialogOpen(false);
       setSelectedUserId("");
       load();
-    } catch (e) {
-      setAssignError(e.message);
-    } finally {
-      setAssigning(false);
-    }
+    } catch (e) { setAssignError(e.message); } finally { setAssigning(false); }
   };
 
   const handleRemove = async () => {
@@ -89,8 +80,17 @@ export function CourseAssignmentsContent({ courseId }) {
     load();
   };
 
-  if (error) return <Card className="p-6 text-center"><Text as="p" className="text-red-500 text-sm">{error}</Text></Card>;
-  if (!assignments) return <Box className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</Box>;
+  if (error) return (
+    <Card className="p-6 text-center">
+      <Text as="p" className="text-red-500 text-sm">{error}</Text>
+    </Card>
+  );
+
+  if (!assignments) return (
+    <Box className="space-y-2">
+      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+    </Box>
+  );
 
   return (
     <Box className="space-y-4">
@@ -102,7 +102,7 @@ export function CourseAssignmentsContent({ courseId }) {
           size="sm"
           onClick={() => { setAssignError(null); setSelectedUserId(""); setDialogOpen(true); }}
           disabled={unassigned.length === 0}
-          className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+          className="bg-blue-500 hover:bg-blue-600 text-white h-9"
         >
           <UserPlus className="h-4 w-4 mr-1.5" />
           Assign User
@@ -110,50 +110,63 @@ export function CourseAssignmentsContent({ courseId }) {
       </Box>
 
       {assignments.length === 0 ? (
-        <Card className="p-10 text-center">
-          <Users className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-          <Text as="p" className="text-sm text-muted-foreground">No users assigned yet.</Text>
-          <Button size="sm" className="mt-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-            onClick={() => setDialogOpen(true)} disabled={unassigned.length === 0}>
+        <Card className="p-12 text-center">
+          <Users className="h-10 w-10 mx-auto text-muted-foreground/25 mb-3" />
+          <Text as="p" className="text-sm text-muted-foreground">No learners enrolled yet.</Text>
+          <Button
+            size="sm"
+            className="mt-3 bg-blue-500 hover:bg-blue-600 text-white"
+            onClick={() => setDialogOpen(true)}
+            disabled={unassigned.length === 0}
+          >
             <UserPlus className="h-4 w-4 mr-1.5" />
-            Assign First User
+            Assign First Learner
           </Button>
         </Card>
       ) : (
         <Box className="space-y-2">
-          {assignments.map((a) => {
-            const initials = `${(a.first_name || "")[0]}${(a.last_name || "")[0]}`.toUpperCase();
+          {assignments.map((a, idx) => {
+            const initials = `${(a.first_name || "")[0] || ""}${(a.last_name || "")[0] || ""}`.toUpperCase() || "?";
             const pct = a.total_lessons > 0 ? Math.round((a.completed_lessons / a.total_lessons) * 100) : 0;
             const done = pct === 100 && a.total_lessons > 0;
+            const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length];
             return (
-              <Card key={a.id} className="px-4 py-3">
-                <Box className="flex items-center gap-3">
-                  <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarFallback className="bg-indigo-100 text-indigo-600 text-xs font-bold">{initials}</AvatarFallback>
+              <Card key={a.id} className="px-4 py-3.5">
+                <Box className="flex items-center gap-3.5">
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarFallback className={`text-sm font-bold ${avatarColor}`}>{initials}</AvatarFallback>
                   </Avatar>
                   <Box className="flex-1 min-w-0">
                     <Box className="flex items-center gap-2 flex-wrap">
                       <Text as="p" className="text-sm font-semibold">{a.first_name} {a.last_name}</Text>
-                      {done && <Badge className="text-[10px] bg-emerald-100 text-emerald-700"><CheckCircle2 className="h-3 w-3 mr-0.5" />Completed</Badge>}
+                      {done && (
+                        <Badge className="text-[10px] border-0 bg-emerald-100 text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />Completed
+                        </Badge>
+                      )}
                     </Box>
-                    <Text as="span" className="text-[11px] text-muted-foreground">{a.email}</Text>
+                    <Text as="span" className="text-xs text-muted-foreground">{a.email}</Text>
                     {a.total_lessons > 0 && (
-                      <Box className="flex items-center gap-2 mt-1.5">
+                      <Box className="flex items-center gap-2.5 mt-2">
                         <Progress value={pct} className="h-1.5 flex-1" />
-                        <Text as="span" className="text-[11px] text-muted-foreground shrink-0">
-                          {a.completed_lessons}/{a.total_lessons} lessons
-                        </Text>
+                        <Box className="flex items-center gap-1 shrink-0">
+                          <BookOpen className="h-3 w-3 text-muted-foreground/60" />
+                          <Text as="span" className="text-xs text-muted-foreground">
+                            {a.completed_lessons}/{a.total_lessons} lessons
+                          </Text>
+                        </Box>
+                        <Text as="span" className="text-xs font-semibold text-muted-foreground shrink-0">{pct}%</Text>
                       </Box>
                     )}
                   </Box>
-                  <Box className="text-right shrink-0">
-                    <Text as="span" className="text-xs text-muted-foreground block">
-                      {new Date(a.assigned_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  <Box className="text-right shrink-0 flex flex-col items-end gap-1">
+                    <Text as="span" className="text-xs text-muted-foreground">
+                      {new Date(a.assigned_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                     </Text>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 w-7 p-0 mt-1 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
                       onClick={() => setRemoveId(a.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -170,33 +183,44 @@ export function CourseAssignmentsContent({ courseId }) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Assign User to Course</DialogTitle>
+            <DialogTitle>Assign Learner to Course</DialogTitle>
           </DialogHeader>
-          <Box className="py-3 space-y-3">
+          <Box className="py-4 space-y-4">
             {unassigned.length === 0 ? (
-              <Text as="p" className="text-sm text-muted-foreground text-center">All users are already assigned to this course.</Text>
+              <Box className="text-center py-2">
+                <Text as="p" className="text-sm text-muted-foreground">All learners are already enrolled in this course.</Text>
+              </Box>
             ) : (
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a learner..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {unassigned.map((u) => (
-                    <SelectItem key={u.id} value={String(u.id)}>
-                      {u.first_name} {u.last_name} — {u.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Box className="space-y-2">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Select a learner..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unassigned.map((u) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.first_name} {u.last_name} — {u.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {assignError && (
+                  <Box className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <Text as="p" className="text-sm text-red-600">{assignError}</Text>
+                  </Box>
+                )}
+              </Box>
             )}
-            {assignError && <Text as="p" className="text-sm text-red-500">{assignError}</Text>}
           </Box>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             {unassigned.length > 0 && (
-              <Button onClick={handleAssign} disabled={assigning || !selectedUserId}
-                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
-                {assigning ? "Assigning..." : "Assign"}
+              <Button
+                onClick={handleAssign}
+                disabled={assigning || !selectedUserId}
+                className="bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                {assigning ? "Assigning…" : "Assign"}
               </Button>
             )}
           </DialogFooter>
@@ -207,12 +231,12 @@ export function CourseAssignmentsContent({ courseId }) {
       <AlertDialog open={!!removeId} onOpenChange={(o) => !o && setRemoveId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Assignment?</AlertDialogTitle>
-            <AlertDialogDescription>The learner will lose access to this course.</AlertDialogDescription>
+            <AlertDialogTitle>Remove Learner?</AlertDialogTitle>
+            <AlertDialogDescription>The learner will lose access to this course and their progress will be retained but no longer tracked.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemove} className="bg-red-600 hover:bg-red-700">Remove</AlertDialogAction>
+            <AlertDialogAction onClick={handleRemove} className="bg-red-500 hover:bg-red-600 text-white">Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -27,7 +27,7 @@ function NavGroup({ label, items, pathname }) {
           {items?.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
-                isActive={pathname === item.href}
+                isActive={pathname === item.href || pathname.startsWith(item.href + "/")}
                 render={<Link href={item.href} />}
               >
                 <item.icon />
@@ -56,11 +56,11 @@ export function LearnerSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarContent>
-        <NavGroup label="Main" items={learnerNav.main} pathname={pathname} />
-        <NavGroup label="Learning" items={learnerNav.learning} pathname={pathname} />
-        <NavGroup  items={learnerNav.payments} pathname={pathname} />
-        <NavGroup  items={learnerNav.engage} pathname={pathname} />
-        <NavGroup  items={learnerNav.support} pathname={pathname} />
+        <NavGroup items={learnerNav.main} pathname={pathname} />
+        <NavGroup label="My Learnings" items={learnerNav.myLearnings} pathname={pathname} />
+        <NavGroup label="My Progress" items={learnerNav.progress} pathname={pathname} />
+        <NavGroup label="My Achievements" items={learnerNav.achievements} pathname={pathname} />
+        <NavGroup label="My Team" items={learnerNav.team} pathname={pathname} />
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>

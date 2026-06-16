@@ -43,10 +43,13 @@ const barConfig = {
   count: { label: "Learners", color: "hsl(262 80% 60%)" },
 };
 
-const DEPT_COLORS = [
-  "bg-indigo-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500",
-  "bg-blue-500",   "bg-pink-500",   "bg-cyan-500",   "bg-orange-500",
-  "bg-teal-500",   "bg-rose-500",
+const DEPT_PALETTE = [
+  { border: "border-blue-500",    text: "text-blue-500",    bar: "bg-blue-500",    hex: "hsl(221 83% 53%)" },
+  { border: "border-emerald-500", text: "text-emerald-500", bar: "bg-emerald-500", hex: "hsl(152 60% 40%)" },
+  { border: "border-amber-500",   text: "text-amber-500",   bar: "bg-amber-500",   hex: "hsl(38 92% 50%)" },
+  { border: "border-pink-500",    text: "text-pink-500",    bar: "bg-pink-500",    hex: "hsl(330 81% 60%)" },
+  { border: "border-violet-500",  text: "text-violet-500",  bar: "bg-violet-500",  hex: "hsl(263 70% 58%)" },
+  { border: "border-cyan-500",    text: "text-cyan-500",    bar: "bg-cyan-500",    hex: "hsl(189 94% 43%)" },
 ];
 
 function DashboardSkeleton() {
@@ -213,37 +216,79 @@ export function AdminDashboardContent() {
 
       {/* ── Department Progress ── */}
       <Card>
-        <CardHeader className="pb-2 pt-4 px-5 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Department Progress</CardTitle>
+        <CardHeader className="pb-3 pt-4 px-5 flex flex-row items-center justify-between">
+          <Box>
+            <CardTitle className="text-sm font-semibold">Department Progress</CardTitle>
+            <Text as="p" className="text-xs text-muted-foreground mt-0.5">Completion &amp; engagement by department</Text>
+          </Box>
           <Link href="/admin/departments" className="text-xs text-indigo-500 font-medium hover:underline flex items-center gap-0.5">
             View All <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </CardHeader>
-        <CardContent className="px-5 pb-4">
+        <CardContent className="px-5 pb-5">
           {deptCompletion.length === 0 ? (
             <Box className="py-6 text-center">
               <Text as="p" className="text-sm text-muted-foreground">No department data yet.</Text>
             </Box>
           ) : (
-            <Box className="space-y-3">
-              {deptCompletion.map((d, idx) => (
-                <Box key={d.dept}>
-                  <Box className="flex items-center justify-between mb-1.5">
-                    <Text as="span" className="text-sm font-medium">{d.dept}</Text>
-                    <Box className="flex items-center gap-2">
-                      <Text as="span" className="text-xs text-muted-foreground">{d.completed}/{d.total}</Text>
-                      <Text as="span" className="text-xs font-semibold text-indigo-600">{d.pct}%</Text>
-                    </Box>
-                  </Box>
-                  <Box className="h-2 bg-muted rounded-full overflow-hidden">
+            <>
+              {/* Department cards */}
+              <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                {deptCompletion.map((d, idx) => {
+                  const palette = DEPT_PALETTE[idx % DEPT_PALETTE.length];
+                  return (
                     <Box
-                      className={`h-full rounded-full transition-all ${DEPT_COLORS[idx % DEPT_COLORS.length]}`}
-                      style={{ width: `${d.pct}%` }}
-                    />
-                  </Box>
+                      key={d.dept}
+                      className={`rounded-lg border border-border border-t-4 ${palette.border} p-4 flex flex-col gap-2`}
+                    >
+                      <Text as="span" className={`text-sm font-semibold ${palette.text}`}>{d.dept}</Text>
+                      <Text as="p" className={`text-3xl font-bold leading-none ${palette.text}`}>{d.pct}%</Text>
+                      <Text as="span" className="text-xs text-muted-foreground">{d.completed}/{d.total} completed</Text>
+                      <Box className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <Box
+                          className={`h-full rounded-full ${palette.bar}`}
+                          style={{ width: `${d.pct}%` }}
+                        />
+                      </Box>
+                      <Box className="flex items-center justify-between pt-1">
+                        <Text as="span" className="text-[11px] text-muted-foreground">{d.in_progress} in progress</Text>
+                        <Text as="span" className="text-[11px] text-muted-foreground">{d.hours_learning}h learning</Text>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              {/* Chart legend */}
+              <Box className="flex items-center justify-center gap-5 mb-2">
+                <Box className="flex items-center gap-1.5">
+                  <Box className="w-8 h-3 rounded-sm bg-blue-500" />
+                  <Text as="span" className="text-xs text-muted-foreground">Completed %</Text>
                 </Box>
-              ))}
-            </Box>
+                <Box className="flex items-center gap-1.5">
+                  <Box className="w-8 h-3 rounded-sm bg-blue-200" />
+                  <Text as="span" className="text-xs text-muted-foreground">In Progress %</Text>
+                </Box>
+              </Box>
+
+              {/* Dept bar chart */}
+              <ChartContainer
+                config={{
+                  pct:             { label: "Completed %",   color: "hsl(221 83% 53%)" },
+                  in_progress_pct: { label: "In Progress %", color: "hsl(210 50% 80%)" },
+                }}
+                className="h-[220px] w-full"
+              >
+                <BarChart data={deptCompletion} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
+                  <XAxis dataKey="dept" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="pct"             name="Completed %"   fill="hsl(221 83% 53%)" radius={[3, 3, 0, 0]} maxBarSize={40} />
+                  <Bar dataKey="in_progress_pct" name="In Progress %" fill="hsl(210 50% 80%)" radius={[3, 3, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ChartContainer>
+            </>
           )}
         </CardContent>
       </Card>
