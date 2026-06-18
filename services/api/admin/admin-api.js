@@ -104,6 +104,22 @@ export async function createUser({ token, data }) {
   return apiClient("/api/admin/users", { method: "POST", token, body: data });
 }
 
+export async function updateUser({ token, userId, data }) {
+  return apiClient(`/api/admin/users/${userId}`, { method: "PUT", token, body: data });
+}
+
+export async function bulkCreateUsers({ token, users }) {
+  return apiClient("/api/admin/users/bulk", { method: "POST", token, body: { users } });
+}
+
+export async function exportReport({ token }) {
+  return apiClient("/api/admin/export", { token });
+}
+
+export async function downloadUserTemplate({ token }) {
+  return apiClient("/api/admin/users/template", { token });
+}
+
 export async function toggleUserStatus({ token, userId, is_active }) {
   return apiClient(`/api/admin/users/${userId}`, { method: "PATCH", token, body: { is_active } });
 }
@@ -118,9 +134,9 @@ export async function fetchAssignments({ token, courseId }) {
   return apiClient(`/api/admin/courses/${courseId}/assignments`, { token });
 }
 
-export async function assignUser({ token, courseId, userId }) {
+export async function assignUser({ token, courseId, userId, dueDate }) {
   return apiClient(`/api/admin/courses/${courseId}/assignments`, {
-    method: "POST", token, body: { user_id: userId },
+    method: "POST", token, body: { user_id: userId, due_date: dueDate || null },
   });
 }
 

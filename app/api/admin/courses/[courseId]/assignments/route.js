@@ -29,7 +29,7 @@ export async function POST(request, { params }) {
   const adminPayload = requireAdmin(request);
   if (!adminPayload) return err("Unauthorized", 401);
   const { courseId } = await params;
-  const { user_id } = await request.json();
+  const { user_id, due_date } = await request.json();
   if (!user_id) return err("user_id is required");
 
   const db = await getDb();
@@ -39,11 +39,18 @@ export async function POST(request, { params }) {
 
   try {
     await db.execute({
-      sql: `INSERT INTO user_course_assignments (user_id, course_id, assigned_by) VALUES (?,?,?)`,
-      args: [user_id, courseId, adminPayload.userId],
+      sql: `INSERT INTO user_course_assignments (user_id, course_id, assigned_by, due_date) VALUES (?,?,?,?)`,
+      args: [user_id, courseId, adminPayload.userId, due_date || null],
     });
   } catch {
-    return err("User is already assigned to this course", 409);
+    /* already assigned — update due_date if provided */
+    if (due_date) {
+      await db.execute({
+        sql: `UPDATE user_course_assignments SET due_date = ? WHERE user_id = ? AND course_id = ?`,
+        args: [due_date, user_id, courseId],
+      });
+    }
+    return ok({ message: "Assignment updated" });
   }
 
   return ok({ message: "User assigned successfully" }, 201);

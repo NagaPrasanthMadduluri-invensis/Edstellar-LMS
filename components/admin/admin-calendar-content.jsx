@@ -1,55 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, CalendarDays, Clock, Users, MapPin } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Clock, Users, MapPin, Video } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { apiClient } from "@/lib/api-client";
 
-/* ── Session types ── */
+/* ── Session type display config ── */
 const SESSION_TYPES = {
-  ILT:     { label: "ILT",     dot: "bg-blue-500",   chip: "border-l-2 border-blue-500 bg-blue-50 text-blue-700"     },
-  VILT:    { label: "VILT",    dot: "bg-violet-500",  chip: "border-l-2 border-violet-500 bg-violet-50 text-violet-700" },
-  Webinar: { label: "Webinar", dot: "bg-teal-500",    chip: "border-l-2 border-teal-500 bg-teal-50 text-teal-700"     },
+  ILT:     { label: "ILT",     dot: "bg-blue-500",    chip: "border-l-2 border-blue-500 bg-blue-50 text-blue-700"       },
+  Virtual: { label: "Virtual", dot: "bg-emerald-500",  chip: "border-l-2 border-emerald-500 bg-emerald-50 text-emerald-700" },
+  Webinar: { label: "Webinar", dot: "bg-teal-500",     chip: "border-l-2 border-teal-500 bg-teal-50 text-teal-700"       },
 };
-
-/* ── Static training sessions ── */
-const SESSIONS = [
-  {
-    id: 1, day: 3, month: 5, year: 2026,
-    title: "Data Privacy & DPDP Act Briefing",
-    type: "Webinar", time: "10:00 AM", duration: "90 min",
-    facilitator: "Priya Sharma", enrolled: 24,
-    location: "Online (Zoom)",
-  },
-  {
-    id: 2, day: 11, month: 5, year: 2026,
-    title: "Advanced Excel for Operations",
-    type: "ILT", time: "9:30 AM", duration: "3h",
-    facilitator: "Ramesh Kumar", enrolled: 15,
-    location: "Conference Room B",
-  },
-  {
-    id: 3, day: 18, month: 5, year: 2026,
-    title: "Customer-Centric Selling — Refresher",
-    type: "VILT", time: "2:00 PM", duration: "2h",
-    facilitator: "Ananya Nair", enrolled: 18,
-    location: "Online (Teams)",
-  },
-  {
-    id: 4, day: 25, month: 5, year: 2026,
-    title: "Inclusive Leadership Workshop",
-    type: "ILT", time: "10:00 AM", duration: "4h",
-    facilitator: "Dr. Vikram Iyer", enrolled: 30,
-    location: "Training Hall 1",
-  },
-];
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -65,39 +36,62 @@ function getFirstWeekday(year, month) {
 }
 
 export function AdminCalendarContent() {
-  const today = new Date(2026, 5, 15); // June 15 2026
-  const [viewDate, setViewDate] = useState({ year: 2026, month: 5 });
+  const { token } = useAuth();
+  const today = new Date();
+  const [viewDate, setViewDate] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const [sessions, setSessions] = useState(null);
   const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    if (!token) return;
+    apiClient("/api/admin/sessions", { token })
+      .then((d) => {
+        const mapped = (d.sessions || []).map((s) => {
+          const [y, m, day] = (s.date || "").split("-").map(Number);
+          return { ...s, year: y, month: m - 1, day };
+        });
+        setSessions(mapped);
+      })
+      .catch(() => setSessions([]));
+  }, [token]);
 
   const { year, month } = viewDate;
   const daysInMonth  = getDaysInMonth(year, month);
   const firstWeekday = getFirstWeekday(year, month);
-  const sessionsThisMonth = SESSIONS.filter((s) => s.year === year && s.month === month);
+  const sessionsThisMonth = (sessions || []).filter((s) => s.year === year && s.month === month);
 
-  const prevMonth = () => {
-    setViewDate(({ year: y, month: m }) =>
-      m === 0 ? { year: y - 1, month: 11 } : { year: y, month: m - 1 }
-    );
-  };
-  const nextMonth = () => {
-    setViewDate(({ year: y, month: m }) =>
-      m === 11 ? { year: y + 1, month: 0 } : { year: y, month: m + 1 }
-    );
-  };
+  const prevMonth = () => setViewDate(({ year: y, month: m }) =>
+    m === 0 ? { year: y - 1, month: 11 } : { year: y, month: m - 1 }
+  );
+  const nextMonth = () => setViewDate(({ year: y, month: m }) =>
+    m === 11 ? { year: y + 1, month: 0 } : { year: y, month: m + 1 }
+  );
   const goToday = () => setViewDate({ year: today.getFullYear(), month: today.getMonth() });
 
   const isToday = (day) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
-  const sessionsForDay = (day) =>
-    sessionsThisMonth.filter((s) => s.day === day);
+  const sessionsForDay = (day) => sessionsThisMonth.filter((s) => s.day === day);
 
-  // Build calendar cells: leading empties + day numbers
   const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
   const cells = Array.from({ length: totalCells }, (_, i) => {
     const day = i - firstWeekday + 1;
     return day >= 1 && day <= daysInMonth ? day : null;
   });
+
+  function formatTime(t) {
+    if (!t) return "";
+    const [h, min] = t.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    return `${h % 12 || 12}:${String(min).padStart(2, "0")} ${ampm}`;
+  }
+
+  if (!sessions) return (
+    <Box className="space-y-5">
+      <Skeleton className="h-10 w-64 rounded-lg" />
+      <Skeleton className="h-[520px] rounded-xl" />
+    </Box>
+  );
 
   return (
     <Box className="space-y-5">
@@ -107,7 +101,7 @@ export function AdminCalendarContent() {
         <Box>
           <Text as="h1" className="text-2xl font-bold">{MONTH_NAMES[month]} {year}</Text>
           <Text as="p" className="text-sm text-muted-foreground mt-0.5">
-            All scheduled training across the organisation · {sessionsThisMonth.length} this month
+            All scheduled training across the organisation · {sessionsThisMonth.length} session{sessionsThisMonth.length !== 1 ? "s" : ""} this month
           </Text>
           {/* Legend */}
           <Box className="flex items-center gap-4 mt-2">
@@ -170,7 +164,7 @@ export function AdminCalendarContent() {
                     </Text>
                     <Box className="space-y-1">
                       {events.map((ev) => {
-                        const cfg = SESSION_TYPES[ev.type] || SESSION_TYPES.ILT;
+                        const cfg = SESSION_TYPES[ev.session_type] || SESSION_TYPES.ILT;
                         return (
                           <Box
                             key={ev.id}
@@ -190,11 +184,6 @@ export function AdminCalendarContent() {
         </Box>
       </Card>
 
-      {/* ── Footer note ── */}
-      <Text as="p" className="text-xs text-muted-foreground text-center">
-        This calendar is a live view of the Sessions &amp; Attendance data — it reads the same records, so it always stays in sync. Click a session to view its details.
-      </Text>
-
       {/* ── Session detail dialog ── */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         {selected && (
@@ -203,20 +192,28 @@ export function AdminCalendarContent() {
               <DialogTitle className="leading-snug">{selected.title}</DialogTitle>
             </DialogHeader>
             <Box className="space-y-3 pt-1">
-              <Badge className={cn("text-xs w-fit border-0", SESSION_TYPES[selected.type]?.chip)}>
-                {selected.type}
-              </Badge>
+              <Box className="flex items-center gap-2">
+                <Badge className={cn("text-xs w-fit border-0", (SESSION_TYPES[selected.session_type] || SESSION_TYPES.ILT).chip)}>
+                  {selected.session_type}
+                </Badge>
+                <Badge className={`text-xs border-0 ${selected.status === "completed" ? "bg-emerald-100 text-emerald-700" : selected.status === "cancelled" ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-700"}`}>
+                  {selected.status.charAt(0).toUpperCase() + selected.status.slice(1)}
+                </Badge>
+              </Box>
               {[
                 { icon: CalendarDays, label: `${MONTH_NAMES[selected.month]} ${selected.day}, ${selected.year}` },
-                { icon: Clock, label: `${selected.time} · ${selected.duration}` },
-                { icon: Users, label: `${selected.enrolled} enrolled · Facilitator: ${selected.facilitator}` },
-                { icon: MapPin, label: selected.location },
+                { icon: Clock,        label: `${formatTime(selected.start_time)} – ${formatTime(selected.end_time)}` },
+                { icon: Users,        label: `${selected.roster_count ?? 0} / ${selected.capacity} enrolled · ${selected.trainer}` },
+                { icon: selected.session_type === "Virtual" ? Video : MapPin, label: selected.venue_url },
               ].map(({ icon: Icon, label }) => (
                 <Box key={label} className="flex items-start gap-2.5">
                   <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <Text as="span" className="text-sm">{label}</Text>
+                  <Text as="span" className="text-sm break-all">{label}</Text>
                 </Box>
               ))}
+              {selected.description && (
+                <Text as="p" className="text-sm text-muted-foreground leading-relaxed border-t pt-3">{selected.description}</Text>
+              )}
             </Box>
           </DialogContent>
         )}

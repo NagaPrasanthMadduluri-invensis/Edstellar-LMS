@@ -79,7 +79,7 @@ export function AdminCourseTabsContent({ courseId }) {
                     <Badge className={`text-[11px] font-medium ${course.is_active ? "bg-emerald-100 text-emerald-700 border-0" : "bg-gray-100 text-gray-500 border-0"}`}>
                       {course.is_active
                         ? <><CheckCircle2 className="h-3 w-3 mr-1 inline" />Published</>
-                        : <><XCircle className="h-3 w-3 mr-1 inline" />Inactive</>
+                        : <><XCircle className="h-3 w-3 mr-1 inline" />Draft</>
                       }
                     </Badge>
                   </Box>
@@ -191,7 +191,7 @@ export function AdminCourseTabsContent({ courseId }) {
             <Box className="flex items-center justify-between rounded-lg border p-4">
               <Box>
                 <Text as="p" className="text-sm font-medium">Published</Text>
-                <Text as="p" className="text-xs text-muted-foreground">Visible and accessible to enrolled learners</Text>
+                <Text as="p" className="text-xs text-muted-foreground">Off = Draft; only published courses appear in Assign Learning</Text>
               </Box>
               <Switch
                 id="course-active"

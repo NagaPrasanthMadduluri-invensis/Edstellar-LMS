@@ -55,13 +55,13 @@ export async function POST(request) {
   const payload = requireAdmin(request);
   if (!payload) return err("Unauthorized", 401);
 
-  const { name, description, thumbnail_url } = await request.json();
+  const { name, description, thumbnail_url, is_active } = await request.json();
   if (!name?.trim()) return err("Course name is required");
 
   const db = await getDb();
   const result = await db.execute({
-    sql: `INSERT INTO courses (name, description, thumbnail_url) VALUES (?, ?, ?)`,
-    args: [name.trim(), description || null, thumbnail_url || null],
+    sql: `INSERT INTO courses (name, description, thumbnail_url, is_active) VALUES (?, ?, ?, ?)`,
+    args: [name.trim(), description || null, thumbnail_url || null, is_active ? 1 : 0],
   });
 
   const course = (await db.execute({ sql: "SELECT * FROM courses WHERE id = ?", args: [result.lastInsertRowid] })).rows[0];

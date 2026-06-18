@@ -6,7 +6,7 @@ export async function GET(request) {
   const db = await getDb();
 
   const learners = (await db.execute(
-    "SELECT id, first_name, last_name, email, department FROM users WHERE role = 'learner'"
+    "SELECT id, first_name, last_name, email, department, job_role, location FROM users WHERE role = 'learner'"
   )).rows;
 
   let completed = 0, inProgress = 0, notStarted = 0, failed = 0;
@@ -48,7 +48,7 @@ export async function GET(request) {
     .filter((u) => u.score != null)
     .sort((a, b) => b.score - a.score)
     .slice(0, 5)
-    .map((u) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, score: u.score, department: u.department }));
+    .map((u) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, score: u.score, department: u.department, job_role: u.job_role || null, location: u.location || null }));
 
   // Dept completion bar chart data — reuse learnerStats to avoid re-querying
   const depts = [...new Set(learnerStats.map((u) => u.department).filter(Boolean))].sort();
@@ -101,10 +101,33 @@ export async function GET(request) {
 
   const needsAttention = learnerStats
     .filter((u) => u.status === "not-started")
-    .map((u) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, department: u.department }));
+    .map((u) => ({ id: u.id, name: `${u.first_name} ${u.last_name}`, department: u.department, job_role: u.job_role || null, location: u.location || null }));
+
+  /* ── Active courses: distinct courses with at least one enrollment ── */
+  const activeCourses = Number((await db.execute(
+    "SELECT COUNT(DISTINCT course_id) AS n FROM user_course_assignments"
+  )).rows[0].n);
+
+  /* ── Overdue: enrollments whose due_date is within 2 days and not yet complete ── */
+  const overdueCourses = Number((await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM user_course_assignments uca
+          WHERE uca.due_date IS NOT NULL
+          AND date(uca.due_date) <= date('now', '+2 days')
+          AND (
+            SELECT COUNT(*) FROM user_lesson_completions ulc
+            JOIN lessons l ON l.id = ulc.lesson_id
+            JOIN course_modules cm ON cm.id = l.module_id
+            WHERE cm.course_id = uca.course_id AND ulc.user_id = uca.user_id
+          ) < (
+            SELECT COUNT(*) FROM lessons l2
+            JOIN course_modules cm2 ON cm2.id = l2.module_id
+            WHERE cm2.course_id = uca.course_id AND l2.is_active = 1 AND cm2.is_active = 1
+          )`,
+    args: [],
+  })).rows[0].n);
 
   return ok({
-    stats: { total, completed, inProgress, notStarted, failed, compRate, avgScore, passRate },
+    stats: { total, completed, inProgress, notStarted, failed, compRate, avgScore, passRate, activeCourses, overdueCourses },
     statusBreakdown: [
       { status: "Completed", value: completed },
       { status: "In Progress", value: inProgress },

@@ -13,10 +13,11 @@ import {
 import {
   PieChart, Pie, Cell,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import {
   Users, Award, CheckCircle2, Percent,
-  ChevronRight, Clock, BookOpen,
+  ChevronRight, Clock, BookOpen, BookMarked, AlertCircle,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -75,6 +76,7 @@ export function AdminDashboardContent() {
   const { token } = useAuth();
   const [dash, setDash] = useState(null);
   const [reports, setReports] = useState(null);
+  const [hours, setHours] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -82,8 +84,9 @@ export function AdminDashboardContent() {
     Promise.all([
       fetchAdminDashboard({ token }),
       apiClient("/api/admin/reports", { token }),
+      apiClient("/api/admin/learning-hours", { token }),
     ])
-      .then(([d, r]) => { setDash(d); setReports(r); })
+      .then(([d, r, h]) => { setDash(d); setReports(r); setHours(h); })
       .catch((e) => setError(e.message));
   }, [token]);
 
@@ -92,16 +95,18 @@ export function AdminDashboardContent() {
       <Text as="p" className="text-red-500 text-sm">{error}</Text>
     </Card>
   );
-  if (!dash || !reports) return <DashboardSkeleton />;
+  if (!dash || !reports || !hours) return <DashboardSkeleton />;
 
   const { recentUsers = [], recentAttempts = [] } = dash;
   const { stats, statusBreakdown = [], scoreBins = [], deptCompletion = [] } = reports;
+  const { weeklyActivity = [] } = hours;
 
   const statCards = [
-    { label: "Total Learners",  value: stats.total,       icon: Users,         color: "bg-violet-100 text-violet-600" },
-    { label: "Completion Rate", value: `${stats.compRate}%`, icon: CheckCircle2, color: "bg-emerald-100 text-emerald-600" },
-    { label: "Avg Score",       value: `${stats.avgScore ?? 0}%`, icon: Award,   color: "bg-amber-100 text-amber-600" },
-    { label: "Pass Rate",       value: `${stats.passRate  ?? 0}%`, icon: Percent, color: "bg-blue-100 text-blue-600" },
+    { label: "Total Learners",  value: stats.total,                    icon: Users,        color: "bg-violet-100 text-violet-600"  },
+    { label: "Completion Rate", value: `${stats.compRate}%`,           icon: CheckCircle2, color: "bg-emerald-100 text-emerald-600" },
+    { label: "Active Courses",  value: stats.activeCourses ?? 0,       icon: BookMarked,   color: "bg-blue-100 text-blue-600"      },
+    { label: "Overdue Courses", value: stats.overdueCourses ?? 0,      icon: AlertCircle,  color: "bg-red-100 text-red-600"        },
+    { label: "Pass Rate",       value: `${stats.passRate  ?? 0}%`,     icon: Percent,      color: "bg-amber-100 text-amber-600"    },
   ];
 
   const pieData = statusBreakdown.filter((d) => d.value > 0);
@@ -110,7 +115,7 @@ export function AdminDashboardContent() {
     <Box className="space-y-5">
 
       {/* ── Stat Cards ── */}
-      <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <Box className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {statCards.map((s) => (
           <Card key={s.label} className="p-4 hover:shadow-md transition-shadow">
             <Box className="flex items-start gap-3">
@@ -126,66 +131,74 @@ export function AdminDashboardContent() {
         ))}
       </Box>
 
-      {/* ── In-progress / breakdown mini stats ── */}
-      <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Completed",   value: stats.completed,   color: "text-emerald-600 bg-emerald-50" },
-          { label: "In Progress", value: stats.inProgress,  color: "text-blue-600 bg-blue-50" },
-          { label: "Not Started", value: stats.notStarted,  color: "text-gray-600 bg-gray-50" },
-          { label: "Failed",      value: stats.failed,      color: "text-red-600 bg-red-50" },
-        ].map((s) => (
-          <Card key={s.label} className={`p-3 ${s.color}`}>
-            <Text as="h3" className="text-xl font-bold leading-none">{s.value}</Text>
-            <Text as="span" className="text-xs opacity-80">{s.label}</Text>
-          </Card>
-        ))}
-      </Box>
-
       {/* ── Charts Row ── */}
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <Box className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Completion Status PieChart */}
         <Card>
           <CardHeader className="pb-2 pt-4 px-5">
             <CardTitle className="text-sm font-semibold">Completion Status</CardTitle>
           </CardHeader>
-          <CardContent className="px-5 pb-4">
+          <CardContent className="px-5 pb-5">
             {pieData.length === 0 ? (
               <Box className="flex items-center justify-center h-[200px]">
                 <Text as="p" className="text-sm text-muted-foreground">No learner data yet.</Text>
               </Box>
-            ) : (
-              <>
-                <ChartContainer config={pieConfig} className="h-[200px] w-full">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      nameKey="status"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      strokeWidth={2}
-                    >
-                      {pieData.map((entry) => (
-                        <Cell key={entry.status} fill={STATUS_COLORS[entry.status]} />
-                      ))}
-                    </Pie>
-                    <ChartTooltip content={<ChartTooltipContent nameKey="status" hideLabel />} />
-                  </PieChart>
-                </ChartContainer>
-                <Box className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 justify-center">
-                  {statusBreakdown.map((s) => (
-                    <Box key={s.status} className="flex items-center gap-1.5">
-                      <Box className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[s.status] }} />
-                      <Text as="span" className="text-xs text-muted-foreground">
-                        {s.status}: <Text as="span" className="font-semibold text-foreground">{s.value}</Text>
-                      </Text>
-                    </Box>
-                  ))}
+            ) : (() => {
+              const total = statusBreakdown.reduce((sum, d) => sum + d.value, 0) || 1;
+              return (
+                <Box className="grid grid-cols-2 items-center gap-4">
+                  {/* Left — donut */}
+                  <Box>
+                    <ChartContainer config={pieConfig} className="h-[170px] w-full">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          dataKey="value"
+                          nameKey="status"
+                          cx="50%" cy="50%"
+                          innerRadius={48} outerRadius={72}
+                          paddingAngle={2}
+                          strokeWidth={0}
+                        >
+                          {pieData.map((entry) => (
+                            <Cell key={entry.status} fill={STATUS_COLORS[entry.status]} />
+                          ))}
+                        </Pie>
+                        <ChartTooltip content={<ChartTooltipContent nameKey="status" hideLabel />} />
+                      </PieChart>
+                    </ChartContainer>
+                  </Box>
+
+                  {/* Right — bars */}
+                  <Box className="space-y-3.5">
+                    {statusBreakdown.map((s) => {
+                      const pct = Math.round((s.value / total) * 100);
+                      return (
+                        <Box key={s.status}>
+                          <Box className="flex items-center justify-between mb-1">
+                            <Box className="flex items-center gap-1.5">
+                              <Box className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: STATUS_COLORS[s.status] }} />
+                              <Text as="span" className="text-xs font-medium">{s.status}</Text>
+                            </Box>
+                            <Box className="flex items-center gap-2">
+                              <Text as="span" className="text-xs text-muted-foreground">{s.value}</Text>
+                              <Text as="span" className="text-xs font-bold w-8 text-right">{pct}%</Text>
+                            </Box>
+                          </Box>
+                          <Box className="h-2 bg-muted rounded-full overflow-hidden">
+                            <Box
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${pct}%`, background: STATUS_COLORS[s.status] }}
+                            />
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
                 </Box>
-              </>
-            )}
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -209,6 +222,31 @@ export function AdminDashboardContent() {
                   <Bar dataKey="count" fill="hsl(262 80% 60%)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+        {/* Enrollment vs Completion LineChart */}
+        <Card>
+          <CardHeader className="pb-2 pt-4 px-5">
+            <CardTitle className="text-sm font-semibold">Enrollment vs Completion</CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 pb-4">
+            {weeklyActivity.length === 0 ? (
+              <Box className="flex items-center justify-center h-[200px]">
+                <Text as="p" className="text-sm text-muted-foreground">No activity data yet.</Text>
+              </Box>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={weeklyActivity} margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="week" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} tickCount={5} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(v, name) => [`${v} learners`, name]} />
+                  <Legend iconType="plainline" iconSize={16} wrapperStyle={{ fontSize: 10 }} />
+                  <Line type="monotone" dataKey="Enrollments" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="Completions" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
             )}
           </CardContent>
         </Card>

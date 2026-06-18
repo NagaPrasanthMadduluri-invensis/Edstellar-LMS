@@ -14,7 +14,9 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { BookOpen, Map, Users, ClipboardList } from "lucide-react";
+import { BookOpen, Map, Users, ClipboardList, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
@@ -87,13 +89,16 @@ export function AdminAssignLearningContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [unassignTarget, setUnassignTarget] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filterDept, setFilterDept] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   /* ── Load courses once ── */
   useEffect(() => {
     if (!token) return;
     fetchAdminCourses({ token })
       .then((d) => {
-        const list = d.courses || [];
+        const list = (d.courses || []).filter((c) => c.is_active);
         setCourses(list);
         if (list.length) setSelectedCourseId(String(list[0].id));
       })
@@ -122,8 +127,9 @@ export function AdminAssignLearningContent() {
 
   /* ── Actions ── */
   const handleAssign = async (userId) => {
+    const dueDate = rowDueDates[userId] || globalDueDate || null;
     try {
-      await assignUser({ token, courseId: selectedCourseId, userId });
+      await assignUser({ token, courseId: selectedCourseId, userId, dueDate });
       await loadData();
     } catch (e) { setError(e.message); }
   };
@@ -143,7 +149,8 @@ export function AdminAssignLearningContent() {
     const deptMembers = (employees || []).filter((e) => e.department === dept);
     const unassigned = deptMembers.filter((m) => !assignedUserIds.has(m.id));
     for (const m of unassigned) {
-      try { await assignUser({ token, courseId: selectedCourseId, userId: m.id }); } catch {}
+      const dueDate = rowDueDates[m.id] || globalDueDate || null;
+      try { await assignUser({ token, courseId: selectedCourseId, userId: m.id, dueDate }); } catch {}
     }
     await loadData();
   };
@@ -154,7 +161,19 @@ export function AdminAssignLearningContent() {
   const totalLearners = employees?.length ?? 0;
   const assignedAnyCount = employees?.filter((e) => e.assigned_courses > 0).length ?? 0;
 
-  const deptGroups = (employees || []).reduce((acc, emp) => {
+  const allDepts = [...new Set((employees || []).map((e) => e.department).filter(Boolean))].sort();
+
+  const filteredEmployees = (employees || []).filter((emp) => {
+    const q = `${emp.first_name} ${emp.last_name} ${emp.email} ${emp.job_role || ""} ${emp.location || ""}`.toLowerCase();
+    const matchSearch = !search || q.includes(search.toLowerCase());
+    const matchDept   = filterDept   === "all" || emp.department === filterDept;
+    const matchStatus = filterStatus === "all"
+      || (filterStatus === "active"   && emp.is_active)
+      || (filterStatus === "inactive" && !emp.is_active);
+    return matchSearch && matchDept && matchStatus;
+  });
+
+  const deptGroups = filteredEmployees.reduce((acc, emp) => {
     const d = emp.department || "No Department";
     if (!acc[d]) acc[d] = [];
     acc[d].push(emp);
@@ -162,6 +181,7 @@ export function AdminAssignLearningContent() {
   }, {});
 
   const deptNames = Object.keys(deptGroups).sort();
+  const hasFilter = search || filterDept !== "all" || filterStatus !== "all";
 
   /* ── Page header ── */
   const header = (
@@ -292,11 +312,65 @@ export function AdminAssignLearningContent() {
         </Card>
       </Box>
 
+      {/* ── Filter bar ── */}
+      <Box className="space-y-2.5">
+        <Box className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search by name, email, job role, or location…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+            className="pl-10 h-10 text-sm bg-gray-100 border-gray-200 placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-blue-400 focus-visible:bg-white transition-colors"
+          />
+        </Box>
+        <Box className="flex flex-wrap items-center gap-2">
+          <Text as="span" className="text-xs font-medium text-gray-400 mr-1">Filter by:</Text>
+          <Select value={filterDept} onValueChange={setFilterDept}>
+            <SelectTrigger className={`h-8 text-xs w-[150px] bg-gray-100 border-gray-200 hover:bg-gray-200 transition-colors ${filterDept === "all" ? "text-gray-400" : "text-gray-800 font-medium"}`}>
+              <SelectValue>{filterDept === "all" ? "All Departments" : filterDept}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Departments</SelectItem>
+              {allDepts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className={`h-8 text-xs w-[130px] bg-gray-100 border-gray-200 hover:bg-gray-200 transition-colors ${filterStatus === "all" ? "text-gray-400" : "text-gray-800 font-medium"}`}>
+              <SelectValue>
+                {filterStatus === "all" ? "All Statuses" : filterStatus === "active" ? "Active" : "Inactive"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasFilter && (
+            <button
+              onClick={() => { setSearch(""); setFilterDept("all"); setFilterStatus("all"); }}
+              className="h-8 px-3 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+            >
+              × Clear filters
+            </button>
+          )}
+          <Text as="span" className="ml-auto text-xs text-muted-foreground">
+            {filteredEmployees.length} of {totalLearners} learners
+          </Text>
+        </Box>
+      </Box>
+
       {/* ── Dept groups ── */}
       {loading ? (
         <Box className="space-y-3">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </Box>
+      ) : filteredEmployees.length === 0 && employees?.length > 0 ? (
+        <Card className="p-10 text-center">
+          <Users className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+          <Text as="p" className="text-sm text-muted-foreground">No learners match your filters.</Text>
+        </Card>
       ) : (
         <Box className="space-y-4">
           {deptNames.map((dept) => {
@@ -350,10 +424,20 @@ export function AdminAssignLearningContent() {
                         </AvatarFallback>
                       </Avatar>
 
-                      {/* Name + dept */}
+                      {/* Name + role + location */}
                       <Box className="flex-1 min-w-0">
                         <Text as="p" className="text-sm font-semibold leading-tight">{emp.first_name} {emp.last_name}</Text>
-                        <Text as="p" className="text-xs text-muted-foreground mt-0.5">{emp.department}</Text>
+                        <Box className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          {emp.department && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-indigo-50 text-indigo-600 border-0">{emp.department}</Badge>
+                          )}
+                          {emp.job_role && (
+                            <Text as="span" className="text-[11px] text-muted-foreground">{emp.job_role}</Text>
+                          )}
+                          {emp.location && (
+                            <Text as="span" className="text-[11px] text-muted-foreground">· {emp.location}</Text>
+                          )}
+                        </Box>
                       </Box>
 
                       {/* Status */}

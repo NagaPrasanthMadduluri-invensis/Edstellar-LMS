@@ -143,6 +143,7 @@ export function AdminLeaderboardContent() {
                   <Box className="text-center">
                     <Text as="p" className={`font-bold leading-tight ${realIdx === 0 ? "text-base" : "text-sm"}`}>{l.name}</Text>
                     <Text as="p" className="text-xs text-muted-foreground">{l.dept}</Text>
+                    {l.job_role && <Text as="p" className="text-[10px] text-muted-foreground/70">{l.job_role}</Text>}
                     <Text as="p" className="text-lg font-extrabold text-blue-600 mt-0.5">{l.score}</Text>
                     <Text as="p" className="text-[10px] text-muted-foreground uppercase tracking-wide">Score</Text>
                   </Box>
@@ -190,9 +191,15 @@ export function AdminLeaderboardContent() {
                 <Avatar className="h-9 w-9 shrink-0">
                   <AvatarFallback className={`text-xs font-bold text-white ${avatarColor}`}>{initials(l.name)}</AvatarFallback>
                 </Avatar>
-                <Text as="span" className="text-sm font-semibold">{l.name}</Text>
+                <Box className="min-w-0">
+                  <Text as="span" className="text-sm font-semibold">{l.name}</Text>
+                  {l.job_role && <Text as="p" className="text-[11px] text-muted-foreground leading-tight">{l.job_role}</Text>}
+                </Box>
               </Box>
-              <Text as="span" className="text-sm text-muted-foreground">{l.dept}</Text>
+              <Box className="min-w-0">
+                <Text as="p" className="text-sm text-muted-foreground">{l.dept}</Text>
+                {l.location && <Text as="p" className="text-[11px] text-muted-foreground/70">{l.location}</Text>}
+              </Box>
               <Text as="span" className="text-sm font-bold text-blue-600">{l.thisMonth}h</Text>
               <Text as="span" className="text-sm font-medium">{l.allTime}h</Text>
               <Box className="flex items-center gap-2 pr-3">

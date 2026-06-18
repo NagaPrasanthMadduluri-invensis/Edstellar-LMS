@@ -1,6 +1,39 @@
 import { getDb } from "@/lib/db/index.js";
 import { requireAdmin, ok, err } from "@/lib/auth.js";
 
+export async function PUT(request, { params }) {
+  if (!requireAdmin(request)) return err("Unauthorized", 401);
+  const { userId } = await params;
+  const { first_name, last_name, email, location, job_role } = await request.json();
+
+  if (!first_name?.trim()) return err("First name is required", 422);
+  if (!last_name?.trim()) return err("Last name is required", 422);
+  if (!email?.trim()) return err("Email is required", 422);
+
+  const db = await getDb();
+
+  const user = (await db.execute({ sql: "SELECT id, role FROM users WHERE id = ?", args: [userId] })).rows[0];
+  if (!user) return err("User not found", 404);
+  if (user.role === "admin") return err("Cannot modify admin accounts", 403);
+
+  const conflict = (await db.execute({
+    sql: "SELECT id FROM users WHERE email = ? AND id != ?",
+    args: [email.trim().toLowerCase(), userId],
+  })).rows[0];
+  if (conflict) return err("Email is already in use by another account", 409);
+
+  await db.execute({
+    sql: "UPDATE users SET first_name = ?, last_name = ?, email = ?, location = ?, job_role = ? WHERE id = ?",
+    args: [first_name.trim(), last_name.trim(), email.trim().toLowerCase(), location?.trim() || null, job_role?.trim() || null, userId],
+  });
+
+  const updated = (await db.execute({
+    sql: "SELECT id, first_name, last_name, email, location, job_role, is_active FROM users WHERE id = ?",
+    args: [userId],
+  })).rows[0];
+  return ok({ user: { ...updated, is_active: updated.is_active === 1 } });
+}
+
 export async function PATCH(request, { params }) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
   const { userId } = await params;
@@ -35,7 +68,7 @@ export async function GET(request, { params }) {
   const db = await getDb();
 
   const user = (await db.execute({
-    sql: `SELECT id, first_name, last_name, email, department, is_active, created_at FROM users WHERE id = ? AND role = 'learner'`,
+    sql: `SELECT id, first_name, last_name, email, department, location, job_role, is_active, created_at FROM users WHERE id = ? AND role = 'learner'`,
     args: [userId],
   })).rows[0];
   if (!user) return err("User not found", 404);

@@ -259,8 +259,14 @@ export function AdminReportsContent() {
                   {topScorers.map((s, i) => (
                     <Box key={s.id} className="flex items-center gap-3 py-2.5">
                       <Text as="span" className="w-4 text-xs font-bold text-muted-foreground shrink-0">{i + 1}</Text>
-                      <Text as="p" className="flex-1 text-sm font-medium truncate">{s.name}</Text>
-                      <Text as="span" className="text-xs text-muted-foreground shrink-0">{s.department || "—"}</Text>
+                      <Box className="flex-1 min-w-0">
+                        <Text as="p" className="text-sm font-medium truncate">{s.name}</Text>
+                        {s.job_role && <Text as="p" className="text-[11px] text-muted-foreground truncate">{s.job_role}</Text>}
+                      </Box>
+                      <Box className="text-right shrink-0">
+                        <Text as="p" className="text-xs text-muted-foreground">{s.department || "—"}</Text>
+                        {s.location && <Text as="p" className="text-[11px] text-muted-foreground/70">{s.location}</Text>}
+                      </Box>
                       <Text as="span" className="text-sm font-bold text-emerald-600 shrink-0 w-9 text-right">
                         {s.score}%
                       </Text>
@@ -281,8 +287,14 @@ export function AdminReportsContent() {
                 <Box className="divide-y">
                   {needsAttention.slice(0, 5).map((u) => (
                     <Box key={u.id} className="flex items-center justify-between py-2">
-                      <Text as="p" className="text-sm font-medium">{u.name}</Text>
-                      <Text as="span" className="text-xs text-muted-foreground">{u.department || "—"}</Text>
+                      <Box>
+                        <Text as="p" className="text-sm font-medium">{u.name}</Text>
+                        {u.job_role && <Text as="p" className="text-[11px] text-muted-foreground">{u.job_role}</Text>}
+                      </Box>
+                      <Box className="text-right">
+                        <Text as="p" className="text-xs text-muted-foreground">{u.department || "—"}</Text>
+                        {u.location && <Text as="p" className="text-[11px] text-muted-foreground/70">{u.location}</Text>}
+                      </Box>
                     </Box>
                   ))}
                   {needsAttention.length > 5 && (

@@ -6,7 +6,7 @@ export async function GET(request) {
   const db = await getDb();
 
   const users = (await db.execute(`
-    SELECT u.id, u.first_name, u.last_name, u.email, u.department,
+    SELECT u.id, u.first_name, u.last_name, u.email, u.department, u.location, u.job_role,
            u.is_active, u.created_at,
            COUNT(DISTINCT uca.course_id) AS assigned_courses
     FROM users u
@@ -57,6 +57,8 @@ export async function GET(request) {
       last_name: u.last_name,
       email: u.email,
       department: u.department,
+      location: u.location || null,
+      job_role: u.job_role || null,
       is_active: u.is_active === 1,
       created_at: u.created_at,
       assigned_courses: u.assigned_courses,

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -56,7 +57,7 @@ export function CourseSelector() {
   const [error, setError] = useState(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "" });
+  const [form, setForm] = useState({ name: "", description: "", is_active: false });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -77,9 +78,9 @@ export function CourseSelector() {
     if (!form.name.trim()) { setFormError("Course name is required"); return; }
     setSaving(true); setFormError(null);
     try {
-      await createCourse({ token, data: { name: form.name.trim(), description: form.description.trim() || null } });
+      await createCourse({ token, data: { name: form.name.trim(), description: form.description.trim() || null, is_active: form.is_active } });
       setDialogOpen(false);
-      setForm({ name: "", description: "" });
+      setForm({ name: "", description: "", is_active: false });
       load();
     } catch (e) { setFormError(e.message); } finally { setSaving(false); }
   };
@@ -193,7 +194,7 @@ export function CourseSelector() {
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Published</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="inactive">Draft</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortOrder} onValueChange={setSortOrder}>
@@ -209,7 +210,7 @@ export function CourseSelector() {
         </Select>
         <Button
           className="h-11 bg-blue-500 hover:bg-blue-600 text-white gap-1.5 shrink-0 px-5 text-sm font-medium"
-          onClick={() => { setForm({ name: "", description: "" }); setFormError(null); setDialogOpen(true); }}
+          onClick={() => { setForm({ name: "", description: "", is_active: false }); setFormError(null); setDialogOpen(true); }}
         >
           <Plus className="h-4 w-4" />
           Add Course
@@ -263,7 +264,7 @@ export function CourseSelector() {
                         <Box className="flex items-center gap-1.5">
                           <Box className={`w-2 h-2 rounded-full ${course.is_active ? "bg-emerald-500" : "bg-gray-400"}`} />
                           <Text as="span" className={`text-xs font-semibold ${course.is_active ? "text-emerald-600" : "text-gray-500"}`}>
-                            {course.is_active ? "Published" : "Inactive"}
+                            {course.is_active ? "Published" : "Draft"}
                           </Text>
                         </Box>
                       </Box>
@@ -409,6 +410,16 @@ export function CourseSelector() {
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               />
             </Box>
+            <Box className="flex items-center justify-between rounded-lg border p-4">
+              <Box>
+                <Text as="p" className="text-sm font-medium">Publish immediately</Text>
+                <Text as="p" className="text-xs text-muted-foreground">Off = saved as Draft; only published courses appear in Assign Learning</Text>
+              </Box>
+              <Switch
+                checked={!!form.is_active}
+                onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
+              />
+            </Box>
             {formError && (
               <Box className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 <Text as="p" className="text-sm text-red-600">{formError}</Text>
@@ -418,7 +429,7 @@ export function CourseSelector() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={saving} className="bg-blue-500 hover:bg-blue-600 text-white">
-              {saving ? "Creating…" : "Create Course"}
+              {saving ? "Creating…" : form.is_active ? "Create & Publish" : "Save as Draft"}
             </Button>
           </DialogFooter>
         </DialogContent>

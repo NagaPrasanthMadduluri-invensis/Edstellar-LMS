@@ -1,7 +1,6 @@
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
-import { Card } from "@/components/ui/card";
-import { CalendarCheck } from "lucide-react";
+import { AdminSessionsContent } from "@/components/admin/admin-sessions-content";
 
 export default function AdminSessionsPage() {
   return (
@@ -12,17 +11,7 @@ export default function AdminSessionsPage() {
           Admin &gt; <Text as="span" className="text-indigo-500">Sessions &amp; Attendance</Text>
         </Text>
       </Box>
-      <Card className="flex flex-col items-center justify-center py-24 gap-4">
-        <Box className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center">
-          <CalendarCheck className="h-8 w-8 text-indigo-400" />
-        </Box>
-        <Box className="text-center">
-          <Text as="h2" className="text-base font-semibold">Coming Soon</Text>
-          <Text as="p" className="text-sm text-muted-foreground mt-1">
-            Live session scheduling, attendance tracking, and reports will appear here.
-          </Text>
-        </Box>
-      </Card>
+      <AdminSessionsContent />
     </Box>
   );
 }

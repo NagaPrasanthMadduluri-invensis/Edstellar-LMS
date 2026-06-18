@@ -6,7 +6,7 @@ export async function GET(request) {
   const db = await getDb();
 
   const learners = (await db.execute(
-    "SELECT id, first_name, last_name, department FROM users WHERE role = 'learner'"
+    "SELECT id, first_name, last_name, department, job_role, location FROM users WHERE role = 'learner'"
   )).rows;
 
   const thisYM = "2026-06";
@@ -53,7 +53,7 @@ export async function GET(request) {
       args: [u.id],
     })).rows[0]?.score ?? 0;
 
-    rows.push({ id: u.id, name: `${u.first_name} ${u.last_name}`, dept: u.department, thisMonth, allTime, completionPct, assessScore: Number(bestScore) });
+    rows.push({ id: u.id, name: `${u.first_name} ${u.last_name}`, dept: u.department, job_role: u.job_role || null, location: u.location || null, thisMonth, allTime, completionPct, assessScore: Number(bestScore) });
   }
 
   // Normalise allTime hours for composite score
