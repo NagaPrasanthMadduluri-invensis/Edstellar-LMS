@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Layers, CheckCircle2, TrendingUp, Award, Star, Clock,
-  Target, Play, ClipboardCheck, Bookmark,
+  Target, Play, ClipboardCheck, Bookmark, Package,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -28,9 +28,10 @@ const TYPE_CFG = {
 };
 
 const TIMELINE_CFG = {
-  lesson:     { icon: Play,           bg: "bg-green-100",   color: "text-green-600",   border: "border-green-300" },
-  assessment: { icon: ClipboardCheck, bg: "bg-blue-100",    color: "text-blue-600",    border: "border-blue-300"  },
-  assignment: { icon: Bookmark,       bg: "bg-gray-100",    color: "text-gray-500",    border: "border-gray-300"  },
+  lesson:     { icon: Play,           bg: "bg-green-100",   color: "text-green-600",   border: "border-green-300"  },
+  assessment: { icon: ClipboardCheck, bg: "bg-blue-100",    color: "text-blue-600",    border: "border-blue-300"   },
+  assignment: { icon: Bookmark,       bg: "bg-gray-100",    color: "text-gray-500",    border: "border-gray-300"   },
+  scorm:      { icon: Package,        bg: "bg-amber-100",   color: "text-amber-600",   border: "border-amber-300"  },
 };
 
 /* ── Skeleton ── */
@@ -144,7 +145,7 @@ export function MyProgressContent() {
         {/* Course History */}
         <Card className="p-5">
           <Box className="mb-4">
-            <Text as="h3" className="text-sm font-bold">Course History</Text>
+            <Text as="h3" className="text-base font-semibold">Course History</Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">Your record per course — scores, time, outcome</Text>
           </Box>
 
@@ -202,7 +203,7 @@ export function MyProgressContent() {
         {/* Skills & Competencies */}
         <Card className="p-5">
           <Box className="flex items-center justify-between mb-4">
-            <Text as="h3" className="text-sm font-bold">Skills &amp; Competencies</Text>
+            <Text as="h3" className="text-base font-semibold">Skills &amp; Competencies</Text>
             <Text as="p" className="text-xs text-muted-foreground">Earned through completed courses</Text>
           </Box>
 
@@ -234,7 +235,7 @@ export function MyProgressContent() {
         {/* Assessment Performance */}
         <Card className="p-5">
           <Box className="flex items-center justify-between mb-5">
-            <Text as="h3" className="text-sm font-bold">Assessment Performance</Text>
+            <Text as="h3" className="text-base font-semibold">Assessment Performance</Text>
             <Text as="p" className="text-xs text-muted-foreground">Your scores across all assessments taken</Text>
           </Box>
 
@@ -286,7 +287,7 @@ export function MyProgressContent() {
         {/* Learning Hours Trend */}
         <Card className="p-5">
           <Box className="flex items-center justify-between mb-5">
-            <Text as="h3" className="text-sm font-bold">Learning Hours Trend</Text>
+            <Text as="h3" className="text-base font-semibold">Learning Hours Trend</Text>
             <Text as="p" className="text-xs text-muted-foreground">Month-on-month investment</Text>
           </Box>
 
@@ -342,7 +343,7 @@ export function MyProgressContent() {
       {/* ── Learning Activity Timeline ── */}
       <Card className="p-5">
         <Box className="flex items-center justify-between mb-5">
-          <Text as="h3" className="text-sm font-bold">Learning Activity Timeline</Text>
+          <Text as="h3" className="text-base font-semibold">Learning Activity Timeline</Text>
           <Text as="p" className="text-xs text-muted-foreground">Your complete history across all courses</Text>
         </Box>
 

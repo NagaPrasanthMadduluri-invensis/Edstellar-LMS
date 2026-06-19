@@ -29,12 +29,21 @@ export async function GET(request, { params }) {
   // Sequential lock check
   const moduleLessons = (await db.execute({
     sql: `SELECT l.id,
-      CASE WHEN ulc.id IS NOT NULL THEN 'completed' ELSE 'not_started' END as status
+      CASE
+        WHEN ulc.id IS NOT NULL THEN 'completed'
+        WHEN (l.content_type = 'scorm' AND l.scorm_package_id IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM scorm_tracking st
+                WHERE st.package_id = l.scorm_package_id AND st.user_id = ?
+                  AND (st.completion_status = 'completed' OR st.lesson_status IN ('passed','completed'))
+              )) THEN 'completed'
+        ELSE 'not_started'
+      END as status
     FROM lessons l
     LEFT JOIN user_lesson_completions ulc ON ulc.lesson_id = l.id AND ulc.user_id = ?
     WHERE l.module_id = ? AND l.is_active = 1
     ORDER BY l.sort_order, l.id`,
-    args: [userId, lesson.module_id],
+    args: [userId, userId, lesson.module_id],
   })).rows;
 
   const posInModule = moduleLessons.findIndex((l) => l.id === Number(lessonId));
@@ -55,11 +64,19 @@ export async function GET(request, { params }) {
     if (prevModule) {
       const counts = (await db.execute({
         sql: `SELECT COUNT(*) as total,
-          SUM(CASE WHEN ulc.id IS NOT NULL THEN 1 ELSE 0 END) as completed
+          SUM(CASE
+            WHEN ulc.id IS NOT NULL THEN 1
+            WHEN (l.content_type = 'scorm' AND l.scorm_package_id IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1 FROM scorm_tracking st
+                    WHERE st.package_id = l.scorm_package_id AND st.user_id = ?
+                      AND (st.completion_status = 'completed' OR st.lesson_status IN ('passed','completed'))
+                  )) THEN 1
+            ELSE 0 END) as completed
         FROM lessons l
         LEFT JOIN user_lesson_completions ulc ON ulc.lesson_id = l.id AND ulc.user_id = ?
         WHERE l.module_id = ? AND l.is_active = 1`,
-        args: [userId, prevModule.id],
+        args: [userId, userId, prevModule.id],
       })).rows[0];
 
       if (counts.total > 0 && counts.completed < counts.total) {
@@ -72,6 +89,17 @@ export async function GET(request, { params }) {
     sql: `SELECT id FROM user_lesson_completions WHERE user_id = ? AND lesson_id = ?`,
     args: [userId, lessonId],
   })).rows[0];
+
+  /* Also check SCORM tracking for completion (handles pre-auto-mark data) */
+  let scormCompletion = null;
+  if (!completion && lesson.content_type === "scorm" && lesson.scorm_package_id) {
+    scormCompletion = (await db.execute({
+      sql: `SELECT id FROM scorm_tracking
+            WHERE user_id = ? AND package_id = ?
+              AND (completion_status = 'completed' OR lesson_status IN ('passed','completed'))`,
+      args: [userId, lesson.scorm_package_id],
+    })).rows[0] ?? null;
+  }
 
   // Find next lesson — same module first, then first lesson of next module
   let nextLesson = (await db.execute({
@@ -106,10 +134,11 @@ export async function GET(request, { params }) {
       description: lesson.description,
       content_type: lesson.content_type,
       content_url: lesson.content_url,
+      scorm_package_id: lesson.scorm_package_id ?? null,
       duration_minutes: lesson.duration_minutes,
       module: { title: lesson.module_title },
     },
-    progress_status: completion ? "completed" : "not_started",
+    progress_status: (completion || scormCompletion) ? "completed" : "not_started",
     next_lesson_id: nextLesson ? Number(nextLesson.id) : null,
   });
 }

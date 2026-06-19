@@ -383,37 +383,41 @@ export function CourseSelector() {
 
       {/* ── Create Course Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Course</DialogTitle>
-          </DialogHeader>
-          <Box className="space-y-5 py-2">
-            <Box className="space-y-2">
-              <Label htmlFor="course-name" className="text-sm font-medium">
-                Course Name <Text as="span" className="text-red-500">*</Text>
+        <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
+          <Box className="px-6 py-5 border-b bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Create New Course</DialogTitle>
+              <Text as="p" className="text-sm text-muted-foreground mt-0.5">Fill in the details to set up your course structure.</Text>
+            </DialogHeader>
+          </Box>
+          <Box className="px-6 py-5 space-y-4">
+            <Box className="space-y-1.5">
+              <Label htmlFor="course-name" className="text-sm font-medium text-gray-700">
+                Course Name <Text as="span" className="text-red-400">*</Text>
               </Label>
               <Input
                 id="course-name"
                 placeholder="e.g. Project Management Fundamentals"
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                className="h-10"
+                className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors"
               />
             </Box>
-            <Box className="space-y-2">
-              <Label htmlFor="course-desc" className="text-sm font-medium">Description</Label>
+            <Box className="space-y-1.5">
+              <Label htmlFor="course-desc" className="text-sm font-medium text-gray-700">Description</Label>
               <Textarea
                 id="course-desc"
                 placeholder="Brief description of what learners will achieve..."
                 rows={3}
                 value={form.description}
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                className="bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 resize-none transition-colors"
               />
             </Box>
-            <Box className="flex items-center justify-between rounded-lg border p-4">
+            <Box className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5">
               <Box>
-                <Text as="p" className="text-sm font-medium">Publish immediately</Text>
-                <Text as="p" className="text-xs text-muted-foreground">Off = saved as Draft; only published courses appear in Assign Learning</Text>
+                <Text as="p" className="text-sm font-medium text-gray-800">Publish immediately</Text>
+                <Text as="p" className="text-xs text-muted-foreground mt-0.5">Off = saved as Draft; only published courses appear in Assign Learning</Text>
               </Box>
               <Switch
                 checked={!!form.is_active}
@@ -421,17 +425,17 @@ export function CourseSelector() {
               />
             </Box>
             {formError && (
-              <Box className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <Box className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
                 <Text as="p" className="text-sm text-red-600">{formError}</Text>
               </Box>
             )}
           </Box>
-          <DialogFooter>
+          <Box className="px-6 py-4 border-t bg-gray-50/60 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving} className="bg-blue-500 hover:bg-blue-600 text-white">
+            <Button onClick={handleCreate} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
               {saving ? "Creating…" : form.is_active ? "Create & Publish" : "Save as Draft"}
             </Button>
-          </DialogFooter>
+          </Box>
         </DialogContent>
       </Dialog>
     </Box>

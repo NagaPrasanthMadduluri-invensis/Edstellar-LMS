@@ -5,7 +5,7 @@ export async function PUT(request, { params }) {
   if (!requireAdmin(request)) return err("Unauthorized", 401);
   const { lessonId } = await params;
   const body = await request.json();
-  const { title, description, content_url, duration_minutes, sort_order, is_preview, is_active } = body;
+  const { title, description, content_type, content_url, scorm_package_id, duration_minutes, sort_order, is_preview, is_active } = body;
 
   if (title !== undefined && !title?.trim()) return err("Title is required");
 
@@ -13,12 +13,16 @@ export async function PUT(request, { params }) {
   const current = (await db.execute({ sql: "SELECT * FROM lessons WHERE id = ?", args: [lessonId] })).rows[0];
   if (!current) return err("Lesson not found", 404);
 
+  const newContentType = content_type !== undefined ? content_type : current.content_type;
+
   await db.execute({
-    sql: `UPDATE lessons SET title=?, description=?, content_url=?, duration_minutes=?, sort_order=?, is_preview=?, is_active=? WHERE id=?`,
+    sql: `UPDATE lessons SET title=?, description=?, content_type=?, content_url=?, scorm_package_id=?, duration_minutes=?, sort_order=?, is_preview=?, is_active=? WHERE id=?`,
     args: [
       (title ?? current.title).trim(),
       description !== undefined ? (description || null) : current.description,
-      content_url !== undefined ? (content_url || null) : current.content_url,
+      newContentType,
+      newContentType === "scorm" ? null : (content_url !== undefined ? (content_url || null) : current.content_url),
+      newContentType === "scorm" ? (scorm_package_id !== undefined ? (scorm_package_id || null) : current.scorm_package_id) : null,
       duration_minutes !== undefined ? (duration_minutes || null) : current.duration_minutes,
       sort_order !== undefined ? sort_order : current.sort_order,
       is_preview !== undefined ? (is_preview ? 1 : 0) : current.is_preview,

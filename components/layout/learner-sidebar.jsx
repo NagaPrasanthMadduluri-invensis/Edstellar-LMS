@@ -64,6 +64,12 @@ export function LearnerSidebar() {
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
+        <Text
+          as="span"
+          className="px-2 pb-1 text-[10px] font-medium text-sidebar-foreground/40 tracking-wide"
+        >
+          Powered by Edstellar
+        </Text>
         <SidebarMenu>
           {learnerNav.footer.map((item) => (
             <SidebarMenuItem key={item.title}>

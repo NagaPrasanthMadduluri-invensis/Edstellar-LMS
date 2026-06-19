@@ -32,11 +32,20 @@ export async function GET(request, { params }) {
   for (const m of modules) {
     const lessons = (await db.execute({
       sql: `SELECT l.*,
-        CASE WHEN ulc.id IS NOT NULL THEN 'completed' ELSE 'not_started' END as progress_status
+        CASE
+          WHEN ulc.id IS NOT NULL THEN 'completed'
+          WHEN (l.content_type = 'scorm' AND l.scorm_package_id IS NOT NULL
+                AND EXISTS (
+                  SELECT 1 FROM scorm_tracking st
+                  WHERE st.package_id = l.scorm_package_id AND st.user_id = ?
+                    AND (st.completion_status = 'completed' OR st.lesson_status IN ('passed','completed'))
+                )) THEN 'completed'
+          ELSE 'not_started'
+        END as progress_status
       FROM lessons l
       LEFT JOIN user_lesson_completions ulc ON ulc.lesson_id = l.id AND ulc.user_id = ?
       WHERE l.module_id = ? AND l.is_active = 1 ORDER BY l.sort_order, l.created_at`,
-      args: [userId, m.id],
+      args: [userId, userId, m.id],
     })).rows;
 
     const moduleIsLocked = !prevModuleComplete;

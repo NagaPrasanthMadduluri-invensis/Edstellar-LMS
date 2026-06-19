@@ -148,7 +148,7 @@ export function TeamLearningContent() {
         {/* Team Completion */}
         <Card className="p-5">
           <Box className="flex items-center justify-between mb-4">
-            <Text as="h3" className="text-sm font-bold">Team Completion</Text>
+            <Text as="h3" className="text-base font-semibold">Team Completion</Text>
             <Text as="span" className="text-xs text-muted-foreground">Status distribution</Text>
           </Box>
           <Box className="flex items-center gap-8">
@@ -182,7 +182,7 @@ export function TeamLearningContent() {
         {/* Action Required */}
         <Card className="p-5">
           <Box className="flex items-center justify-between mb-4">
-            <Text as="h3" className="text-sm font-bold">Action Required</Text>
+            <Text as="h3" className="text-base font-semibold">Action Required</Text>
             <Text as="span" className="text-xs text-muted-foreground">{attention.length} item{attention.length !== 1 ? "s" : ""}</Text>
           </Box>
           {attention.length === 0 ? (
@@ -221,7 +221,7 @@ export function TeamLearningContent() {
       {/* ── Individual Progress table ── */}
       <Card className="p-5">
         <Box className="mb-4">
-          <Text as="h3" className="text-sm font-bold">Individual Progress</Text>
+          <Text as="h3" className="text-base font-semibold">Individual Progress</Text>
           <Text as="p" className="text-xs text-muted-foreground mt-0.5">All courses · click name to view full profile</Text>
         </Box>
 
@@ -311,7 +311,7 @@ export function TeamLearningContent() {
       {/* ── Learning Hours ── */}
       <Card className="p-5">
         <Box className="flex items-center justify-between mb-5">
-          <Text as="h3" className="text-sm font-bold">Learning Hours</Text>
+          <Text as="h3" className="text-base font-semibold">Learning Hours</Text>
           <Text as="span" className="text-xs text-indigo-500 font-medium">
             Monthly goal — {totalHours}h total this month
           </Text>

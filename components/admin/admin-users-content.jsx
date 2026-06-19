@@ -398,19 +398,22 @@ export function AdminUsersContent() {
           EDIT USER MODAL
       ════════════════════════════════ */}
       <Dialog open={!!editUser} onOpenChange={(o) => { if (!o) setEditUser(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Learner</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
+          <Box className="px-6 py-5 border-b bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Edit Learner</DialogTitle>
+              <Text as="p" className="text-sm text-muted-foreground mt-0.5">Update this learner's profile information.</Text>
+            </DialogHeader>
+          </Box>
 
           {editUser && (() => {
             const idx        = users.findIndex((u) => u.id === editUser.id);
             const colorClass = AVATAR_COLORS[Math.max(idx, 0) % AVATAR_COLORS.length];
             const initials   = `${(editUser.first_name || "")[0]}${(editUser.last_name || "")[0]}`.toUpperCase();
             return (
-              <Box className="space-y-4">
+              <Box className="px-6 py-5 space-y-4">
                 {/* Identity strip */}
-                <Box className="flex items-center gap-3 p-3 rounded-xl bg-muted/40">
+                <Box className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
                   <Avatar className="h-11 w-11 shrink-0">
                     <AvatarFallback className={`text-sm font-bold ${colorClass}`}>{initials}</AvatarFallback>
                   </Avatar>
@@ -426,41 +429,50 @@ export function AdminUsersContent() {
                 {/* Fields */}
                 <Box className="grid grid-cols-2 gap-3">
                   <Box className="space-y-1.5">
-                    <Label>First Name <Text as="span" className="text-red-500">*</Text></Label>
-                    <Input value={editForm.first_name} onChange={(e) => setEditForm((p) => ({ ...p, first_name: e.target.value }))} />
+                    <Label className="text-sm font-medium text-gray-700">First Name <Text as="span" className="text-red-400">*</Text></Label>
+                    <Input value={editForm.first_name} onChange={(e) => setEditForm((p) => ({ ...p, first_name: e.target.value }))}
+                      className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
                   </Box>
                   <Box className="space-y-1.5">
-                    <Label>Last Name <Text as="span" className="text-red-500">*</Text></Label>
-                    <Input value={editForm.last_name} onChange={(e) => setEditForm((p) => ({ ...p, last_name: e.target.value }))} />
+                    <Label className="text-sm font-medium text-gray-700">Last Name <Text as="span" className="text-red-400">*</Text></Label>
+                    <Input value={editForm.last_name} onChange={(e) => setEditForm((p) => ({ ...p, last_name: e.target.value }))}
+                      className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
                   </Box>
                 </Box>
                 <Box className="space-y-1.5">
-                  <Label>Email <Text as="span" className="text-red-500">*</Text></Label>
-                  <Input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} />
+                  <Label className="text-sm font-medium text-gray-700">Email <Text as="span" className="text-red-400">*</Text></Label>
+                  <Input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
+                    className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
                 </Box>
                 <Box className="grid grid-cols-2 gap-3">
                   <Box className="space-y-1.5">
-                    <Label>Location</Label>
-                    <Input placeholder="e.g. Bangalore" value={editForm.location} onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))} />
+                    <Label className="text-sm font-medium text-gray-700">Location</Label>
+                    <Input placeholder="e.g. Bangalore" value={editForm.location} onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))}
+                      className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
                   </Box>
                   <Box className="space-y-1.5">
-                    <Label>Job Role</Label>
-                    <Input placeholder="e.g. Software Engineer" value={editForm.job_role} onChange={(e) => setEditForm((p) => ({ ...p, job_role: e.target.value }))} />
+                    <Label className="text-sm font-medium text-gray-700">Job Role</Label>
+                    <Input placeholder="e.g. Software Engineer" value={editForm.job_role} onChange={(e) => setEditForm((p) => ({ ...p, job_role: e.target.value }))}
+                      className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
                   </Box>
                 </Box>
 
-                {editError && <Text as="p" className="text-sm text-red-500">{editError}</Text>}
+                {editError && (
+                  <Box className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                    <Text as="p" className="text-sm text-red-600">{editError}</Text>
+                  </Box>
+                )}
               </Box>
             );
           })()}
 
-          <DialogFooter className="gap-2">
+          <Box className="px-6 py-4 border-t bg-gray-50/60 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
             <Button onClick={handleEditSave} disabled={editSaving}
               className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
               {editSaving ? "Saving..." : "Save Changes"}
             </Button>
-          </DialogFooter>
+          </Box>
         </DialogContent>
       </Dialog>
 
@@ -674,50 +686,71 @@ export function AdminUsersContent() {
           CREATE USER
       ════════════════════════════════ */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Add New Learner</DialogTitle></DialogHeader>
-          <Box className="space-y-3 py-2">
-            <Box className="grid grid-cols-2 gap-3">
-              <Box className="space-y-1.5">
-                <Label>First Name <Text as="span" className="text-red-500">*</Text></Label>
-                <Input placeholder="Alice" value={form.first_name} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label>Last Name <Text as="span" className="text-red-500">*</Text></Label>
-                <Input placeholder="Johnson" value={form.last_name} onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))} />
-              </Box>
-            </Box>
-            <Box className="space-y-1.5">
-              <Label>Email <Text as="span" className="text-red-500">*</Text></Label>
-              <Input type="email" placeholder="alice@company.com" autoComplete="off" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
-            </Box>
-            <Box className="space-y-1.5">
-              <Label>Department</Label>
-              <Input placeholder="e.g. Engineering" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))} />
-            </Box>
-            <Box className="grid grid-cols-2 gap-3">
-              <Box className="space-y-1.5">
-                <Label>Location</Label>
-                <Input placeholder="e.g. Bangalore" value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label>Job Role</Label>
-                <Input placeholder="e.g. Software Engineer" value={form.job_role} onChange={(e) => setForm((p) => ({ ...p, job_role: e.target.value }))} />
-              </Box>
-            </Box>
-            <Box className="space-y-1.5">
-              <Label>Password <Text as="span" className="text-red-500">*</Text></Label>
-              <Input type="password" placeholder="Minimum 6 characters" autoComplete="new-password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} />
-            </Box>
-            {formError && <Text as="p" className="text-sm text-red-500">{formError}</Text>}
+        <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
+          <Box className="px-6 py-5 border-b bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">Add New Learner</DialogTitle>
+              <Text as="p" className="text-sm text-muted-foreground mt-0.5">Create a learner account and assign courses later.</Text>
+            </DialogHeader>
           </Box>
-          <DialogFooter>
+          <Box className="px-6 py-5 space-y-4">
+            {/* Name */}
+            <Box className="grid grid-cols-2 gap-3">
+              <Box className="space-y-1.5">
+                <Label className="text-sm font-medium text-gray-700">First Name <Text as="span" className="text-red-400">*</Text></Label>
+                <Input placeholder="Alice" value={form.first_name} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))}
+                  className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label className="text-sm font-medium text-gray-700">Last Name <Text as="span" className="text-red-400">*</Text></Label>
+                <Input placeholder="Johnson" value={form.last_name} onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))}
+                  className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
+              </Box>
+            </Box>
+            {/* Email */}
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-gray-700">Email <Text as="span" className="text-red-400">*</Text></Label>
+              <Input type="email" placeholder="alice@company.com" autoComplete="off" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
+            </Box>
+            {/* Department */}
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-gray-700">Department</Label>
+              <Input placeholder="e.g. Engineering" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
+                className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
+            </Box>
+            {/* Location + Job Role */}
+            <Box className="grid grid-cols-2 gap-3">
+              <Box className="space-y-1.5">
+                <Label className="text-sm font-medium text-gray-700">Location</Label>
+                <Input placeholder="e.g. Bangalore" value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                  className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label className="text-sm font-medium text-gray-700">Job Role</Label>
+                <Input placeholder="e.g. Software Engineer" value={form.job_role} onChange={(e) => setForm((p) => ({ ...p, job_role: e.target.value }))}
+                  className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
+              </Box>
+            </Box>
+            {/* Password */}
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-gray-700">Password <Text as="span" className="text-red-400">*</Text></Label>
+              <Input type="password" placeholder="Minimum 6 characters" autoComplete="new-password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors" />
+            </Box>
+            {formError && (
+              <Box className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <Text as="p" className="text-sm text-red-600">{formError}</Text>
+              </Box>
+            )}
+          </Box>
+          <Box className="px-6 py-4 border-t bg-gray-50/60 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={saving}
               className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white">
               {saving ? "Creating…" : "Add Learner"}
             </Button>
-          </DialogFooter>
+          </Box>
         </DialogContent>
       </Dialog>
     </Box>

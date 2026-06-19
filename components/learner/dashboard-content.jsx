@@ -158,24 +158,24 @@ export function DashboardContent() {
       <Box className="bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl px-6 py-4 flex items-center gap-0">
         <Box className="flex items-center gap-8 text-white flex-1">
           <Box>
-            <Text as="p" className="text-2xl font-extrabold leading-none">{points}</Text>
-            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5">Points</Text>
+            <Text as="p" className="text-2xl font-extrabold leading-none text-white">{points}</Text>
+            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Points</Text>
           </Box>
           <Box className="w-px h-8 bg-white/30" />
           <Box>
             <Box className="flex items-baseline gap-1">
-              <Text as="p" className="text-2xl font-extrabold leading-none">#{rank}</Text>
-              <Text as="span" className="text-sm opacity-75">of {rank_of}</Text>
+              <Text as="p" className="text-2xl font-extrabold leading-none text-white">#{rank}</Text>
+              <Text as="span" className="text-sm opacity-75 text-white">of {rank_of}</Text>
             </Box>
-            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5">Rank</Text>
+            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Rank</Text>
           </Box>
           <Box className="w-px h-8 bg-white/30" />
           <Box>
             <Box className="flex items-baseline gap-1.5">
-              <Text as="p" className="text-2xl font-extrabold leading-none">{badges}</Text>
+              <Text as="p" className="text-2xl font-extrabold leading-none text-white">{badges}</Text>
               <Text as="span" className="text-lg">🏅</Text>
             </Box>
-            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5">Badges</Text>
+            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Badges</Text>
           </Box>
         </Box>
         <Link href="/certifications">
@@ -211,7 +211,7 @@ export function DashboardContent() {
           {/* Continue Learning */}
           <Card className="p-5">
             <Box className="flex items-center justify-between mb-4">
-              <Text as="h3" className="text-sm font-bold">Continue Learning</Text>
+              <Text as="h3" className="text-base font-semibold">Continue Learning</Text>
               <Text as="p" className="text-xs text-muted-foreground">Pick up where you left off</Text>
             </Box>
             {continue_learning ? (
@@ -221,7 +221,7 @@ export function DashboardContent() {
                     <Settings className="h-5 w-5 text-blue-400" />
                   </Box>
                   <Box className="flex-1 min-w-0">
-                    <Text as="p" className="text-sm font-semibold leading-snug">{continue_learning.course.name}</Text>
+                    <Text as="p" className="text-sm font-medium leading-snug">{continue_learning.course.name}</Text>
                     <Box className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
                       <Text as="span" className="text-xs text-muted-foreground">
@@ -259,7 +259,7 @@ export function DashboardContent() {
           {/* Learning Journey */}
           <Card className="p-5">
             <Box className="flex items-center justify-between mb-1">
-              <Text as="h3" className="text-sm font-bold">Learning Journey</Text>
+              <Text as="h3" className="text-base font-semibold">Learning Journey</Text>
               <Link href="/my-courses" className="text-xs text-blue-500 hover:underline font-medium flex items-center gap-0.5">
                 View full <ChevronRight className="h-3.5 w-3.5" />
               </Link>
@@ -338,7 +338,7 @@ export function DashboardContent() {
           {/* Upcoming Deadlines */}
           <Card className="p-5">
             <Box className="flex items-center justify-between mb-4">
-              <Text as="h3" className="text-sm font-bold">Upcoming Deadlines</Text>
+              <Text as="h3" className="text-base font-semibold">Upcoming Deadlines</Text>
               <Text as="p" className="text-xs text-muted-foreground">Courses due soon</Text>
             </Box>
             {upcoming_deadlines.length === 0 ? (
@@ -357,7 +357,7 @@ export function DashboardContent() {
                           <Settings className="h-4 w-4 text-gray-400" />
                         </Box>
                         <Box className="flex-1 min-w-0">
-                          <Text as="p" className="text-sm font-semibold truncate">{d.name}</Text>
+                          <Text as="p" className="text-sm font-medium truncate">{d.name}</Text>
                           <Text as="p" className="text-xs text-muted-foreground">Due: {fmtDate(d.due_date)}</Text>
                         </Box>
                         <Badge className={cn("text-[10px] shrink-0 border-0", scfg.cls)}>{scfg.label}</Badge>
@@ -373,7 +373,7 @@ export function DashboardContent() {
           <Card className="p-5">
             <Box className="flex items-center justify-between mb-3">
               <Box>
-                <Text as="h3" className="text-sm font-bold">Hours Goal</Text>
+                <Text as="h3" className="text-base font-semibold">Hours Goal</Text>
                 <Text as="p" className="text-xs text-muted-foreground">June 2026</Text>
               </Box>
               <Link href="/progress" className="text-xs text-blue-500 hover:underline font-medium flex items-center gap-0.5">
@@ -404,7 +404,7 @@ export function DashboardContent() {
 
           {/* Recent Activity */}
           <Card className="p-5">
-            <Text as="h3" className="text-sm font-bold mb-4">Recent Activity</Text>
+            <Text as="h3" className="text-base font-semibold mb-4">Recent Activity</Text>
             {recent_activity.length === 0 ? (
               <Box className="py-4 text-center">
                 <Text as="p" className="text-xs text-muted-foreground">No activity yet. Start a course!</Text>

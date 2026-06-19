@@ -18,7 +18,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 
-export function TopNav({ portalLabel = "Edstellar LMS" }) {
+export function TopNav({ portalLabel = "Invensis LMS" }) {
   const { user, logout } = useAuth();
 
   return (
@@ -29,12 +29,20 @@ export function TopNav({ portalLabel = "Edstellar LMS" }) {
       <Box className="flex items-center gap-3">
         <SidebarTrigger className="bg-transparent hover:bg-transparent" />
         <Separator orientation="vertical" className="h-6 text-white" />
-        <Text
-          as="h2"
-          className="text-lg font-semibold tracking-tight select-none text-background"
-        >
-          {portalLabel}
-        </Text>
+        <Box className="flex flex-col leading-none select-none">
+          <Text
+            as="h2"
+            className="text-lg font-semibold tracking-tight text-background"
+          >
+            {portalLabel}
+          </Text>
+          <Text
+            as="span"
+            className="text-[10px] font-medium text-background/50 tracking-wide"
+          >
+            powered by Edstellar
+          </Text>
+        </Box>
       </Box>
 
       <Box className="flex items-center gap-2">

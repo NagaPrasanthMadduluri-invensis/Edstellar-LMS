@@ -185,7 +185,7 @@ export function LeaderboardContent() {
       <Card className="p-5">
         <Box className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <Box>
-            <Text as="h3" className="text-sm font-bold">Full Rankings</Text>
+            <Text as="h3" className="text-base font-semibold">Full Rankings</Text>
             <Text as="p" className="text-xs text-muted-foreground">{period === "alltime" ? "All-time points" : "This month's points"}</Text>
           </Box>
           <Box className="flex items-center gap-2 flex-wrap">

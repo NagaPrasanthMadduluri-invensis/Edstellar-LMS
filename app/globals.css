@@ -135,4 +135,8 @@
   html {
     @apply font-sans;
   }
+  input::placeholder,
+  textarea::placeholder {
+    color: #d1d5db; /* gray-300 — light, unobtrusive */
+  }
 }

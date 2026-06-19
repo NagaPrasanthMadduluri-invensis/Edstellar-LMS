@@ -29,6 +29,14 @@ const MODE_ORDER = [
   "Video / Self-paced",
 ];
 
+/* Parse ISO 8601 duration (e.g. "PT1H30M45S") → minutes */
+function parseIsoDuration(iso) {
+  if (!iso) return 0;
+  const m = iso.match(/PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?/);
+  if (!m) return 0;
+  return (parseFloat(m[1] || 0) * 60) + parseFloat(m[2] || 0) + (parseFloat(m[3] || 0) / 60);
+}
+
 async function getMonthHours(db, userId, ym) {
   const row = (await db.execute({
     sql: `SELECT COALESCE(ROUND(SUM(l.duration_minutes)/60.0,1),0) AS hrs
@@ -37,7 +45,17 @@ async function getMonthHours(db, userId, ym) {
           WHERE ulc.user_id = ? AND strftime('%Y-%m', ulc.completed_at) = ?`,
     args: [userId, ym],
   })).rows[0];
-  return Number(row.hrs);
+  let hours = Number(row.hrs);
+
+  /* Add SCORM session time for this month (by updated_at) */
+  const scormRows = (await db.execute({
+    sql: `SELECT total_time FROM scorm_tracking
+          WHERE user_id = ? AND strftime('%Y-%m', updated_at) = ? AND total_time IS NOT NULL`,
+    args: [userId, ym],
+  })).rows;
+  for (const r of scormRows) hours += parseIsoDuration(r.total_time) / 60;
+
+  return Math.round(hours * 10) / 10;
 }
 
 async function getAllTimeHours(db, userId) {
@@ -48,7 +66,38 @@ async function getAllTimeHours(db, userId) {
           WHERE ulc.user_id = ?`,
     args: [userId],
   })).rows[0];
-  return Number(row.hrs);
+  let hours = Number(row.hrs);
+
+  /* Add all SCORM session time */
+  const scormRows = (await db.execute({
+    sql: `SELECT total_time FROM scorm_tracking WHERE user_id = ? AND total_time IS NOT NULL`,
+    args: [userId],
+  })).rows;
+  for (const r of scormRows) hours += parseIsoDuration(r.total_time) / 60;
+
+  return Math.round(hours * 10) / 10;
+}
+
+async function getWeekHours(db, userId, startDate, endDate) {
+  const row = (await db.execute({
+    sql: `SELECT COALESCE(ROUND(SUM(l.duration_minutes)/60.0,1),0) AS hrs
+          FROM user_lesson_completions ulc
+          JOIN lessons l ON l.id = ulc.lesson_id
+          WHERE ulc.user_id = ? AND date(ulc.completed_at) >= ? AND date(ulc.completed_at) <= ?`,
+    args: [userId, startDate, endDate],
+  })).rows[0];
+  let hours = Number(row.hrs);
+
+  /* Add SCORM time for this week */
+  const scormRows = (await db.execute({
+    sql: `SELECT total_time FROM scorm_tracking
+          WHERE user_id = ? AND date(updated_at) >= ? AND date(updated_at) <= ?
+            AND total_time IS NOT NULL`,
+    args: [userId, startDate, endDate],
+  })).rows;
+  for (const r of scormRows) hours += parseIsoDuration(r.total_time) / 60;
+
+  return Math.round(hours * 10) / 10;
 }
 
 export async function GET(request) {
@@ -123,14 +172,7 @@ export async function GET(request) {
         const members = allLearners.filter((u) => u.department === dept);
         let hrs = 0;
         for (const u of members) {
-          const row = (await db.execute({
-            sql: `SELECT COALESCE(ROUND(SUM(l.duration_minutes)/60.0,1),0) AS hrs
-                  FROM user_lesson_completions ulc
-                  JOIN lessons l ON l.id = ulc.lesson_id
-                  WHERE ulc.user_id = ? AND date(ulc.completed_at) >= ? AND date(ulc.completed_at) <= ?`,
-            args: [u.id, w.start, w.end],
-          })).rows[0];
-          hrs += Number(row.hrs);
+          hrs += await getWeekHours(db, u.id, w.start, w.end);
         }
         entry[dept] = Math.round(hrs * 10) / 10;
       }
@@ -138,7 +180,7 @@ export async function GET(request) {
     })
   );
 
-  /* ── training mode breakdown (by course) ── */
+  /* ── training mode breakdown (by course, this month) ── */
   const modeMap = {};
   const courseRows = (await db.execute({
     sql: `SELECT cm.course_id, COALESCE(ROUND(SUM(l.duration_minutes)/60.0,1),0) AS hrs
@@ -154,6 +196,18 @@ export async function GET(request) {
     const cfg  = COURSE_MODE[row.course_id] || { mode: "Video / Self-paced", color: "#10b981" };
     const mode = cfg.mode;
     modeMap[mode] = (modeMap[mode] || 0) + Number(row.hrs);
+  }
+
+  /* SCORM time this month → eLearning / SCORM bucket */
+  const scormModeRows = (await db.execute({
+    sql: `SELECT total_time FROM scorm_tracking
+          WHERE user_id = ? AND strftime('%Y-%m', updated_at) = ? AND total_time IS NOT NULL`,
+    args: [userId, THIS_YM],
+  })).rows;
+  let scormModeHrs = 0;
+  for (const r of scormModeRows) scormModeHrs += parseIsoDuration(r.total_time) / 60;
+  if (scormModeHrs > 0) {
+    modeMap["eLearning / SCORM"] = (modeMap["eLearning / SCORM"] || 0) + Math.round(scormModeHrs * 10) / 10;
   }
 
   const totalModeHrs = Object.values(modeMap).reduce((s, v) => s + v, 0) || 1;

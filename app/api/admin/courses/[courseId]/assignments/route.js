@@ -22,7 +22,32 @@ export async function GET(request, { params }) {
     args: [courseId, courseId, courseId],
   })).rows;
 
-  return ok({ assignments });
+  // Fetch SCORM results for all learners in this course
+  const scormRows = (await db.execute({
+    sql: `SELECT st.user_id, st.package_id, sp.title as package_title,
+                 st.lesson_status, st.completion_status, st.success_status,
+                 st.score_raw, st.score_max, st.total_time
+          FROM scorm_tracking st
+          JOIN scorm_packages sp ON sp.id = st.package_id
+          JOIN lessons l ON l.scorm_package_id = st.package_id
+          JOIN course_modules cm ON cm.id = l.module_id
+          WHERE cm.course_id = ?`,
+    args: [courseId],
+  })).rows;
+
+  // Group SCORM results by user_id
+  const scormByUser = {};
+  for (const row of scormRows) {
+    if (!scormByUser[row.user_id]) scormByUser[row.user_id] = [];
+    scormByUser[row.user_id].push(row);
+  }
+
+  const enriched = assignments.map((a) => ({
+    ...a,
+    scorm_results: scormByUser[a.user_id] || [],
+  }));
+
+  return ok({ assignments: enriched });
 }
 
 export async function POST(request, { params }) {

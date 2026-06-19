@@ -16,7 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Users, UserPlus, Trash2, CheckCircle2, BookOpen } from "lucide-react";
+import { Users, UserPlus, Trash2, CheckCircle2, BookOpen, FileArchive, Trophy } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -156,6 +156,44 @@ export function CourseAssignmentsContent({ courseId }) {
                           </Text>
                         </Box>
                         <Text as="span" className="text-xs font-semibold text-muted-foreground shrink-0">{pct}%</Text>
+                      </Box>
+                    )}
+                    {a.scorm_results && a.scorm_results.length > 0 && (
+                      <Box className="mt-2 space-y-1.5 border-t pt-2">
+                        {a.scorm_results.map((r, i) => {
+                          const sRaw = r.score_raw != null ? Number(r.score_raw) : null;
+                          const sMax = r.score_max != null ? Number(r.score_max) : null;
+                          const sPct = sRaw !== null && sMax ? Math.round((sRaw / sMax) * 100) : null;
+                          const isPassed = r.success_status === "passed" || r.lesson_status === "passed";
+                          const isFailed = r.success_status === "failed" || r.lesson_status === "failed";
+                          const isCompleted = r.completion_status === "completed" || r.lesson_status === "completed";
+                          return (
+                            <Box key={i} className="flex items-center gap-2 flex-wrap">
+                              <FileArchive className="h-3 w-3 text-indigo-500 shrink-0" />
+                              <Text as="span" className="text-xs text-muted-foreground truncate max-w-[120px]">{r.package_title}</Text>
+                              {isPassed && (
+                                <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-0 py-0">
+                                  <CheckCircle2 className="h-3 w-3 mr-0.5" />Passed
+                                </Badge>
+                              )}
+                              {isFailed && (
+                                <Badge className="text-[10px] bg-red-100 text-red-700 border-0 py-0">Failed</Badge>
+                              )}
+                              {!isPassed && !isFailed && isCompleted && (
+                                <Badge className="text-[10px] bg-blue-100 text-blue-700 border-0 py-0">Completed</Badge>
+                              )}
+                              {sRaw !== null && (
+                                <Box className="flex items-center gap-0.5">
+                                  <Trophy className="h-3 w-3 text-amber-500" />
+                                  <Text as="span" className="text-xs font-semibold">
+                                    {Math.round(sRaw)}{sMax ? `/${Math.round(sMax)}` : ""}
+                                    {sPct !== null ? ` (${sPct}%)` : ""}
+                                  </Text>
+                                </Box>
+                              )}
+                            </Box>
+                          );
+                        })}
                       </Box>
                     )}
                   </Box>

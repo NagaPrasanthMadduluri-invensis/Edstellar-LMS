@@ -156,7 +156,7 @@ export function LearningHoursContent() {
         <Card className="p-5">
           <Box className="flex items-center justify-between mb-4">
             <Box>
-              <Text as="h3" className="text-sm font-bold">Monthly Goal Progress</Text>
+              <Text as="h3" className="text-base font-semibold">Monthly Goal Progress</Text>
               <Text as="p" className="text-xs text-muted-foreground mt-0.5">
                 {s.thisMonth} of {s.goal}h target · June 2026
               </Text>
@@ -213,7 +213,7 @@ export function LearningHoursContent() {
         {/* Weekly Trend */}
         <Card className="p-5">
           <Box className="flex items-center justify-between mb-4">
-            <Text as="h3" className="text-sm font-bold">Weekly Trend</Text>
+            <Text as="h3" className="text-base font-semibold">Weekly Trend</Text>
             <Text as="p" className="text-xs text-muted-foreground">Your department · June 2026</Text>
           </Box>
           <ResponsiveContainer width="100%" height={190}>
@@ -249,7 +249,7 @@ export function LearningHoursContent() {
           {/* Breakdown by Delivery Format */}
           <Card className="p-5">
             <Box className="flex items-center justify-between mb-4">
-              <Text as="h3" className="text-sm font-bold">Breakdown by Delivery Format</Text>
+              <Text as="h3" className="text-base font-semibold">Breakdown by Delivery Format</Text>
               <Text as="p" className="text-xs text-muted-foreground">This month · {s.thisMonth}h total</Text>
             </Box>
 
@@ -277,7 +277,7 @@ export function LearningHoursContent() {
           {/* Mode Distribution donut */}
           <Card className="p-5">
             <Box className="flex items-center justify-between mb-2">
-              <Text as="h3" className="text-sm font-bold">Mode Distribution</Text>
+              <Text as="h3" className="text-base font-semibold">Mode Distribution</Text>
               <Text as="p" className="text-xs text-muted-foreground">How you learn · at a glance</Text>
             </Box>
 
@@ -330,7 +330,7 @@ export function LearningHoursContent() {
       <Card className="p-5">
         <Box className="flex items-center justify-between mb-1">
           <Box>
-            <Text as="h3" className="text-sm font-bold">Your Department — {s.dept}</Text>
+            <Text as="h3" className="text-base font-semibold">Your Department — {s.dept}</Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">Peer ranking by learning hours this month</Text>
           </Box>
           <Badge variant="outline" className="text-xs border-indigo-200 text-indigo-600 bg-indigo-50 shrink-0">
@@ -403,7 +403,7 @@ export function LearningHoursContent() {
       {/* ── Org Overview ── */}
       <Box>
         <Box className="flex items-center justify-between mb-3">
-          <Text as="h3" className="text-sm font-bold">Organisation Overview</Text>
+          <Text as="h3" className="text-base font-semibold">Organisation Overview</Text>
           <Text as="p" className="text-xs text-muted-foreground">Learning hours by department this month</Text>
         </Box>
         <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3">

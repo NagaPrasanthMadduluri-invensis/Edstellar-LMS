@@ -201,46 +201,50 @@ export function CourseModulesContent({ courseId }) {
 
       {/* ── Module Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingModule ? "Edit Module" : "Add Module"}</DialogTitle>
-          </DialogHeader>
-          <Box className="space-y-5 py-2">
-            <Box className="space-y-2">
-              <Label className="text-sm font-medium">
-                Title <Text as="span" className="text-red-500">*</Text>
+        <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden">
+          <Box className="px-6 py-5 border-b bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold">{editingModule ? "Edit Module" : "Add Module"}</DialogTitle>
+              <Text as="p" className="text-sm text-muted-foreground mt-0.5">Modules group related lessons together inside a course.</Text>
+            </DialogHeader>
+          </Box>
+          <Box className="px-6 py-5 space-y-4">
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-gray-700">
+                Title <Text as="span" className="text-red-400">*</Text>
               </Label>
               <Input
                 placeholder="e.g. Introduction to the Course"
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="h-10"
+                className="h-10 bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors"
               />
-              {formErrors.title && <Text as="p" className="text-xs text-red-600">{formErrors.title[0]}</Text>}
+              {formErrors.title && <Text as="p" className="text-xs text-red-500 mt-1">{formErrors.title[0]}</Text>}
             </Box>
-            <Box className="space-y-2">
-              <Label className="text-sm font-medium">Description</Label>
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-gray-700">Description</Label>
               <Textarea
-                placeholder="What this module covers..."
+                placeholder="What this module covers…"
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 rows={3}
+                className="bg-gray-50 border-gray-200 placeholder:text-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 resize-none transition-colors"
               />
             </Box>
             <Box className="grid grid-cols-2 gap-4">
-              <Box className="space-y-2">
-                <Label className="text-sm font-medium">Sort Order</Label>
+              <Box className="space-y-1.5">
+                <Label className="text-sm font-medium text-gray-700">Sort Order</Label>
                 <Input
                   type="number"
                   min={0}
                   value={form.sort_order}
                   onChange={(e) => setForm((f) => ({ ...f, sort_order: parseInt(e.target.value) || 0 }))}
-                  className="h-10"
+                  className="h-10 bg-gray-50 border-gray-200 focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:border-blue-400 transition-colors"
                 />
               </Box>
-              <Box className="space-y-2">
-                <Label className="text-sm font-medium">Visibility</Label>
-                <Box className="flex items-center gap-2.5 h-10">
+              <Box className="space-y-1.5">
+                <Label className="text-sm font-medium text-gray-700">Visibility</Label>
+                <Box className="flex items-center gap-2.5 h-10 px-3 rounded-lg bg-gray-50 border border-gray-200">
                   <Switch
                     checked={form.is_active}
                     onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
@@ -250,17 +254,17 @@ export function CourseModulesContent({ courseId }) {
               </Box>
             </Box>
             {formErrors._general && (
-              <Box className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <Box className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
                 <Text as="p" className="text-sm text-red-600">{formErrors._general}</Text>
               </Box>
             )}
           </Box>
-          <DialogFooter>
+          <Box className="px-6 py-4 border-t bg-gray-50/60 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="bg-blue-500 hover:bg-blue-600 text-white">
+            <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
               {saving ? "Saving…" : editingModule ? "Update Module" : "Create Module"}
             </Button>
-          </DialogFooter>
+          </Box>
         </DialogContent>
       </Dialog>
 
