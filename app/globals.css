@@ -1,0 +1,262 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* ═══════════════════════════════════════════════════════════════════
+   EDSTELLAR DESIGN SYSTEM
+   The palette is deliberately small and closed. Do not add hues.
+
+   Navy family   — dark surfaces, primary text
+   Lime family   — the single accent; on DARK surfaces only (charts excepted)
+   Paper family  — light surfaces
+   Error         — #B3261E, destructive states ONLY
+
+   There is no success green, warning amber or info blue. Status is
+   carried by the navy/paper scale, weight and typography instead. See
+   the status tokens below.
+   ═══════════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  /* ── Brand palette ── */
+  --color-navy: var(--brand-navy);
+  --color-navy-soft: var(--brand-navy-soft);
+  --color-navy-deep: var(--brand-navy-deep);
+  --color-lime: var(--brand-lime);
+  --color-lime-soft: var(--brand-lime-soft);
+  --color-paper: var(--brand-paper);
+  --color-paper-warm: var(--brand-paper-warm);
+  --color-paper-cream: var(--brand-paper-cream);
+  --color-ink: var(--brand-ink);
+  --color-error: var(--brand-error);
+
+  /* ── Typography ──
+     Sora      display / headlines
+     Cormorant editorial italic emphasis, used sparingly
+     DM Sans   body, UI, supporting text
+     DM Mono   labels, eyebrows, section markers, technical text */
+  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  --font-editorial: var(--font-cormorant), ui-serif, Georgia, serif;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-heading: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+
+  /* ── shadcn semantic tokens, mapped onto the brand palette ── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* ── The palette. These nine values are the whole system. ── */
+  --brand-navy: #0a1628;
+  --brand-navy-soft: #14233d;
+  --brand-navy-deep: #050d1a;
+  --brand-lime: #c8f135;
+  --brand-lime-soft: #e4f89a;
+  --brand-paper: #fafaf7;
+  --brand-paper-warm: #f2f0e8;
+  --brand-paper-cream: #ede9dd;
+  --brand-ink: #0a1628;
+  /* Reserved strictly for errors and destructive actions. */
+  --brand-error: #b3261e;
+
+  /* Ink tints replace the grey ramp — same hue, never a new colour. */
+  --ink-70: color-mix(in oklab, var(--brand-ink) 70%, transparent);
+  --ink-60: color-mix(in oklab, var(--brand-ink) 60%, transparent);
+  --ink-45: color-mix(in oklab, var(--brand-ink) 45%, transparent);
+  --ink-12: color-mix(in oklab, var(--brand-ink) 12%, transparent);
+
+  --radius: 0.625rem;
+
+  /* ── Light surfaces (the default) ── */
+  --background: var(--brand-paper);
+  --foreground: var(--brand-ink);
+  --card: #ffffff;
+  --card-foreground: var(--brand-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--brand-ink);
+  --primary: var(--brand-navy);
+  --primary-foreground: var(--brand-paper);
+  --secondary: var(--brand-paper-warm);
+  --secondary-foreground: var(--brand-ink);
+  --muted: var(--brand-paper-warm);
+  --muted-foreground: var(--ink-60);
+  --accent: var(--brand-paper-cream);
+  --accent-foreground: var(--brand-ink);
+  --destructive: var(--brand-error);
+  --border: var(--ink-12);
+  --input: var(--ink-12);
+  --ring: var(--brand-navy);
+
+  /* Data visualisation, in the prescribed order: lime-soft → lime → navy. */
+  --chart-1: var(--brand-lime-soft);
+  --chart-2: var(--brand-lime);
+  --chart-3: var(--brand-navy);
+  --chart-4: var(--brand-navy-soft);
+  --chart-5: color-mix(in oklab, var(--brand-navy) 55%, var(--brand-paper));
+
+  /* ── Sidebar is an immersive dark surface — lime is allowed here ── */
+  --sidebar: var(--brand-navy-deep);
+  --sidebar-foreground: var(--brand-paper);
+  --sidebar-primary: var(--brand-lime);
+  --sidebar-primary-foreground: var(--brand-navy);
+  --sidebar-accent: var(--brand-navy-soft);
+  --sidebar-accent-foreground: var(--brand-lime);
+  --sidebar-border: color-mix(in oklab, var(--brand-paper) 12%, transparent);
+  --sidebar-ring: var(--brand-lime);
+
+  /* ── Status, without inventing hues ──
+     complete → filled navy    · progress → cream fill, ink text
+     idle     → warm paper     · error    → the one reserved red */
+  --status-complete-bg: var(--brand-navy);
+  --status-complete-fg: var(--brand-paper);
+  --status-progress-bg: var(--brand-paper-cream);
+  --status-progress-fg: var(--brand-ink);
+  --status-idle-bg: var(--brand-paper-warm);
+  --status-idle-fg: var(--ink-60);
+  --status-error-bg: color-mix(in oklab, var(--brand-error) 10%, transparent);
+  --status-error-fg: var(--brand-error);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Sora carries every headline. Sentence case, tight tracking, no shouting. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--ink-45);
+  }
+
+  /* Respect reduced-motion: transitions become instant, nothing animates. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ── Editorial emphasis ──
+     One meaningful phrase per headline, never a whole line.
+     On dark surfaces it may take the lime. */
+  .editorial {
+    font-family: var(--font-editorial);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+
+  /* ── Eyebrow / section marker ── DM Mono, small, wide, quiet. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+  }
+
+  /* ── Dark section ──
+     Immersive navy surface. Text becomes paper, emphasis becomes lime,
+     dividers become paper hairlines. */
+  .surface-dark {
+    background-color: var(--brand-navy);
+    color: var(--brand-paper);
+  }
+  .surface-dark-deep { background-color: var(--brand-navy-deep); color: var(--brand-paper); }
+  .surface-dark-soft { background-color: var(--brand-navy-soft); color: var(--brand-paper); }
+
+  .surface-dark .eyebrow,
+  .surface-dark-deep .eyebrow,
+  .surface-dark-soft .eyebrow {
+    color: color-mix(in oklab, var(--brand-paper) 60%, transparent);
+  }
+  .surface-dark .editorial,
+  .surface-dark-deep .editorial,
+  .surface-dark-soft .editorial {
+    color: var(--brand-lime);
+  }
+  .surface-dark hr,
+  .surface-dark-deep hr,
+  .surface-dark-soft hr {
+    border-color: color-mix(in oklab, var(--brand-paper) 15%, transparent);
+  }
+
+  /* ── Status chips ── one shape, four states, no new hues. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.1875rem 0.5rem;
+    border-radius: 0.375rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .chip-complete { background: var(--status-complete-bg); color: var(--status-complete-fg); }
+  .chip-progress { background: var(--status-progress-bg); color: var(--status-progress-fg); }
+  .chip-idle     { background: var(--status-idle-bg);     color: var(--status-idle-fg); }
+  .chip-error    { background: var(--status-error-bg);    color: var(--status-error-fg); }
+
+  /* Lime is the CTA on dark surfaces: lime field, navy text. */
+  .cta-lime {
+    background-color: var(--brand-lime);
+    color: var(--brand-navy);
+  }
+  .cta-lime:hover {
+    background-color: color-mix(in oklab, var(--brand-lime) 88%, var(--brand-navy));
+  }
+}

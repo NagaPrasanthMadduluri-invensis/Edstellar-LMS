@@ -1,0 +1,47 @@
+# ── Edstellar LMS — frontend ──
+# Self-contained: this file must stand alone when client/ becomes its own repo.
+
+# dependencies
+node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# testing
+/coverage
+
+# env — NEXT_PUBLIC_SERVER_URL is the only value, but never commit the file
+.env
+.env.*
+!.env.example
+
+# deployment
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.pem
+*.swp
