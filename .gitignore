@@ -21,9 +21,9 @@ next-env.d.ts
 /coverage
 
 # env — NEXT_PUBLIC_SERVER_URL is the only value, but never commit the file
+# .env.example is ignored too, to avoid ambiguity with the real .env at deploy time.
 .env
 .env.*
-!.env.example
 
 # deployment
 .vercel
