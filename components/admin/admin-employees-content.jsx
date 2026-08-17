@@ -33,7 +33,7 @@ import {
   Search, UserPlus, Users, Upload, Download,
   FileSpreadsheet, AlertCircle, BookOpen, ClipboardList,
   CheckCircle2, XCircle, Clock, Trophy, TrendingUp,
-  ChevronDown, ChevronUp, CalendarDays,
+  ChevronDown, ChevronUp, CalendarDays, FileArchive, MinusCircle,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -115,6 +115,124 @@ function triggerBlobDownload(blob, filename) {
 function formatDate(iso) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Date plus time — a SCORM retake often happens the same day as the first go. */
+function formatDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return "—";
+  return d.toLocaleString("en-IN", {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+/**
+ * A SCORM package inside a course, rendered like an assessment.
+ *
+ * The one real difference is that SCORM may not grade at all: a package can
+ * report completion without pass/fail, so `has_passed` is nullable and
+ * "not graded" must not look like "failed".
+ */
+function ScormBlock({ scorm }) {
+  const [expanded, setExpanded] = useState(false);
+  const { title, version, attempt_count, best_score, has_passed, attempts } = scorm;
+  const attempted = attempt_count > 0;
+
+  const Icon = has_passed === true ? Trophy
+    : has_passed === false ? XCircle
+      : attempted ? CheckCircle2 : FileArchive;
+  const iconTone = has_passed === false ? "text-error"
+    : attempted ? "text-navy" : "text-ink/45";
+
+  return (
+    <Box className="rounded-xl border bg-background overflow-hidden">
+      <Box className="flex items-center justify-between gap-4 px-4 py-3 flex-wrap">
+        <Box className="flex items-center gap-3 flex-1 min-w-0">
+          <Box className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+            has_passed === false ? "bg-error/10" : "bg-paper-cream"
+          }`}>
+            <Icon className={`h-4 w-4 ${iconTone}`} />
+          </Box>
+          <Box className="min-w-0">
+            <Text as="p" className="text-sm font-semibold leading-tight truncate">{title}</Text>
+            <Text as="span" className="text-xs text-muted-foreground">
+              SCORM {version}
+              {best_score !== null && <> &nbsp;·&nbsp; Best: {best_score}%</>}
+            </Text>
+          </Box>
+        </Box>
+        <Box className="flex items-center gap-3 shrink-0">
+          {attempted ? (
+            <Badge variant="secondary" className={`text-xs font-semibold px-2.5 py-1 ${
+              has_passed === false ? "bg-error/10 text-error" : "bg-paper-cream text-navy"
+            }`}>
+              {best_score !== null
+                ? `Best: ${best_score}%`
+                : has_passed === true ? "Passed" : "Completed"}
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="text-xs px-2.5 py-1 bg-paper-cream text-ink/60">
+              Not attempted
+            </Badge>
+          )}
+          <Text as="span" className="text-xs text-muted-foreground whitespace-nowrap">
+            {attempt_count} attempt{attempt_count !== 1 ? "s" : ""}
+          </Text>
+          {attempted && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded((v) => !v)}
+              className="h-7 px-2.5 text-xs gap-1.5"
+            >
+              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              History
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {expanded && attempts.length > 0 && (
+        <Box className="border-t bg-muted/20 px-4 py-3 space-y-2">
+          <Text as="p" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Attempt History
+          </Text>
+          {attempts.map((att) => (
+            <Box key={att.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-background border flex-wrap">
+              <Text as="span" className="text-xs font-medium text-muted-foreground w-6 shrink-0">
+                #{att.attempt_number}
+              </Text>
+              {att.is_passed === true
+                ? <CheckCircle2 className="h-4 w-4 text-navy shrink-0" />
+                : att.is_passed === false
+                  ? <XCircle className="h-4 w-4 text-error shrink-0" />
+                  : <MinusCircle className="h-4 w-4 text-ink/35 shrink-0" />}
+              {att.percentage !== null && (
+                <Badge variant="secondary" className={`text-xs font-semibold px-2 ${
+                  att.is_passed === false ? "bg-error/10 text-error" : "bg-paper-cream text-navy"
+                }`}>
+                  {att.percentage}%
+                </Badge>
+              )}
+              <Text as="span" className="text-xs text-muted-foreground">
+                {att.score_max !== null
+                  ? `${att.score_raw ?? 0}/${att.score_max}`
+                  : att.lesson_status || "no score reported"}
+              </Text>
+              <Box className="flex items-center gap-1.5 ml-auto shrink-0">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                <Text as="span" className="text-xs text-muted-foreground">
+                  {formatDateTime(att.submitted_at)}
+                </Text>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
 }
 
 function AssessmentBlock({ assessment }) {
@@ -355,6 +473,17 @@ function UserDetailModal({ userId, open, onClose }) {
                             </Text>
                             {c.assessments.map((a) => (
                               <AssessmentBlock key={a.id} assessment={a} />
+                            ))}
+                          </Box>
+                        )}
+                        {(c.scorm_packages?.length ?? 0) > 0 && (
+                          <Box className="space-y-2.5">
+                            <Text as="p" className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                              <FileArchive className="h-3.5 w-3.5" />
+                              SCORM
+                            </Text>
+                            {c.scorm_packages.map((s) => (
+                              <ScormBlock key={s.id} scorm={s} />
                             ))}
                           </Box>
                         )}
