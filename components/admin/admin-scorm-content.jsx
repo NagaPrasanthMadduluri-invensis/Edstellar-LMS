@@ -20,8 +20,9 @@ import {
 } from "@/components/ui/select";
 import {
   Upload, Trash2, Users, Play, FileArchive,
-  CheckCircle2, Clock, AlertCircle, Package, BookOpen,
+  CheckCircle2, Clock, AlertCircle, Package, BookOpen, History,
 } from "lucide-react";
+import { ScormAttemptsDialog } from "@/components/admin/scorm-attempts-dialog";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,8 @@ export function AdminScormContent() {
 
   /* Assign dialog */
   const [assignPkg,   setAssignPkg]   = useState(null);
+  /** The assignment row whose attempt history is open, or null. */
+  const [attemptsFor, setAttemptsFor] = useState(null);
   const [assignDept,  setAssignDept]  = useState("all");
   const [assignIds,   setAssignIds]   = useState([]);
   const [assigning,   setAssigning]   = useState(false);
@@ -428,6 +431,17 @@ export function AdminScormContent() {
                           {a.score_raw !== null && (
                             <Text as="span" className="text-xs font-semibold">{Math.round(a.score_raw)}%</Text>
                           )}
+                          {Number(a.attempt_count) > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[11px] font-medium text-navy hover:bg-paper-cream"
+                              onClick={() => setAttemptsFor(a)}
+                            >
+                              <History className="h-3 w-3 mr-1" />
+                              {a.attempt_count} {Number(a.attempt_count) === 1 ? "attempt" : "attempts"}
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-error"
                             onClick={() => handleUnassign(a.user_id)}>
                             <Trash2 className="h-3.5 w-3.5" />
@@ -521,6 +535,14 @@ export function AdminScormContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Attempt history ── */}
+      <ScormAttemptsDialog
+        packageId={assignPkg?.id}
+        learner={attemptsFor}
+        open={Boolean(attemptsFor)}
+        onClose={() => setAttemptsFor(null)}
+      />
 
     </Box>
   );

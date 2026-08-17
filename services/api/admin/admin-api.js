@@ -60,6 +60,11 @@ export async function deleteLesson({ lessonId }) {
   return apiClient(`/api/admin/lessons/${lessonId}`, { method: "DELETE" });
 }
 
+/** Attempt history + per-question breakdown for one learner on one package. */
+export async function fetchScormAttempts({ packageId, userId }) {
+  return apiClient(`/api/admin/scorm/${packageId}/attempts/${userId}`);
+}
+
 /* ── Lesson media (video + captions in R2) ── */
 
 export async function fetchLessonMedia({ lessonId }) {
