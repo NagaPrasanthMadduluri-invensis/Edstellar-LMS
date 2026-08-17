@@ -101,9 +101,16 @@ function FileSlot({
   );
 }
 
+/**
+ * Selection is reported through four explicit callbacks rather than a patch
+ * object. A patch would have to name the parent's state keys, and this
+ * component has no business knowing them — when those names disagree the
+ * result is a silent no-op, not an error.
+ */
 export function LessonMediaFields({
   videoFile, captionFile, hasVideo, hasCaptions,
-  onChange, progress, disabled,
+  onVideoSelect, onVideoClear, onCaptionSelect, onCaptionClear,
+  progress, disabled,
 }) {
   const uploading = Boolean(progress?.stage);
 
@@ -117,8 +124,8 @@ export function LessonMediaFields({
         file={videoFile}
         attached={hasVideo}
         disabled={disabled || uploading}
-        onSelect={(f) => onChange({ videoFile: f })}
-        onClear={() => onChange({ videoFile: null, removeVideo: true })}
+        onSelect={onVideoSelect}
+        onClear={onVideoClear}
       />
 
       <FileSlot
@@ -129,8 +136,8 @@ export function LessonMediaFields({
         file={captionFile}
         attached={hasCaptions}
         disabled={disabled || uploading}
-        onSelect={(f) => onChange({ captionFile: f })}
-        onClear={() => onChange({ captionFile: null, removeCaptions: true })}
+        onSelect={onCaptionSelect}
+        onClear={onCaptionClear}
       />
 
       {uploading && (

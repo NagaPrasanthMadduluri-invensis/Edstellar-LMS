@@ -212,8 +212,15 @@ export function ModuleLessons({ moduleId }) {
       // Media is attached after the row exists, because the object key is
       // namespaced by lesson id. A new lesson is therefore saved first, then
       // its video uploaded — one Save from the admin's point of view.
-      if (form.content_type === "video" && lessonId) {
-        await syncLessonMedia(lessonId);
+      if (form.content_type === "video") {
+        // Never skip quietly: if a file is staged but there is no id to attach
+        // it to, say so rather than closing the dialog as though it worked.
+        if (!lessonId && (form.video_file || form.caption_file)) {
+          throw new Error(
+            "The lesson was saved but its id was not returned, so the video could not be attached. Re-open the lesson and upload again.",
+          );
+        }
+        if (lessonId) await syncLessonMedia(lessonId);
       }
 
       setDialogOpen(false);
@@ -414,7 +421,10 @@ export function ModuleLessons({ moduleId }) {
                     hasCaptions={form.has_captions}
                     progress={uploadProgress}
                     disabled={saving && !uploadProgress}
-                    onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                    onVideoSelect={(file) => setForm((f) => ({ ...f, video_file: file, remove_video: false }))}
+                    onVideoClear={() => setForm((f) => ({ ...f, video_file: null, remove_video: true }))}
+                    onCaptionSelect={(file) => setForm((f) => ({ ...f, caption_file: file, remove_captions: false }))}
+                    onCaptionClear={() => setForm((f) => ({ ...f, caption_file: null, remove_captions: true }))}
                   />
                   <Text as="p" className="text-xs text-ink/50">
                     Upload a file for hosted video, or paste a YouTube link below.
