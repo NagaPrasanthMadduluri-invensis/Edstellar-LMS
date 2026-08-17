@@ -1,21 +1,87 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 
 /**
  * HTML5 video player for local/hosted video files.
- * Prevents fast-forwarding beyond the furthest watched position,
- * consistent with the YouTube player behaviour.
+ *
+ * Prevents fast-forwarding beyond the furthest watched position, consistent
+ * with the YouTube player behaviour.
+ *
+ * Playback URLs from R2 are presigned and expire (VIDEO_URL_TTL_SECONDS), so a
+ * long lesson would otherwise fail part-way through when the signature lapses
+ * and the next range request comes back 403. `onRefresh` is called shortly
+ * before that happens — and again if the element errors — and the new URL is
+ * swapped in with the playhead and play state preserved, so the learner sees
+ * nothing.
+ *
+ * @param {string}   src         Presigned video URL
+ * @param {string}   [captionSrc] Presigned WebVTT URL
+ * @param {number}   [expiresIn]  Seconds until `src` stops working
+ * @param {Function} [onRefresh]  Async () => ({ videoUrl, captionUrl })
+ * @param {*}        [resetKey]   Changes only when the lesson changes
  */
-export function LocalVideoPlayer({ src, onEnded, className = "" }) {
+export function LocalVideoPlayer({
+  src,
+  captionSrc,
+  expiresIn,
+  onRefresh,
+  resetKey,
+  onEnded,
+  className = "",
+}) {
   const videoRef = useRef(null);
   const maxTimeRef = useRef(0);
+  const refreshingRef = useRef(false);
+
+  // Furthest-watched resets when the lesson changes — NOT when `src` changes,
+  // because a mid-playback URL refresh is a new src for the same lesson and
+  // must not hand the learner a way to reset the seek guard.
+  useEffect(() => {
+    maxTimeRef.current = 0;
+  }, [resetKey]);
+
+  /** Swap in a fresh URL without the learner losing their place. */
+  const refresh = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !onRefresh || refreshingRef.current) return;
+
+    refreshingRef.current = true;
+    try {
+      const next = await onRefresh();
+      if (!next?.videoUrl || !videoRef.current) return;
+
+      const resumeAt = video.currentTime;
+      const wasPlaying = !video.paused && !video.ended;
+
+      const restore = () => {
+        video.removeEventListener("loadedmetadata", restore);
+        // Guard against a browser clamping to 0 before metadata is ready.
+        if (resumeAt > 0) video.currentTime = resumeAt;
+        if (wasPlaying) void video.play().catch(() => {});
+      };
+      video.addEventListener("loadedmetadata", restore);
+
+      video.src = next.videoUrl;
+      video.load();
+    } finally {
+      refreshingRef.current = false;
+    }
+  }, [onRefresh]);
+
+  // Re-sign a minute before expiry. A minute is enough slack for the round trip
+  // on a slow connection without refreshing so early that it churns.
+  useEffect(() => {
+    if (!expiresIn || !onRefresh) return;
+    const leadSeconds = 60;
+    const delay = Math.max(expiresIn - leadSeconds, 30) * 1000;
+    const timer = setTimeout(() => void refresh(), delay);
+    return () => clearTimeout(timer);
+  }, [expiresIn, onRefresh, refresh, src]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    maxTimeRef.current = 0;
 
     const onTimeUpdate = () => {
       if (video.currentTime > maxTimeRef.current) {
@@ -35,16 +101,22 @@ export function LocalVideoPlayer({ src, onEnded, className = "" }) {
       onEnded?.();
     };
 
+    // A lapsed signature surfaces here as a decode/network error. One retry
+    // with a fresh URL covers it; a genuinely broken file still fails.
+    const onError = () => void refresh();
+
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("seeking", onSeeking);
     video.addEventListener("ended", onEnd);
+    video.addEventListener("error", onError);
 
     return () => {
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("seeking", onSeeking);
       video.removeEventListener("ended", onEnd);
+      video.removeEventListener("error", onError);
     };
-  }, [src, onEnded]);
+  }, [src, onEnded, refresh]);
 
   return (
     <div className={`aspect-video w-full bg-navy ${className}`}>
@@ -56,7 +128,21 @@ export function LocalVideoPlayer({ src, onEnded, className = "" }) {
         disablePictureInPicture
         className="w-full h-full"
         preload="metadata"
-      />
+        // Only when a text track is present: a cross-origin <track> is fetched
+        // under CORS rules, and opting in makes the video request CORS too.
+        // Video-only lessons therefore keep working without a bucket GET rule.
+        {...(captionSrc ? { crossOrigin: "anonymous" } : {})}
+      >
+        {captionSrc && (
+          <track
+            kind="subtitles"
+            label="English"
+            srcLang="en"
+            src={captionSrc}
+            default
+          />
+        )}
+      </video>
     </div>
   );
 }

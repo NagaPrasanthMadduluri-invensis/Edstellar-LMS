@@ -187,6 +187,19 @@ export function LessonContent({ courseId, lessonId }) {
   const [completing, setCompleting] = useState(false);
   const [status, setStatus] = useState(null);
   const [videoEnded, setVideoEnded] = useState(false);
+  // Presigned R2 URLs for an uploaded video. undefined = not yet asked,
+  // null = this lesson has no hosted video.
+  const [media, setMedia] = useState(undefined);
+
+  /**
+   * Fetches a fresh signed URL pair. Also handed to the player as `onRefresh`
+   * so it can re-sign before the current URL expires mid-playback.
+   */
+  const loadMedia = useCallback(async () => {
+    const res = await apiClient(`/api/learner/lessons/${lessonId}/media`);
+    setMedia(res.videoUrl ? res : null);
+    return res;
+  }, [lessonId]);
 
   const loadLesson = useCallback(async () => {
     if (!user) return;
@@ -200,7 +213,14 @@ export function LessonContent({ courseId, lessonId }) {
   }, [user, user, lessonId]);
 
   useEffect(() => { loadLesson(); }, [loadLesson]);
-  useEffect(() => { setVideoEnded(false); }, [lessonId]);
+  useEffect(() => { setVideoEnded(false); setMedia(undefined); }, [lessonId]);
+
+  // Only ask for a playback URL when the lesson actually has an uploaded file.
+  // Signing is cheap but pointless for YouTube-backed or SCORM lessons.
+  useEffect(() => {
+    if (!user || !data?.lesson?.has_video) return;
+    loadMedia().catch(() => setMedia(null));
+  }, [user, data?.lesson?.has_video, loadMedia]);
 
   const handleMarkComplete = async () => {
     setCompleting(true);
@@ -236,9 +256,13 @@ export function LessonContent({ courseId, lessonId }) {
   const { lesson } = data;
 
   const isScorm = lesson.content_type === "scorm";
-  const isYT = !isScorm && isYouTubeUrl(lesson.content_url);
-  const isLocal = !isScorm && isVideoFile(lesson.content_url);
-  const canMarkComplete = isScorm || ((!isYT && !isLocal) || videoEnded);
+  // An uploaded R2 video wins over content_url — the admin form presents the
+  // upload first and says as much.
+  const isHosted = !isScorm && Boolean(lesson.has_video);
+  const isYT = !isScorm && !isHosted && isYouTubeUrl(lesson.content_url);
+  const isLocal = !isScorm && !isHosted && isVideoFile(lesson.content_url);
+  const canMarkComplete =
+    isScorm || ((!isYT && !isLocal && !isHosted) || videoEnded);
 
   const MarkCompleteButton = () => (
     <Button
@@ -316,6 +340,30 @@ export function LessonContent({ courseId, lessonId }) {
           progressStatus={status}
           onStatusRefresh={loadLesson}
         />
+      ) : isHosted ? (
+        <Card className="overflow-hidden h-[80vh]">
+          {media === undefined ? (
+            <Box className="h-full w-full bg-navy flex items-center justify-center">
+              <Text as="p" className="text-sm text-paper/60 font-mono">Preparing video…</Text>
+            </Box>
+          ) : media ? (
+            <LocalVideoPlayer
+              src={media.videoUrl}
+              captionSrc={media.captionUrl}
+              expiresIn={media.expiresIn}
+              onRefresh={loadMedia}
+              resetKey={lessonId}
+              onEnded={() => setVideoEnded(true)}
+              className="h-full"
+            />
+          ) : (
+            <Box className="h-full w-full bg-navy flex items-center justify-center px-6">
+              <Text as="p" className="text-sm text-paper/70 text-center">
+                This video could not be loaded. Please refresh, or contact your administrator.
+              </Text>
+            </Box>
+          )}
+        </Card>
       ) : lesson.content_url ? (
         <Card className="overflow-hidden h-[80vh]">
           {isYT ? (

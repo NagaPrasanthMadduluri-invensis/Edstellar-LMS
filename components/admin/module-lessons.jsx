@@ -29,7 +29,10 @@ import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import {
   fetchLessons, createLesson, updateLesson, deleteLesson,
+  presignLessonVideo, uploadToR2, confirmLessonVideo, deleteLessonVideo,
+  uploadLessonCaptions, deleteLessonCaptions,
 } from "@/services/api/admin/admin-api";
+import { LessonMediaFields } from "@/components/admin/lesson-media-fields";
 import { useRef } from "react";
 
 const CONTENT_TYPE_CONFIG = {
@@ -44,6 +47,10 @@ const EMPTY_LESSON = {
   title: "", description: "", content_type: "video", content_url: "",
   duration_minutes: "", sort_order: 0, is_preview: false, is_active: true,
   scorm_file: null, scorm_package_id: null, scorm_title: "",
+  // Staged locally; uploaded after save, once the lesson has an id.
+  video_file: null, caption_file: null,
+  has_video: false, has_captions: false,
+  remove_video: false, remove_captions: false,
 };
 
 export function ModuleLessons({ moduleId }) {
@@ -58,6 +65,7 @@ export function ModuleLessons({ moduleId }) {
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [uploadingScorm, setUploadingScorm] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -93,9 +101,65 @@ export function ModuleLessons({ moduleId }) {
       scorm_file: null,
       scorm_package_id: lesson.scorm_package_id || null,
       scorm_title: lesson.scorm_title || "",
+      video_file: null,
+      caption_file: null,
+      // The lessons list selects every column, so the keys are already here —
+      // only their presence matters, never the value.
+      has_video: Boolean(lesson.videoKey ?? lesson.video_key),
+      has_captions: Boolean(lesson.captionKey ?? lesson.caption_key),
+      remove_video: false,
+      remove_captions: false,
     });
     setFormErrors({});
     setDialogOpen(true);
+  };
+
+  /**
+   * Attaches (or clears) the lesson's video and captions.
+   *
+   * The video takes the presign → PUT → confirm path, so the file goes from the
+   * browser to R2 directly and never through the API. Captions are posted to
+   * the API instead: they are tiny, and the server converts SRT to WebVTT on
+   * the way in.
+   */
+  const syncLessonMedia = async (lessonId) => {
+    if (form.remove_video && !form.video_file) {
+      await deleteLessonVideo({ lessonId });
+    }
+    if (form.remove_captions && !form.caption_file) {
+      await deleteLessonCaptions({ lessonId });
+    }
+
+    if (form.video_file) {
+      const file = form.video_file;
+      setUploadProgress({ stage: "Preparing upload", percent: 0 });
+
+      const { uploadUrl, key } = await presignLessonVideo({
+        lessonId,
+        filename: file.name,
+        contentType: file.type || "video/mp4",
+        sizeBytes: file.size,
+      });
+
+      setUploadProgress({ stage: `Uploading ${file.name}`, percent: 0 });
+      await uploadToR2({
+        uploadUrl,
+        file,
+        contentType: file.type || "video/mp4",
+        onProgress: (percent) =>
+          setUploadProgress({ stage: `Uploading ${file.name}`, percent }),
+      });
+
+      setUploadProgress({ stage: "Finalising", percent: 100 });
+      await confirmLessonVideo({ lessonId, key });
+    }
+
+    if (form.caption_file) {
+      setUploadProgress({ stage: "Uploading captions", percent: 100 });
+      await uploadLessonCaptions({ lessonId, file: form.caption_file });
+    }
+
+    setUploadProgress(null);
   };
 
   const handleSave = async () => {
@@ -137,15 +201,26 @@ export function ModuleLessons({ moduleId }) {
         is_active: form.is_active,
       };
 
+      let lessonId = editingLesson?.id ?? null;
       if (editingLesson) {
-        await updateLesson({ lessonId: editingLesson.id, data: payload });
+        await updateLesson({ lessonId, data: payload });
       } else {
-        await createLesson({ moduleId, data: payload });
+        const created = await createLesson({ moduleId, data: payload });
+        lessonId = created?.lesson?.id ?? created?.id ?? null;
       }
+
+      // Media is attached after the row exists, because the object key is
+      // namespaced by lesson id. A new lesson is therefore saved first, then
+      // its video uploaded — one Save from the admin's point of view.
+      if (form.content_type === "video" && lessonId) {
+        await syncLessonMedia(lessonId);
+      }
+
       setDialogOpen(false);
       await loadLessons();
     } catch (e) {
       setUploadingScorm(false);
+      setUploadProgress(null);
       if (e.errors) setFormErrors(e.errors);
       else setFormErrors({ _general: e.message });
     } finally { setSaving(false); }
@@ -330,9 +405,29 @@ export function ModuleLessons({ moduleId }) {
                 </Box>
               </Box>
 
+              {form.content_type === "video" && (
+                <>
+                  <LessonMediaFields
+                    videoFile={form.video_file}
+                    captionFile={form.caption_file}
+                    hasVideo={form.has_video}
+                    hasCaptions={form.has_captions}
+                    progress={uploadProgress}
+                    disabled={saving && !uploadProgress}
+                    onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                  />
+                  <Text as="p" className="text-xs text-ink/50">
+                    Upload a file for hosted video, or paste a YouTube link below.
+                    An uploaded file takes precedence.
+                  </Text>
+                </>
+              )}
+
               {form.content_type !== "quiz" && form.content_type !== "scorm" && (
                 <Box className="space-y-1.5">
-                  <Label className="text-sm font-medium text-ink/80">Content URL</Label>
+                  <Label className="text-sm font-medium text-ink/80">
+                    {form.content_type === "video" ? "Or content URL" : "Content URL"}
+                  </Label>
                   <Input
                     placeholder={
                       form.content_type === "video"    ? "https://youtu.be/..." :

@@ -60,6 +60,76 @@ export async function deleteLesson({ lessonId }) {
   return apiClient(`/api/admin/lessons/${lessonId}`, { method: "DELETE" });
 }
 
+/* ── Lesson media (video + captions in R2) ── */
+
+export async function fetchLessonMedia({ lessonId }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/media`);
+}
+
+/** Step 1 — ask for a URL the browser can PUT the video straight to R2. */
+export async function presignLessonVideo({ lessonId, filename, contentType, sizeBytes }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/video/presign`, {
+    method: "POST",
+    body: { filename, contentType, sizeBytes },
+  });
+}
+
+/** Step 3 — tell the API the upload landed, so the key is saved on the lesson. */
+export async function confirmLessonVideo({ lessonId, key }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/video/confirm`, {
+    method: "POST",
+    body: { key },
+  });
+}
+
+export async function deleteLessonVideo({ lessonId }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/video`, { method: "DELETE" });
+}
+
+export async function deleteLessonCaptions({ lessonId }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/captions`, { method: "DELETE" });
+}
+
+/**
+ * Step 2 — the actual bytes, straight from the browser to R2.
+ *
+ * XMLHttpRequest rather than fetch: only XHR reports upload progress, and a
+ * multi-hundred-megabyte video with no progress bar reads as a frozen page.
+ * Nothing here touches the API server, so no auth cookie is sent — the
+ * signature in the URL is the authorisation.
+ */
+export function uploadToR2({ uploadUrl, file, contentType, onProgress, signal }) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl, true);
+    xhr.setRequestHeader("Content-Type", contentType);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`Upload failed (HTTP ${xhr.status}). Check the bucket's CORS rules.`));
+    xhr.onerror = () =>
+      reject(new Error("Upload failed — the browser could not reach R2. Check the bucket's CORS rules."));
+    xhr.onabort = () => reject(new Error("Upload cancelled"));
+
+    signal?.addEventListener("abort", () => xhr.abort());
+    xhr.send(file);
+  });
+}
+
+/** Captions go through the API, which converts SRT to the WebVTT `<track>` needs. */
+export async function uploadLessonCaptions({ lessonId, file }) {
+  const fd = new FormData();
+  fd.append("captions", file);
+  return apiClient(`/api/admin/lessons/${lessonId}/captions`, {
+    method: "POST",
+    body: fd,
+  });
+}
+
 /* ── Assessments ── */
 
 export async function fetchAssessments({ courseId }) {
