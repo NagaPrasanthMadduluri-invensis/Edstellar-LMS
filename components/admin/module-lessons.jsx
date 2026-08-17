@@ -29,7 +29,7 @@ import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import {
   fetchLessons, createLesson, updateLesson, deleteLesson,
-  presignLessonVideo, uploadToR2, confirmLessonVideo, deleteLessonVideo,
+  presignLessonVideo, presignNewVideo, uploadToR2, confirmLessonVideo, deleteLessonVideo,
   uploadLessonCaptions, deleteLessonCaptions,
 } from "@/services/api/admin/admin-api";
 import { LessonMediaFields } from "@/components/admin/lesson-media-fields";
@@ -43,12 +43,23 @@ const CONTENT_TYPE_CONFIG = {
   scorm:    { label: "SCORM",    icon: FileArchive,  color: "bg-paper-cream text-navy"   },
 };
 
+/** Shown when a lesson has no content source of the kind its type requires. */
+const MISSING_CONTENT_MESSAGE = {
+  video: "Add a video file or a content URL (for example a YouTube link) before saving.",
+  pdf: "Add a link to the PDF before saving.",
+  external: "Add the external link before saving.",
+  scorm: "Upload a SCORM package (.zip) before saving.",
+  quiz: "Add the quiz content before saving.",
+};
+
 const EMPTY_LESSON = {
   title: "", description: "", content_type: "video", content_url: "",
   duration_minutes: "", sort_order: 0, is_preview: false, is_active: true,
   scorm_file: null, scorm_package_id: null, scorm_title: "",
-  // Staged locally; uploaded after save, once the lesson has an id.
-  video_file: null, caption_file: null,
+  // The video uploads as soon as it is picked; video_key_pending holds the R2
+  // key it landed on, and is attached to the lesson on save. Captions are tiny
+  // and go up with the save itself.
+  video_file: null, caption_file: null, video_key_pending: null,
   has_video: false, has_captions: false,
   remove_video: false, remove_captions: false,
 };
@@ -103,6 +114,7 @@ export function ModuleLessons({ moduleId }) {
       scorm_title: lesson.scorm_title || "",
       video_file: null,
       caption_file: null,
+      video_key_pending: null,
       // The lessons list selects every column, so the keys are already here —
       // only their presence matters, never the value.
       has_video: Boolean(lesson.videoKey ?? lesson.video_key),
@@ -123,49 +135,81 @@ export function ModuleLessons({ moduleId }) {
    * the way in.
    */
   const syncLessonMedia = async (lessonId) => {
-    if (form.remove_video && !form.video_file) {
+    if (form.remove_video && !form.video_key_pending) {
       await deleteLessonVideo({ lessonId });
     }
     if (form.remove_captions && !form.caption_file) {
       await deleteLessonCaptions({ lessonId });
     }
 
-    if (form.video_file) {
-      const file = form.video_file;
-      setUploadProgress({ stage: "Preparing upload", percent: 0 });
+    // The bytes are already in R2 — this only points the lesson at them.
+    if (form.video_key_pending) {
+      await confirmLessonVideo({ lessonId, key: form.video_key_pending });
+    }
 
-      const { uploadUrl, key } = await presignLessonVideo({
-        lessonId,
-        filename: file.name,
-        contentType: file.type || "video/mp4",
-        sizeBytes: file.size,
-      });
+    if (form.caption_file) {
+      await uploadLessonCaptions({ lessonId, file: form.caption_file });
+    }
+  };
+
+  /**
+   * Uploads the moment a file is chosen, rather than waiting for save.
+   *
+   * A large video takes as long as it takes, and the admin should watch that
+   * happen and only then be able to add the lesson — instead of pressing Save
+   * and staring at a frozen dialog. Save stays disabled while this runs, and
+   * the resulting key is held until the lesson row exists to attach it to.
+   */
+  const startVideoUpload = async (file) => {
+    const contentType = file.type || "video/mp4";
+    setFormErrors({});
+    setForm((f) => ({
+      ...f, video_file: file, video_key_pending: null, remove_video: false,
+    }));
+    setUploadProgress({ stage: "Preparing upload", percent: 0 });
+
+    try {
+      // An existing lesson gets a key under its own prefix; a new one uses the
+      // incoming prefix, since it has no id yet.
+      const { uploadUrl, key } = editingLesson
+        ? await presignLessonVideo({
+            lessonId: editingLesson.id,
+            filename: file.name, contentType, sizeBytes: file.size,
+          })
+        : await presignNewVideo({
+            filename: file.name, contentType, sizeBytes: file.size,
+          });
 
       setUploadProgress({ stage: `Uploading ${file.name}`, percent: 0 });
       await uploadToR2({
-        uploadUrl,
-        file,
-        contentType: file.type || "video/mp4",
+        uploadUrl, file, contentType,
         onProgress: (percent) =>
           setUploadProgress({ stage: `Uploading ${file.name}`, percent }),
       });
 
-      setUploadProgress({ stage: "Finalising", percent: 100 });
-      await confirmLessonVideo({ lessonId, key });
+      setForm((f) => ({ ...f, video_key_pending: key }));
+      setUploadProgress(null);
+    } catch (e) {
+      // Clear the staged file so the form cannot claim to have a video that
+      // never made it to storage.
+      setForm((f) => ({ ...f, video_file: null, video_key_pending: null }));
+      setUploadProgress(null);
+      setFormErrors({ _general: e.message });
     }
-
-    if (form.caption_file) {
-      setUploadProgress({ stage: "Uploading captions", percent: 100 });
-      await uploadLessonCaptions({ lessonId, file: form.caption_file });
-    }
-
-    setUploadProgress(null);
   };
 
   const handleSave = async () => {
     if (!form.title.trim()) { setFormErrors({ title: ["Title is required"] }); return; }
     if (form.content_type === "scorm" && !editingLesson && !form.scorm_file) {
       setFormErrors({ _general: "Please upload a SCORM package (.zip)" });
+      return;
+    }
+    if (uploadProgress) {
+      setFormErrors({ _general: "Please wait for the video upload to finish." });
+      return;
+    }
+    if (!contentReady) {
+      setFormErrors({ _general: MISSING_CONTENT_MESSAGE[form.content_type] });
       return;
     }
     setSaving(true); setFormErrors({});
@@ -232,6 +276,24 @@ export function ModuleLessons({ moduleId }) {
       else setFormErrors({ _general: e.message });
     } finally { setSaving(false); }
   };
+
+  /**
+   * A lesson must carry something to actually show the learner. Quizzes are the
+   * exception — their content is the question set, held elsewhere.
+   */
+  const contentReady = (() => {
+    const url = (form.content_url || "").trim();
+    switch (form.content_type) {
+      case "quiz":
+        return true;
+      case "scorm":
+        return Boolean(form.scorm_file || form.scorm_package_id);
+      case "video":
+        return Boolean(form.video_key_pending || form.has_video || url);
+      default:
+        return Boolean(url);
+    }
+  })();
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -419,10 +481,11 @@ export function ModuleLessons({ moduleId }) {
                     captionFile={form.caption_file}
                     hasVideo={form.has_video}
                     hasCaptions={form.has_captions}
+                    videoUploaded={Boolean(form.video_key_pending)}
                     progress={uploadProgress}
                     disabled={saving && !uploadProgress}
-                    onVideoSelect={(file) => setForm((f) => ({ ...f, video_file: file, remove_video: false }))}
-                    onVideoClear={() => setForm((f) => ({ ...f, video_file: null, remove_video: true }))}
+                    onVideoSelect={startVideoUpload}
+                    onVideoClear={() => setForm((f) => ({ ...f, video_file: null, video_key_pending: null, remove_video: true }))}
                     onCaptionSelect={(file) => setForm((f) => ({ ...f, caption_file: file, remove_captions: false }))}
                     onCaptionClear={() => setForm((f) => ({ ...f, caption_file: null, remove_captions: true }))}
                   />
@@ -551,8 +614,19 @@ export function ModuleLessons({ moduleId }) {
 
           <Box className="px-6 py-4 border-t bg-paper-warm shrink-0 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="bg-navy hover:bg-navy-soft text-paper">
-              {uploadingScorm ? "Uploading SCORM…" : saving ? "Saving…" : editingLesson ? "Update Lesson" : "Add Lesson"}
+            <Button
+              onClick={handleSave}
+              // Blocked while the video is still going up, and until the lesson
+              // has something to show — so the button itself states the rule
+              // rather than the admin discovering it by pressing it.
+              disabled={saving || Boolean(uploadProgress) || !contentReady}
+              className="bg-navy hover:bg-navy-soft text-paper"
+            >
+              {uploadProgress
+                ? `Uploading… ${uploadProgress.percent}%`
+                : uploadingScorm ? "Uploading SCORM…"
+                : saving ? "Saving…"
+                : editingLesson ? "Update Lesson" : "Add Lesson"}
             </Button>
           </Box>
         </DialogContent>

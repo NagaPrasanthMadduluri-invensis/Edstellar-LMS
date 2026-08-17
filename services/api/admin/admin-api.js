@@ -74,6 +74,18 @@ export async function presignLessonVideo({ lessonId, filename, contentType, size
   });
 }
 
+/**
+ * Same, for a lesson that does not exist yet. The form uploads as soon as a
+ * file is picked so the save button can wait on it, and at that point there is
+ * no lesson id to presign against.
+ */
+export async function presignNewVideo({ filename, contentType, sizeBytes }) {
+  return apiClient("/api/admin/media/video/presign", {
+    method: "POST",
+    body: { filename, contentType, sizeBytes },
+  });
+}
+
 /** Step 3 — tell the API the upload landed, so the key is saved on the lesson. */
 export async function confirmLessonVideo({ lessonId, key }) {
   return apiClient(`/api/admin/lessons/${lessonId}/video/confirm`, {

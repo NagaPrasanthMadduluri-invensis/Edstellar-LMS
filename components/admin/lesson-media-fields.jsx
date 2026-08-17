@@ -36,7 +36,7 @@ function ProgressBar({ percent }) {
 }
 
 function FileSlot({
-  label, hint, accept, icon: Icon, file, attached,
+  label, hint, accept, icon: Icon, file, attached, statusText,
   onSelect, onClear, disabled,
 }) {
   const inputRef = useRef(null);
@@ -71,7 +71,9 @@ function FileSlot({
           {file ? (
             <>
               <Text as="p" className="text-sm font-semibold text-navy truncate">{file.name}</Text>
-              <Text as="p" className="text-xs text-ink/60">{formatSize(file.size)} · ready to upload</Text>
+              <Text as="p" className="text-xs text-ink/60">
+                {formatSize(file.size)} · {statusText}
+              </Text>
             </>
           ) : attached ? (
             <Box className="flex items-center gap-1.5">
@@ -108,7 +110,7 @@ function FileSlot({
  * result is a silent no-op, not an error.
  */
 export function LessonMediaFields({
-  videoFile, captionFile, hasVideo, hasCaptions,
+  videoFile, captionFile, hasVideo, hasCaptions, videoUploaded,
   onVideoSelect, onVideoClear, onCaptionSelect, onCaptionClear,
   progress, disabled,
 }) {
@@ -123,6 +125,9 @@ export function LessonMediaFields({
         icon={Film}
         file={videoFile}
         attached={hasVideo}
+        // The video is already in storage by the time this reads "uploaded" —
+        // it goes up on selection, not on save.
+        statusText={videoUploaded ? "uploaded" : "uploading…"}
         disabled={disabled || uploading}
         onSelect={onVideoSelect}
         onClear={onVideoClear}
@@ -135,6 +140,8 @@ export function LessonMediaFields({
         icon={Subtitles}
         file={captionFile}
         attached={hasCaptions}
+        // Captions are kilobytes and ride along with the save request.
+        statusText="ready to upload"
         disabled={disabled || uploading}
         onSelect={onCaptionSelect}
         onClear={onCaptionClear}
