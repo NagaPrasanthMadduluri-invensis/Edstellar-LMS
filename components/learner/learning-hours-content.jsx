@@ -255,12 +255,12 @@ export function LearningHoursContent() {
               </Box>
             ) : (
               <Box className="space-y-3">
-                {modeBreakdown.map((m) => (
+                {modeBreakdown.map((m, i) => (
                   <Box key={m.mode} className="flex items-center gap-3">
-                    <Box className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: m.color }} />
+                    <Box className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: seriesColor(i) }} />
                     <Text as="p" className="text-xs text-muted-foreground w-36 shrink-0">{m.mode}</Text>
                     <Box className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <Box className="h-full rounded-full" style={{ width: `${m.pct}%`, background: m.color }} />
+                      <Box className="h-full rounded-full" style={{ width: `${m.pct}%`, background: seriesColor(i) }} />
                     </Box>
                     <Text as="span" className="text-[11px] text-muted-foreground w-6 text-right shrink-0">{m.pct}%</Text>
                     <Text as="span" className="text-[11px] font-bold w-7 text-right shrink-0">{m.hours}h</Text>
@@ -294,8 +294,8 @@ export function LearningHoursContent() {
                         innerRadius={48} outerRadius={70}
                         paddingAngle={2}
                       >
-                        {modeBreakdown.map((m) => (
-                          <Cell key={m.mode} fill={m.color} />
+                        {modeBreakdown.map((m, i) => (
+                          <Cell key={m.mode} fill={seriesColor(i)} />
                         ))}
                       </Pie>
                     </PieChart>
@@ -308,9 +308,9 @@ export function LearningHoursContent() {
                 </Box>
 
                 <Box className="space-y-2 flex-1">
-                  {modeBreakdown.map((m) => (
+                  {modeBreakdown.map((m, i) => (
                     <Box key={m.mode} className="flex items-center gap-2">
-                      <Box className="w-2 h-2 rounded-full shrink-0" style={{ background: m.color }} />
+                      <Box className="w-2 h-2 rounded-full shrink-0" style={{ background: seriesColor(i) }} />
                       <Text as="p" className="text-[11px] text-muted-foreground flex-1 truncate">{m.mode.split(" – ")[0]}</Text>
                       <Text as="span" className="text-[11px] font-bold shrink-0">{m.hours}h</Text>
                     </Box>

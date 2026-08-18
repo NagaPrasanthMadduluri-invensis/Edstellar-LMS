@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -14,7 +13,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { BookOpen, Map, Users, ClipboardList, Search } from "lucide-react";
+import { BookOpen, Map, Users, ClipboardList, Search, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import Text from "@/components/ui/text";
@@ -22,7 +21,9 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { fetchAdminCourses, assignUser, removeAssignment } from "@/services/api/admin/admin-api";
+import {
+  fetchAdminCourses, assignUser, assignUsersBulk, removeAssignment,
+} from "@/services/api/admin/admin-api";
 
 /* ── Constants ── */
 
@@ -89,6 +90,10 @@ export function AdminAssignLearningContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [unassignTarget, setUnassignTarget] = useState(null);
+  /** Department queued for a bulk assign, pending confirmation. */
+  const [assignAllTarget, setAssignAllTarget] = useState(null);
+  const [assigningDept, setAssigningDept] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -145,14 +150,33 @@ export function AdminAssignLearningContent() {
     } catch (e) { setError(e.message); }
   };
 
-  const handleAssignDept = async (dept) => {
-    const deptMembers = (employees || []).filter((e) => e.department === dept);
-    const unassigned = deptMembers.filter((m) => !assignedUserIds.has(m.id));
-    for (const m of unassigned) {
-      const dueDate = rowDueDates[m.id] || globalDueDate || null;
-      try { await assignUser({ courseId: selectedCourseId, userId: m.id, dueDate }); } catch {}
+  /**
+   * Assigns everyone in a department who is not already on the course.
+   *
+   * One request rather than the per-learner loop this replaced: that issued a
+   * call per person, swallowed each failure, and could leave a department
+   * half-enrolled with no indication which half.
+   */
+  const handleAssignDept = async () => {
+    if (!assignAllTarget) return;
+    const { dept, pending } = assignAllTarget;
+    setAssigningDept(dept);
+    try {
+      const res = await assignUsersBulk({
+        courseId: selectedCourseId,
+        userIds: pending.map((m) => m.id),
+        dueDate: globalDueDate || null,
+      });
+      setAssignAllTarget(null);
+      setNotice(
+        `Assigned ${res.assigned} learner${res.assigned !== 1 ? "s" : ""} in ${dept}.`,
+      );
+      await loadData();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setAssigningDept(null);
     }
-    await loadData();
   };
 
   /* ── Derived ── */
@@ -247,6 +271,20 @@ export function AdminAssignLearningContent() {
     <Box className="space-y-5">
       {header}
       {error && <Text as="p" className="text-sm text-error">{error}</Text>}
+      {notice && (
+        <Box className="flex items-center gap-2 rounded-xl bg-paper-cream border border-border px-4 py-2.5">
+          <Check className="h-4 w-4 text-navy shrink-0" />
+          <Text as="p" className="text-sm text-ink/80 flex-1">{notice}</Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => setNotice(null)}
+          >
+            Dismiss
+          </Button>
+        </Box>
+      )}
 
       {/* ── Two-panel row ── */}
       <Box className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -382,17 +420,42 @@ export function AdminAssignLearningContent() {
             return (
               <Card key={dept} className="overflow-hidden">
                 {/* Dept header */}
-                <Box className="flex items-center px-5 py-3 border-b">
-                  <Checkbox
-                    checked={allAssigned}
-                    onCheckedChange={() => handleAssignDept(dept)}
-                    className="mr-3 shrink-0 data-[state=checked]:bg-navy data-[state=checked]:border-navy/20"
-                  />
-                  <Text as="span" className={`text-sm font-bold ${cfg.text}`}>{dept}</Text>
-                  <Text as="span" className="text-xs text-muted-foreground ml-2">{members.length} employees</Text>
-                  <Text as="span" className="ml-auto text-xs text-muted-foreground">
-                    {assignedInDept}/{members.length} assigned
-                  </Text>
+                <Box className="flex items-center gap-3 px-5 py-3 border-b">
+                  <Box className="min-w-0">
+                    <Text as="span" className={`text-sm font-bold ${cfg.text}`}>{dept}</Text>
+                    <Text as="span" className="text-xs text-muted-foreground ml-2">
+                      {members.length} employee{members.length !== 1 ? "s" : ""}
+                    </Text>
+                  </Box>
+
+                  {/* Progress reads as a sentence, not a checkbox state */}
+                  <Box className="ml-auto flex items-center gap-3 shrink-0">
+                    <Text as="span" className="text-xs text-muted-foreground">
+                      {assignedInDept} of {members.length} assigned
+                    </Text>
+                    <Button
+                      size="sm"
+                      variant={allAssigned ? "outline" : "default"}
+                      disabled={allAssigned || assigningDept === dept}
+                      onClick={() =>
+                        setAssignAllTarget({
+                          dept,
+                          pending: members.filter((m) => !assignedUserIds.has(m.id)),
+                        })
+                      }
+                      className={
+                        allAssigned
+                          ? "h-8 text-xs px-3"
+                          : "h-8 text-xs px-3 bg-navy hover:bg-navy-soft text-paper"
+                      }
+                    >
+                      {allAssigned
+                        ? "All assigned"
+                        : assigningDept === dept
+                          ? "Assigning…"
+                          : `Assign all (${members.length - assignedInDept})`}
+                    </Button>
+                  </Box>
                 </Box>
 
                 {/* Learner rows */}
@@ -407,16 +470,6 @@ export function AdminAssignLearningContent() {
                       key={emp.id}
                       className="flex items-center gap-4 px-5 py-3 border-b last:border-b-0 hover:bg-muted/10 transition-colors"
                     >
-                      {/* Checkbox */}
-                      <Checkbox
-                        checked={isAssigned}
-                        onCheckedChange={() => {
-                          if (isAssigned) setUnassignTarget(emp);
-                          else handleAssign(emp.id);
-                        }}
-                        className="shrink-0 data-[state=checked]:bg-navy data-[state=checked]:border-navy/20"
-                      />
-
                       {/* Avatar */}
                       <Avatar className="h-10 w-10 shrink-0">
                         <AvatarFallback className={`text-xs font-bold text-white ${avatarColor}`}>
@@ -451,14 +504,19 @@ export function AdminAssignLearningContent() {
                         className="h-8 px-2 text-xs border border-border rounded-lg w-32 bg-white focus:outline-none focus:ring-1 focus:ring-navy shrink-0"
                       />
 
-                      {/* Assign / Assigned */}
+                      {/* Assigned state and its undo read differently — the
+                          old pair were both solid navy, so "Assigned" looked
+                          like a call to action rather than a state. */}
                       {isAssigned ? (
                         <Button
                           size="sm"
-                          className="h-8 bg-navy hover:bg-navy-soft text-paper text-xs px-4 shrink-0"
+                          variant="outline"
+                          className="h-8 text-xs px-3 shrink-0 group/undo"
                           onClick={() => setUnassignTarget(emp)}
                         >
-                          Assigned
+                          <Check className="h-3.5 w-3.5 mr-1 text-navy group-hover/undo:hidden" />
+                          <span className="group-hover/undo:hidden">Assigned</span>
+                          <span className="hidden group-hover/undo:inline text-error">Remove</span>
                         </Button>
                       ) : (
                         <Button
@@ -492,6 +550,39 @@ export function AdminAssignLearningContent() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleUnassign} className="bg-error hover:bg-error text-white">
               Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk assign is confirmed, not instant — the checkbox it replaces
+          enrolled a whole department the moment it was clicked. */}
+      <AlertDialog
+        open={Boolean(assignAllTarget)}
+        onOpenChange={(o) => { if (!o) setAssignAllTarget(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Assign all of {assignAllTarget?.dept}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {assignAllTarget?.pending?.length ?? 0} learner
+              {(assignAllTarget?.pending?.length ?? 0) !== 1 ? "s" : ""} in{" "}
+              {assignAllTarget?.dept} will be assigned to{" "}
+              <strong>{selectedCourse?.name}</strong>
+              {globalDueDate ? `, due ${globalDueDate}` : ""}. Anyone already
+              assigned is left untouched.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(assigningDept)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleAssignDept}
+              disabled={Boolean(assigningDept)}
+              className="bg-navy hover:bg-navy-soft text-paper"
+            >
+              {assigningDept ? "Assigning…" : "Assign all"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
