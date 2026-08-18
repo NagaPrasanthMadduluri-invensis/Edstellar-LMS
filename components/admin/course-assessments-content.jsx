@@ -25,7 +25,9 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   fetchAssessments, createAssessment, updateAssessment, deleteAssessment,
   fetchAssessmentDetail, addQuestion, updateQuestion, deleteQuestion,
+  attachAssessment, detachAssessment,
 } from "@/services/api/admin/admin-api";
+import { Switch } from "@/components/ui/switch";
 
 const EMPTY_ASSESSMENT = { title: "", description: "", passing_score: 60 };
 const EMPTY_QUESTION = {
@@ -43,6 +45,8 @@ export function CourseAssessmentsContent({ courseId }) {
   const { user } = useAuth();
   const [assessments, setAssessments] = useState(null);
   const [error, setError] = useState(null);
+  /** Assessment id whose attach toggle is mid-flight. */
+  const [busyAttach, setBusyAttach] = useState(null);
 
   const [aDialog, setADialog] = useState(false);
   const [aForm, setAForm] = useState(EMPTY_ASSESSMENT);
@@ -78,6 +82,24 @@ export function CourseAssessmentsContent({ courseId }) {
   useEffect(() => { loadAssessments(); }, [loadAssessments]);
 
   const openCreateA = () => { setEditingA(null); setAForm(EMPTY_ASSESSMENT); setAError(null); setADialog(true); };
+  /**
+   * Attaching is what makes an assessment visible to learners assigned to this
+   * course. Detaching hides it and stops new attempts; past attempts stay in
+   * the reports.
+   */
+  const handleToggleAttach = async (a) => {
+    setBusyAttach(a.id);
+    try {
+      if (a.is_active) await detachAssessment({ assessmentId: a.id });
+      else await attachAssessment({ assessmentId: a.id });
+      await loadAssessments();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusyAttach(null);
+    }
+  };
+
   const openEditA = (a) => {
     setEditingA(a);
     setAForm({ title: a.title, description: a.description || "", passing_score: a.passing_score });
@@ -209,10 +231,26 @@ export function CourseAssessmentsContent({ courseId }) {
                           {a.attempts_count} attempt{a.attempts_count !== 1 ? "s" : ""}
                         </Badge>
                       )}
+                      <Badge className={`text-[10px] border-0 ${
+                        a.is_active ? "bg-navy text-paper" : "bg-paper-warm text-ink/55"
+                      }`}>
+                        {a.is_active ? "Attached" : "Not attached"}
+                      </Badge>
                     </Box>
                   </Box>
                 </Box>
-                <Box className="flex items-center gap-1 shrink-0">
+                <Box className="flex items-center gap-2 shrink-0">
+                  <Box className="flex items-center gap-1.5 mr-1">
+                    <Switch
+                      checked={Boolean(a.is_active)}
+                      disabled={busyAttach === a.id}
+                      onCheckedChange={() => handleToggleAttach(a)}
+                      aria-label={a.is_active ? "Detach from course" : "Attach to course"}
+                    />
+                    <Text as="span" className="text-[10px] text-ink/55 hidden sm:inline">
+                      {a.is_active ? "Live" : "Hidden"}
+                    </Text>
+                  </Box>
                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => openEditA(a)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>

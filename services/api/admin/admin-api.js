@@ -92,10 +92,34 @@ export async function presignNewVideo({ filename, contentType, sizeBytes }) {
 }
 
 /** Step 3 — tell the API the upload landed, so the key is saved on the lesson. */
-export async function confirmLessonVideo({ lessonId, key }) {
+export async function confirmLessonVideo({ lessonId, key, durationSeconds }) {
   return apiClient(`/api/admin/lessons/${lessonId}/video/confirm`, {
     method: "POST",
-    body: { key },
+    body: { key, ...(durationSeconds ? { durationSeconds } : {}) },
+  });
+}
+
+/**
+ * Reads a video file's real length without uploading or decoding it.
+ *
+ * The browser only needs the metadata header, so this is near-instant even for
+ * a multi-hundred-megabyte file. Resolves null rather than rejecting: a
+ * duration we could not read must not block the upload, it just leaves the
+ * lesson without a measured length.
+ */
+export function readVideoDuration(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+    const done = (value) => {
+      URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    probe.onloadedmetadata = () =>
+      done(Number.isFinite(probe.duration) ? Math.round(probe.duration) : null);
+    probe.onerror = () => done(null);
+    probe.src = url;
   });
 }
 
@@ -163,6 +187,18 @@ export async function fetchAssessmentDetail({ assessmentId }) {
 
 export async function updateAssessment({ assessmentId, data }) {
   return apiClient(`/api/admin/assessments/${assessmentId}`, { method: "PUT", body: data });
+}
+
+/**
+ * Attach / detach an assessment from its course. Only attached assessments are
+ * delivered to assigned learners.
+ */
+export async function attachAssessment({ assessmentId }) {
+  return apiClient(`/api/admin/assessments/${assessmentId}/attach`, { method: "POST" });
+}
+
+export async function detachAssessment({ assessmentId }) {
+  return apiClient(`/api/admin/assessments/${assessmentId}/attach`, { method: "DELETE" });
 }
 
 export async function deleteAssessment({ assessmentId }) {

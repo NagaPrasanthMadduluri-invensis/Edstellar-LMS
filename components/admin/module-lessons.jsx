@@ -30,6 +30,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   fetchLessons, createLesson, updateLesson, deleteLesson,
   presignLessonVideo, presignNewVideo, uploadToR2, confirmLessonVideo, deleteLessonVideo,
+  readVideoDuration,
   uploadLessonCaptions, deleteLessonCaptions,
 } from "@/services/api/admin/admin-api";
 import { LessonMediaFields } from "@/components/admin/lesson-media-fields";
@@ -60,6 +61,7 @@ const EMPTY_LESSON = {
   // key it landed on, and is attached to the lesson on save. Captions are tiny
   // and go up with the save itself.
   video_file: null, caption_file: null, video_key_pending: null,
+  video_duration_seconds: null,
   has_video: false, has_captions: false,
   remove_video: false, remove_captions: false,
 };
@@ -144,7 +146,11 @@ export function ModuleLessons({ moduleId }) {
 
     // The bytes are already in R2 — this only points the lesson at them.
     if (form.video_key_pending) {
-      await confirmLessonVideo({ lessonId, key: form.video_key_pending });
+      await confirmLessonVideo({
+        lessonId,
+        key: form.video_key_pending,
+        durationSeconds: form.video_duration_seconds ?? undefined,
+      });
     }
 
     if (form.caption_file) {
@@ -187,7 +193,17 @@ export function ModuleLessons({ moduleId }) {
           setUploadProgress({ stage: `Uploading ${file.name}`, percent }),
       });
 
-      setForm((f) => ({ ...f, video_key_pending: key }));
+      // Real length, read from the file itself — no one has to type it.
+      const durationSeconds = await readVideoDuration(file);
+      setForm((f) => ({
+        ...f,
+        video_key_pending: key,
+        video_duration_seconds: durationSeconds,
+        duration_minutes:
+          f.duration_minutes === "" && durationSeconds
+            ? Math.max(1, Math.round(durationSeconds / 60))
+            : f.duration_minutes,
+      }));
       setUploadProgress(null);
     } catch (e) {
       // Clear the staged file so the form cannot claim to have a video that

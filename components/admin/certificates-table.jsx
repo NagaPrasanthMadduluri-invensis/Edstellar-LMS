@@ -31,7 +31,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Award, ShieldCheck, ShieldOff, Ban, RotateCcw } from "lucide-react";
+import { Search, Award, ShieldCheck, ShieldOff, Ban, RotateCcw, Plus } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { fetchAdminCourses, fetchUsers, issueCertificate } from "@/services/api/admin/admin-api";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
@@ -54,6 +60,15 @@ export function CertificatesTable() {
   const [revoking, setRevoking] = useState(false);
   const [confirmReissue, setConfirmReissue] = useState(null);
   const [reissuing, setReissuing] = useState(false);
+
+  // Manual issue. Auto-issue still runs on completion — this covers what the
+  // system cannot see, such as training completed offline.
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueForm, setIssueForm] = useState({ userId: "", courseId: "" });
+  const [issuing, setIssuing] = useState(false);
+  const [issueNote, setIssueNote] = useState(null);
+  const [issueLearners, setIssueLearners] = useState([]);
+  const [issueCourses, setIssueCourses] = useState([]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -145,8 +160,35 @@ export function CertificatesTable() {
 
   const hasFilters = search || filterLearner !== "all" || filterCourse !== "all";
 
+  const handleIssue = async () => {
+    if (!issueForm.userId || !issueForm.courseId) return;
+    setIssuing(true);
+    setIssueNote(null);
+    try {
+      const res = await issueCertificate({
+        userId: Number(issueForm.userId),
+        courseId: Number(issueForm.courseId),
+      });
+      setIssueOpen(false);
+      setIssueForm({ userId: "", courseId: "" });
+      // Surface an override rather than hiding it: the admin should know they
+      // granted a certificate to someone the system does not consider finished.
+      if (res?.certificate && res.certificate.hadCompleted === false) {
+        setIssueNote("Issued. Note: this learner has not completed the course.");
+      }
+      await load();
+    } catch (e) {
+      setIssueNote(e.message);
+    } finally {
+      setIssuing(false);
+    }
+  };
+
   return (
     <Box>
+      {issueNote && (
+        <Text as="p" className="text-xs text-ink/70 mb-2">{issueNote}</Text>
+      )}
       <Card className="overflow-hidden">
         {/* ── Header ── */}
         <Box className="flex items-center justify-between px-6 py-4 border-b">
@@ -156,6 +198,20 @@ export function CertificatesTable() {
               {filtered.length} of {certificates.length} certificates shown
             </Text>
           </Box>
+          <Button
+            size="sm"
+            className="bg-navy hover:bg-navy-soft text-paper shrink-0"
+            onClick={() => {
+              setIssueOpen(true);
+              if (issueLearners.length === 0) {
+                fetchUsers().then((d) => setIssueLearners((d.users || []).filter((u) => u.role === "learner"))).catch(() => {});
+                fetchAdminCourses().then((d) => setIssueCourses(d.courses || [])).catch(() => {});
+              }
+            }}
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Issue Certificate
+          </Button>
         </Box>
 
         {/* ── Filter Bar ── */}
@@ -332,6 +388,61 @@ export function CertificatesTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    <Dialog open={issueOpen} onOpenChange={(o) => { if (!issuing) setIssueOpen(o); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Issue Certificate</DialogTitle>
+            <DialogDescription>
+              Grants a certificate directly. Certificates are normally issued
+              automatically on course completion — use this for training the
+              system cannot see.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Box className="space-y-4">
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-ink/80">
+                Learner <Text as="span" className="text-error">*</Text>
+              </Label>
+              <Select value={issueForm.userId} onValueChange={(v) => setIssueForm((f) => ({ ...f, userId: v }))}>
+                <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Select a learner" /></SelectTrigger>
+                <SelectContent>
+                  {issueLearners.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.first_name} {u.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Box>
+
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-ink/80">
+                Course <Text as="span" className="text-error">*</Text>
+              </Label>
+              <Select value={issueForm.courseId} onValueChange={(v) => setIssueForm((f) => ({ ...f, courseId: v }))}>
+                <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Select a course" /></SelectTrigger>
+                <SelectContent>
+                  {issueCourses.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Box>
+          </Box>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIssueOpen(false)} disabled={issuing}>Cancel</Button>
+            <Button
+              onClick={handleIssue}
+              disabled={issuing || !issueForm.userId || !issueForm.courseId}
+              className="bg-navy hover:bg-navy-soft text-paper"
+            >
+              {issuing ? "Issuing…" : "Issue Certificate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

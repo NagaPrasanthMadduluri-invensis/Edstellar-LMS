@@ -138,6 +138,7 @@ export function LeaderboardContent() {
                     <Text as="p" className="text-xs text-muted-foreground mt-0.5">
                       {key === "learnerOfMonth"   && `${rec.points} points · ${rec.badges} badge${rec.badges !== 1 ? "s" : ""}`}
                       {key === "quickLearner"     && `${rec.coursesThisMonth} course${rec.coursesThisMonth !== 1 ? "s" : ""} completed`}
+                      {key === "assessmentTopper" && `${rec.attemptsPerPass} attempt${rec.attemptsPerPass !== 1 ? "s" : ""} per pass · ${rec.passed} passed`}
                       {key === "assessmentTopper" && `Avg score ${rec.avgScore}%`}
                     </Text>
                   </>

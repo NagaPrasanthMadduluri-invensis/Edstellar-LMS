@@ -26,6 +26,9 @@ export function LocalVideoPlayer({
   captionSrc,
   expiresIn,
   onRefresh,
+  onProgress,
+  resumeAt = 0,
+  watchedSeconds = 0,
   resetKey,
   onEnded,
   className = "",
@@ -33,13 +36,43 @@ export function LocalVideoPlayer({
   const videoRef = useRef(null);
   const maxTimeRef = useRef(0);
   const refreshingRef = useRef(false);
+  const reportedRef = useRef(0);
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
 
   // Furthest-watched resets when the lesson changes — NOT when `src` changes,
   // because a mid-playback URL refresh is a new src for the same lesson and
   // must not hand the learner a way to reset the seek guard.
   useEffect(() => {
-    maxTimeRef.current = 0;
+    // Seed from what the server already has, so a learner returning to a video
+    // does not start earning the same minutes over again — and cannot reset
+    // the seek guard by reloading the page.
+    maxTimeRef.current = watchedSeconds;
+    reportedRef.current = watchedSeconds;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
+
+  /**
+   * Reports watch time. Sends the furthest point reached rather than a delta,
+   * so a dropped request costs nothing — the next one carries the same total,
+   * and the server keeps the maximum.
+   */
+  const report = useCallback((force = false) => {
+    const video = videoRef.current;
+    if (!video || !onProgressRef.current) return;
+
+    const watched = Math.floor(maxTimeRef.current);
+    // Only worth a request once another 10s of genuinely new material is
+    // watched. Rewatching, pausing and seeking backwards all send nothing.
+    if (!force && watched - reportedRef.current < 10) return;
+    if (watched <= 0) return;
+
+    reportedRef.current = watched;
+    onProgressRef.current({
+      watchedSeconds: watched,
+      positionSeconds: Math.floor(video.currentTime || 0),
+    });
+  }, []);
 
   /** Swap in a fresh URL without the learner losing their place. */
   const refresh = useCallback(async () => {
@@ -97,8 +130,17 @@ export function LocalVideoPlayer({
     };
 
     const onEnd = () => {
-      maxTimeRef.current = 0;
+      report(true);
       onEnded?.();
+    };
+
+    const onPause = () => report(true);
+
+    // Resume where they left off, once the browser knows the duration.
+    const onLoaded = () => {
+      if (resumeAt > 0 && video.currentTime < 1) {
+        video.currentTime = Math.min(resumeAt, video.duration || resumeAt);
+      }
     };
 
     // A lapsed signature surfaces here as a decode/network error. One retry
@@ -109,14 +151,24 @@ export function LocalVideoPlayer({
     video.addEventListener("seeking", onSeeking);
     video.addEventListener("ended", onEnd);
     video.addEventListener("error", onError);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("loadedmetadata", onLoaded);
+
+    // Periodic flush, so closing the tab loses at most a few seconds.
+    const ticker = setInterval(() => report(), 15_000);
 
     return () => {
+      clearInterval(ticker);
+      // Final flush on unmount — navigating away is the common exit.
+      report(true);
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("seeking", onSeeking);
       video.removeEventListener("ended", onEnd);
       video.removeEventListener("error", onError);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("loadedmetadata", onLoaded);
     };
-  }, [src, onEnded, refresh]);
+  }, [src, onEnded, refresh, report, resumeAt]);
 
   return (
     <div className={`aspect-video w-full bg-navy ${className}`}>

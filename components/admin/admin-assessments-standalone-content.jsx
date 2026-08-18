@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -32,6 +35,8 @@ import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import {
+  fetchAdminCourses,
+  createAssessment,
   fetchAssessmentDetail,
   updateAssessment,
   deleteAssessment,
@@ -44,6 +49,15 @@ export function AdminAssessmentsStandaloneContent() {
   const { user } = useAuth();
   const [assessments, setAssessments] = useState(null);
   const [error, setError] = useState(null);
+
+  // Create dialog. A course must be chosen before an assessment can exist —
+  // assessments are authored under a course, never free-floating.
+  const [courses, setCourses] = useState([]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    course_id: "", title: "", description: "", passing_score: 60,
+  });
+  const [creating, setCreating] = useState(false);
 
   // Edit assessment meta dialog
   const [editMeta, setEditMeta] = useState(null);
@@ -75,6 +89,128 @@ export function AdminAssessmentsStandaloneContent() {
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchAdminCourses().then((d) => setCourses(d.courses || [])).catch(() => {});
+  }, [user]);
+
+  const handleCreate = async () => {
+    if (!createForm.course_id) { setError("Pick a course for this assessment."); return; }
+    if (!createForm.title.trim()) { setError("Title is required."); return; }
+    setCreating(true);
+    try {
+      await createAssessment({
+        courseId: Number(createForm.course_id),
+        data: {
+          title: createForm.title.trim(),
+          description: createForm.description || null,
+          passing_score: Number(createForm.passing_score) || 60,
+        },
+      });
+      setCreateOpen(false);
+      setCreateForm({ course_id: "", title: "", description: "", passing_score: 60 });
+      setError(null);
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  /** Header + create dialog, shown whether or not any assessments exist yet. */
+  const CreateBar = () => (
+    <Box className="flex items-center justify-between gap-3 flex-wrap">
+      <Text as="p" className="text-xs text-ink/55">
+        Assessments are built here against a course, then attached on that
+        course&apos;s Assessments tab before learners can see them.
+      </Text>
+      <Button
+        onClick={() => setCreateOpen(true)}
+        className="bg-navy hover:bg-navy-soft text-paper shrink-0"
+        size="sm"
+      >
+        <Plus className="h-4 w-4 mr-1.5" />
+        New Assessment
+      </Button>
+    </Box>
+  );
+
+  const createDialog = (
+    <Dialog open={createOpen} onOpenChange={(o) => { if (!creating) setCreateOpen(o); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Assessment</DialogTitle>
+          <DialogDescription>
+            Choose the course it belongs to. It stays detached until you attach
+            it on that course, so learners will not see it yet.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Box className="space-y-4">
+          <Box className="space-y-1.5">
+            <Label className="text-sm font-medium text-ink/80">
+              Course <Text as="span" className="text-error">*</Text>
+            </Label>
+            <Select
+              value={String(createForm.course_id || "")}
+              onValueChange={(v) => setCreateForm((f) => ({ ...f, course_id: v }))}
+            >
+              <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Select a course" /></SelectTrigger>
+              <SelectContent>
+                {courses.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Box>
+
+          <Box className="space-y-1.5">
+            <Label className="text-sm font-medium text-ink/80">
+              Title <Text as="span" className="text-error">*</Text>
+            </Label>
+            <Input
+              value={createForm.title}
+              placeholder="e.g. Leadership Fundamentals Quiz"
+              onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+              className="h-10 bg-white"
+            />
+          </Box>
+
+          <Box className="space-y-1.5">
+            <Label className="text-sm font-medium text-ink/80">Description</Label>
+            <Input
+              value={createForm.description}
+              onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+              className="h-10 bg-white"
+            />
+          </Box>
+
+          <Box className="space-y-1.5">
+            <Label className="text-sm font-medium text-ink/80">Pass mark (%)</Label>
+            <Input
+              type="number" min={1} max={100}
+              value={createForm.passing_score}
+              onChange={(e) => setCreateForm((f) => ({ ...f, passing_score: e.target.value }))}
+              className="h-10 bg-white"
+            />
+          </Box>
+        </Box>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+          <Button
+            onClick={handleCreate}
+            disabled={creating || !createForm.course_id || !createForm.title.trim()}
+            className="bg-navy hover:bg-navy-soft text-paper"
+          >
+            {creating ? "Creating…" : "Create Assessment"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   const loadExpandedDetail = async (assessmentId) => {
     try {
@@ -198,15 +334,23 @@ export function AdminAssessmentsStandaloneContent() {
   );
 
   if (assessments.length === 0) return (
-    <Card className="p-16 text-center">
-      <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-      <Text as="p" className="text-sm text-muted-foreground">No assessments yet. Create a course and add an assessment to it.</Text>
-    </Card>
+    <Box className="space-y-3">
+      <CreateBar />
+      <Card className="p-16 text-center">
+        <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+        <Text as="p" className="text-sm text-muted-foreground">
+          No assessments yet. Create one against a course to get started.
+        </Text>
+      </Card>
+      {createDialog}
+    </Box>
   );
 
   return (
     <Box className="space-y-3">
       {error && <Text as="p" className="text-sm text-error mb-2">{error}</Text>}
+      <CreateBar />
+      {createDialog}
 
       {assessments.map((a) => {
         const isExpanded = expanded === a.id;
@@ -231,6 +375,12 @@ export function AdminAssessmentsStandaloneContent() {
                     </Badge>
                     <Badge variant="secondary" className="text-[10px] bg-paper-cream text-ink/70 px-1.5">
                       Pass: {a.passing_score}%
+                    </Badge>
+                    {/* Fill weight carries the state — attached is the heavy one. */}
+                    <Badge className={`text-[10px] px-1.5 border-0 ${
+                      a.is_active ? "bg-navy text-paper" : "bg-paper-warm text-ink/55"
+                    }`}>
+                      {a.is_active ? "Attached" : "Not attached"}
                     </Badge>
                   </Box>
                 </Box>

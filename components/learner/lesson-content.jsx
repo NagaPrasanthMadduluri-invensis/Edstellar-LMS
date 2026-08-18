@@ -195,6 +195,17 @@ export function LessonContent({ courseId, lessonId }) {
    * Fetches a fresh signed URL pair. Also handed to the player as `onRefresh`
    * so it can re-sign before the current URL expires mid-playback.
    */
+  /** Fire-and-forget: a lost progress ping is re-sent by the next one. */
+  const reportProgress = useCallback(
+    (payload) => {
+      apiClient(`/api/learner/lessons/${lessonId}/video-progress`, {
+        method: "POST",
+        body: payload,
+      }).catch(() => {});
+    },
+    [lessonId],
+  );
+
   const loadMedia = useCallback(async () => {
     const res = await apiClient(`/api/learner/lessons/${lessonId}/media`);
     setMedia(res.videoUrl ? res : null);
@@ -352,6 +363,9 @@ export function LessonContent({ courseId, lessonId }) {
               captionSrc={media.captionUrl}
               expiresIn={media.expiresIn}
               onRefresh={loadMedia}
+              onProgress={reportProgress}
+              resumeAt={media.resumeAtSeconds}
+              watchedSeconds={media.watchedSeconds}
               resetKey={lessonId}
               onEnded={() => setVideoEnded(true)}
               className="h-full"

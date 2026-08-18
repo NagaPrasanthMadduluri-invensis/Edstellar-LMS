@@ -75,7 +75,7 @@ export function AdminLeaderboardContent() {
   if (error) return <Card className="p-8 text-center"><Text as="p" className="text-error text-sm">{error}</Text></Card>;
   if (!data) return <LoadingSkeleton />;
 
-  const { stats, learners = [] } = data;
+  const { stats, learners = [], recognition = {} } = data;
 
   const depts = ["All Departments", ...new Set(learners.map((l) => l.dept).filter(Boolean))].sort((a, b) => a === "All Departments" ? -1 : b === "All Departments" ? 1 : a.localeCompare(b));
 
@@ -119,6 +119,61 @@ export function AdminLeaderboardContent() {
               </Box>
             </Box>
             <Box className={`absolute -right-5 -top-5 w-24 h-24 rounded-full opacity-60 ${s.circle}`} />
+          </Card>
+        ))}
+      </Box>
+
+      {/* Recognition — the same three cards learners see, from the same data */}
+      <Box className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          {
+            key: "learnerOfMonth",
+            icon: "🌟",
+            label: "Leader of the Month",
+            rec: recognition.learnerOfMonth,
+            detail: (r) => `${r.points} points this month · ${r.badges} assessment${r.badges !== 1 ? "s" : ""} passed`,
+          },
+          {
+            key: "quickLearner",
+            icon: "⚡",
+            label: "Quick Learner",
+            rec: recognition.quickLearner,
+            detail: (r) => `${r.coursesThisMonth} course${r.coursesThisMonth !== 1 ? "s" : ""} completed this month`,
+          },
+          {
+            key: "assessmentTopper",
+            icon: "🎯",
+            label: "Assessment Topper",
+            rec: recognition.assessmentTopper,
+            // Efficiency, not raw score: fewest attempts per assessment passed.
+            detail: (r) =>
+              `${r.attemptsPerPass} attempt${r.attemptsPerPass !== 1 ? "s" : ""} per pass · ` +
+              `${r.passed} passed in ${r.attempts} attempt${r.attempts !== 1 ? "s" : ""}`,
+          },
+        ].map((card) => (
+          <Card key={card.key} className="p-5">
+            <Box className="flex items-start gap-3">
+              <Box className="w-11 h-11 rounded-xl bg-paper-cream flex items-center justify-center shrink-0 text-lg">
+                {card.icon}
+              </Box>
+              <Box className="min-w-0">
+                <Text as="p" className="text-[11px] font-mono uppercase tracking-widest text-ink/55">
+                  {card.label}
+                </Text>
+                {card.rec ? (
+                  <>
+                    <Text as="p" className="text-base font-bold text-navy leading-tight mt-0.5 truncate">
+                      {card.rec.name}
+                    </Text>
+                    <Text as="p" className="text-xs text-ink/60 mt-0.5">
+                      {card.detail(card.rec)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text as="p" className="text-sm text-ink/45 mt-1">Not enough data yet</Text>
+                )}
+              </Box>
+            </Box>
           </Card>
         ))}
       </Box>
