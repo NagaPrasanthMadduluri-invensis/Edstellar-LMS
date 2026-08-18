@@ -18,7 +18,14 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 
-export function TopNav({ portalLabel = "Invensis LMS" }) {
+/**
+ * One product name in both portals.
+ *
+ * The label used to be a prop, which let the two shells drift apart — admin
+ * read "Edstellar Admin" and learner "Invensis LMS" — with a "powered by"
+ * line under each. It is a constant now, so the two cannot disagree again.
+ */
+export function TopNav() {
   const { user, logout } = useAuth();
 
   return (
@@ -29,20 +36,12 @@ export function TopNav({ portalLabel = "Invensis LMS" }) {
       <Box className="flex items-center gap-3">
         <SidebarTrigger className="bg-transparent hover:bg-transparent" />
         <Separator orientation="vertical" className="h-6 text-white" />
-        <Box className="flex flex-col leading-none select-none">
-          <Text
-            as="h2"
-            className="text-lg font-semibold tracking-tight text-background"
-          >
-            {portalLabel}
-          </Text>
-          <Text
-            as="span"
-            className="text-[10px] font-medium text-background/50 tracking-wide"
-          >
-            powered by Edstellar
-          </Text>
-        </Box>
+        <Text
+          as="h2"
+          className="text-lg font-semibold tracking-tight text-background leading-none select-none"
+        >
+          Edstellar LMS
+        </Text>
       </Box>
 
       <Box className="flex items-center gap-2">

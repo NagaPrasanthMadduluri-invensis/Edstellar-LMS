@@ -11,7 +11,7 @@ export function AdminShell({ user, children }) {
     <AuthProvider initialUser={user}>
       <SidebarProvider>
         <Box className="flex h-full flex-col">
-          <TopNav portalLabel="Edstellar Admin" />
+          <TopNav />
           <Box className="flex flex-1 overflow-hidden">
             <AdminSidebar />
             <Box as="main" className="flex-1 overflow-auto p-6 bg-muted/30">
