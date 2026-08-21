@@ -22,26 +22,8 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchCourseDetail } from "@/services/api/learner/learner-api";
+import { CourseArt } from "@/components/shared/course-art";
 
-/* ── Course thumbnail colors (hash-based) ── */
-const PALETTES = [
-  { bg: "#EDE9DD", accent: "#0A1628" },
-  { bg: "#EDE9DD", accent: "#0A1628" },
-  { bg: "#EDE9DD", accent: "#14233D" },
-  { bg: "#EDE9DD", accent: "#14233D" },
-  { bg: "#EDE9DD", accent: "#0A1628" },
-  { bg: "#F2F0E8", accent: "#14233D" },
-  { bg: "#EDE9DD", accent: "#0A1628" },
-  { bg: "#EDE9DD", accent: "#14233D" },
-];
-function getCourseColors(name) {
-  let h = 0;
-  for (const c of (name || "A")) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
-  return PALETTES[h % PALETTES.length];
-}
-function getInitials(name) {
-  return (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
-}
 
 function DetailSkeleton() {
   return (
@@ -82,9 +64,16 @@ export function CourseDetailContent({ courseId }) {
   const totalLessons     = modules.reduce((s, m) => s + (m.total_count || 0), 0);
   const completedLessons = modules.reduce((s, m) => s + (m.completed_count || 0), 0);
   const progress         = enrollment?.progress_percentage ?? 0;
-  const colors           = getCourseColors(course.name);
-  const initials         = getInitials(course.name);
   const isComplete       = progress === 100;
+
+  // The first lesson the learner can actually open, so the hero button goes
+  // somewhere real instead of the page having no primary action at all.
+  const allLessons  = modules.flatMap((m) => m.lessons || []);
+  const nextLesson  =
+    allLessons.find((l) => l.progress_status !== "completed" && !l.is_locked) ??
+    allLessons[0] ??
+    null;
+  const firstContentType = allLessons[0]?.content_type ?? null;
 
   return (
     <Box className="space-y-5">
@@ -94,88 +83,99 @@ export function CourseDetailContent({ courseId }) {
         Back to My Courses
       </Button>
 
-      {/* ── Course Header ── */}
-      <Card className="overflow-hidden">
-        <Box className="flex items-stretch">
-          {/* Accent panel with initials */}
-          <Box
-            style={{ background: colors.bg, width: 100, flexShrink: 0 }}
-            className="flex items-center justify-center p-4"
-          >
-            <Box
-              style={{ background: colors.accent, width: 56, height: 56, borderRadius: 14 }}
-              className="flex items-center justify-center shadow-sm"
-            >
-              <Text as="span" style={{ color: "#fff", fontWeight: 700, fontSize: 20, lineHeight: 1 }}>
-                {initials}
+      {/* ── Course hero ──
+          A dark band carrying the course art, one editorial line, the metadata
+          and the primary action. It replaces a cream tile with the course
+          initials in it, which occupied the most prominent slot on the page and
+          said nothing. Progress is the lime rule along the bottom edge — lime
+          is the single accent and only ever appears on a dark surface. */}
+      <Box className="relative overflow-hidden rounded-2xl bg-navy">
+        <CourseArt
+          thumbnailUrl={course.thumbnail_url}
+          contentType={firstContentType}
+          alt={course.name}
+          scrim="dark"
+          priority
+          sizes="100vw"
+          className="absolute inset-0"
+        />
+
+        <Box className="relative px-6 py-7 sm:px-8 sm:py-9">
+          <Text as="span" className="font-mono text-[11px] uppercase tracking-[0.18em] text-paper/55">
+            {isComplete ? "Completed" : progress > 0 ? "In progress" : "Not started"}
+          </Text>
+
+          <Text as="h1" className="mt-2 text-2xl sm:text-3xl font-bold leading-tight text-paper max-w-3xl">
+            {course.name}
+          </Text>
+
+          {course.description && (
+            <Text as="p" className="mt-2 text-sm text-paper/70 leading-relaxed max-w-2xl">
+              {course.description}
+            </Text>
+          )}
+
+          {/* Metadata as one mono line — it was three grey icon pairs before,
+              competing with the title for attention. */}
+          <Text as="p" className="mt-5 font-mono text-[11px] uppercase tracking-[0.14em] text-paper/55">
+            {modules.length} module{modules.length !== 1 ? "s" : ""}
+            {"  ·  "}{totalLessons} lesson{totalLessons !== 1 ? "s" : ""}
+            {assessments.length > 0 && `  ·  ${assessments.length} assessment${assessments.length !== 1 ? "s" : ""}`}
+            {completedLessons > 0 && !isComplete && `  ·  ${completedLessons} done`}
+          </Text>
+
+          <Box className="mt-6 flex items-end justify-between gap-6 flex-wrap">
+            <Box>
+              {/* The one italic phrase on the page (TASTE §10.2). */}
+              <Text as="p" className="font-editorial italic text-lg text-lime-soft leading-snug">
+                {isComplete
+                  ? "You have finished this one."
+                  : progress > 0
+                    ? "Pick up where you left off."
+                    : "Ready when you are."}
               </Text>
-            </Box>
-          </Box>
-
-          {/* Course info */}
-          <CardContent className="flex-1 p-5">
-            <Box className="flex items-start justify-between gap-4 flex-wrap">
-              <Box className="flex-1 min-w-0">
-                <Text as="h1" className="text-xl font-bold leading-tight">{course.name}</Text>
-                {course.description && (
-                  <Text as="p" className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                    {course.description}
-                  </Text>
-                )}
-              </Box>
-              <Badge
-                className={cn("shrink-0 text-xs font-semibold px-2.5 py-0.5",
-                  isComplete
-                    ? "bg-paper-cream text-navy border-navy/20"
-                    : "bg-paper-cream text-navy border-navy/20"
-                )}
-              >
-                {isComplete ? "Completed" : "In Progress"}
-              </Badge>
-            </Box>
-
-            {/* Progress bar */}
-            <Box className="mt-4">
-              <Box className="flex items-center justify-between mb-1.5">
-                <Text as="span" className="text-xs text-muted-foreground font-medium">Overall Progress</Text>
-                <Text as="span" className="text-sm font-bold tabular-nums">{progress}%</Text>
-              </Box>
-              <Box className="h-2 bg-paper-cream rounded-full overflow-hidden">
-                <Box
-                  className={cn("h-full rounded-full transition-all", isComplete ? "bg-navy" : "bg-navy")}
-                  style={{ width: `${progress}%` }}
-                />
-              </Box>
-              <Text as="span" className="text-xs text-muted-foreground mt-1 block">
-                {completedLessons} of {totalLessons} lessons completed
-              </Text>
-            </Box>
-
-            {/* Stats row */}
-            <Box className="flex items-center gap-5 mt-4 flex-wrap">
-              <Box className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <BookOpen className="h-3.5 w-3.5" />
-                <Text as="span">{modules.length} module{modules.length !== 1 ? "s" : ""}</Text>
-              </Box>
-              <Box className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <PlayCircle className="h-3.5 w-3.5" />
-                <Text as="span">{totalLessons} lesson{totalLessons !== 1 ? "s" : ""}</Text>
-              </Box>
-              {assessments.length > 0 && (
-                <Box className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  <Text as="span">{assessments.length} assessment{assessments.length !== 1 ? "s" : ""}</Text>
-                </Box>
+              {nextLesson && !isComplete && (
+                <Text as="p" className="mt-1 text-sm text-paper/70 truncate max-w-md">
+                  Next: {nextLesson.title}
+                </Text>
               )}
             </Box>
-          </CardContent>
+
+            {nextLesson ? (
+              <Button
+                onClick={() => router.push(`/my-courses/${course.id}/lessons/${nextLesson.id}`)}
+                className="bg-lime text-navy hover:bg-lime-soft font-semibold shrink-0"
+              >
+                {isComplete ? "Review course" : progress > 0 ? "Continue" : "Start course"}
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            ) : null}
+          </Box>
         </Box>
-      </Card>
+
+        {/* Progress rule. A full-width hairline that fills — the old version was
+            a 0%-wide bar inside an empty track, which made "no progress yet"
+            the loudest thing on the page. */}
+        <Box className="relative h-1 w-full bg-paper/15">
+          <Box
+            className="h-full bg-lime transition-[width] duration-500 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </Box>
+        <Box className="relative flex items-center justify-between px-6 sm:px-8 py-2.5 bg-navy-soft">
+          <Text as="span" className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper/55">
+            {completedLessons} of {totalLessons} lesson{totalLessons !== 1 ? "s" : ""} complete
+          </Text>
+          <Text as="span" className="font-mono text-sm text-lime tabular-nums">{progress}%</Text>
+        </Box>
+      </Box>
 
       {/* ── Course Content ── */}
       {modules.length > 0 && (
         <Box>
-          <Text as="h2" className="text-base font-semibold mb-3">Course Content</Text>
+          <Text as="h2" className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink/55 mb-3">
+            Course content
+          </Text>
           <Accordion type="multiple" defaultValue={[`m-${modules[0]?.id}`]} className="space-y-2.5">
             {modules.map((module, mIdx) => {
               const moduleComplete = module.completed_count === module.total_count && module.total_count > 0;

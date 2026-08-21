@@ -18,6 +18,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { CourseArt } from "@/components/shared/course-art";
 
 /* ── Light thumbnail palettes (hash-based) ── */
 /* Thumbnail surfaces. The brand allows variety only across the paper family
@@ -33,19 +34,6 @@ function getThumbnailGradient(name) {
   let h = 0;
   for (const c of (name || "A")) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
   return GRADIENTS[h % GRADIENTS.length];
-}
-
-function getCategoryIcon(category) {
-  if (!category) return GraduationCap;
-  const c = category.toLowerCase();
-  if (c.includes("project") || c.includes("mgmt")) return Layers;
-  if (c.includes("agile") || c.includes("scrum")) return RefreshCcw;
-  if (c.includes("ai") || c.includes("finance") || c.includes("banking")) return Brain;
-  if (c.includes("leadership")) return Users;
-  if (c.includes("communication")) return Target;
-  if (c.includes("security") || c.includes("compliance")) return Shield;
-  if (c.includes("analytics") || c.includes("data")) return BarChart3;
-  return BookOpen;
 }
 
 /* ── Status config ── */
@@ -86,40 +74,33 @@ const STATUS_CFG = {
 
 /* ── Course card (grid, vertical) ── */
 function CourseCard({ c }) {
-  const st   = STATUS_CFG[c.status] || STATUS_CFG.assigned;
-  const grad = getThumbnailGradient(c.course.name);
-  const Icon = getCategoryIcon(c.category);
+  const st = STATUS_CFG[c.status] || STATUS_CFG.assigned;
   const durationLabel = c.totalMinutes >= 60
     ? `${Math.floor(c.totalMinutes / 60)}h${c.totalMinutes % 60 > 0 ? ` ${c.totalMinutes % 60}m` : ""}`
     : c.totalMinutes > 0 ? `${c.totalMinutes}m` : null;
 
   return (
     <Card className="overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200 border border-border">
-      {/* Thumbnail */}
-      <Box
-        style={{ background: grad.bg }}
-        className="relative h-44 overflow-hidden shrink-0"
-      >
-        {/* Soft decorative shapes */}
-        <Box
-          className="absolute rounded-full"
-          style={{ width: 140, height: 140, top: -44, right: -36, background: "rgba(0,0,0,0.03)" }}
+      {/* Course art. Replaces a flat paper panel with two decorative blobs and
+          a generic category icon — three things competing to fill a slot that
+          now carries a real picture. Light scrim so the title stays readable
+          and the off-palette illustration reads as tinted artwork. */}
+      <Box className="relative h-44 overflow-hidden shrink-0 bg-paper-warm">
+        <CourseArt
+          thumbnailUrl={c.course.thumbnail_url}
+          contentType={c.contentType}
+          alt={c.course.name}
+          scrim="light"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          className="absolute inset-0"
         />
-        <Box
-          className="absolute rounded-full"
-          style={{ width: 96, height: 96, bottom: -28, left: -20, background: "rgba(0,0,0,0.025)" }}
-        />
-        {/* Center icon */}
-        <Box className="absolute inset-0 flex items-center justify-center">
-          <Icon style={{ width: 56, height: 56, color: grad.iconColor, strokeWidth: 1.5, opacity: 0.85 }} />
-        </Box>
-        {/* Status badge — top right */}
+
+        {/* Status — kept top right, now over art rather than an empty panel. */}
         <Box className="absolute top-3 right-3">
           <Badge className={cn("text-[11px] font-semibold px-2 py-0.5 shadow-sm", st.badgeCls)}>
             {st.label}
           </Badge>
         </Box>
-        {/* Mandatory badge — bottom left */}
         {c.isMandatory && (
           <Box className="absolute bottom-3 left-3">
             <Badge className="text-[10px] font-bold bg-error text-white border-0 px-1.5 py-0.5 shadow-sm">
