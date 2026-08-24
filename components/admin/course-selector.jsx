@@ -240,11 +240,18 @@ export function CourseSelector() {
             // (422) — the buttons say so rather than offering an action that
             // will be rejected.
             const isSessionTraining = Boolean(course.session_id);
+            // Everything about a session training — its schedule, its roster,
+            // its attendance, its completion — is managed in Sessions. Opening
+            // the generic course editor showed modules and lessons that cannot
+            // be edited and no way to reach the things that can.
+            const href = isSessionTraining
+              ? `/admin/sessions?session=${course.session_id}`
+              : `/admin/courses/${course.id}`;
             return (
               <Card
                 key={course.id}
                 className="cursor-pointer hover:shadow-md transition-shadow group overflow-hidden border-l-4 border-l-blue-500"
-                onClick={() => router.push(`/admin/courses/${course.id}`)}
+                onClick={() => router.push(href)}
               >
                 <Box className="p-6 space-y-4">
 
@@ -289,12 +296,13 @@ export function CourseSelector() {
                     <Box className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {!isSessionTraining && (
                         <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/admin/courses/${course.id}`); }}>
+                          onClick={(e) => { e.stopPropagation(); router.push(href); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="View"
-                        onClick={(e) => { e.stopPropagation(); router.push(`/admin/courses/${course.id}`); }}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8"
+                        title={isSessionTraining ? "Open in Sessions" : "View"}
+                        onClick={(e) => { e.stopPropagation(); router.push(href); }}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
                       {isSessionTraining ? (

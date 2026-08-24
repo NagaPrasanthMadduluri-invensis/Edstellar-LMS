@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import {
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
+import { SESSION_TYPE_LABEL, sessionTypeLabel } from "@/lib/session-types";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 
@@ -54,10 +56,12 @@ function displayOf(session) {
   return session?.display_status || session?.status || "upcoming";
 }
 
+/* Labels come from lib/session-types so the list, both calendars and the form
+   all say the same thing. Only the icon and chip live here. */
 const TYPE_CFG = {
-  ILT:     { label: "ILT",     cls: "bg-paper-cream text-navy border-0",    icon: MapPin },
-  Virtual: { label: "Virtual", cls: "bg-paper-cream text-navy border-0", icon: Video },
-  Webinar: { label: "Webinar", cls: "bg-paper-cream text-navy border-0", icon: Video  },
+  ILT:     { label: SESSION_TYPE_LABEL.ILT,     cls: "bg-paper-cream text-navy border-0", icon: MapPin },
+  Virtual: { label: SESSION_TYPE_LABEL.Virtual, cls: "bg-paper-cream text-navy border-0", icon: Video  },
+  Webinar: { label: SESSION_TYPE_LABEL.Webinar, cls: "bg-paper-cream text-navy border-0", icon: Video  },
 };
 
 const ATTENDANCE_STATUS_CFG = {
@@ -316,8 +320,20 @@ function SessionsTab({
   openCreate, openEdit, load,
   setDeleteTarget,
   onMarkAttendance,
-
+  focusSessionId,
 }) {
+  const focusRef = useRef(null);
+
+  // Bring the session the admin came here for into view, once, after the list
+  // has rendered. The ring fades on its own — a permanent highlight would
+  // still be there next time they visit the page from the sidebar.
+  const [highlighted, setHighlighted] = useState(focusSessionId ?? null);
+  useEffect(() => {
+    if (!focusSessionId || !focusRef.current) return;
+    focusRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setHighlighted(null), 2600);
+    return () => clearTimeout(timer);
+  }, [focusSessionId, sessions.length]);
   const [filterType,     setFilterType]     = useState("all");
   const [filterStatus,   setFilterStatus]   = useState("all");
   const [rosterTarget,   setRosterTarget]   = useState(null);
@@ -408,13 +424,13 @@ function SessionsTab({
       <Box className="flex items-center gap-3 flex-wrap">
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="h-10 w-[140px] text-sm bg-white border-border shadow-sm">
-            <SelectValue>{filterType === "all" ? "All Types" : filterType}</SelectValue>
+            <SelectValue>{filterType === "all" ? "All Types" : sessionTypeLabel(filterType)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="ILT">ILT</SelectItem>
-            <SelectItem value="Virtual">Virtual</SelectItem>
-            <SelectItem value="Webinar">Webinar</SelectItem>
+            <SelectItem value="ILT">{SESSION_TYPE_LABEL.ILT}</SelectItem>
+            <SelectItem value="Virtual">{SESSION_TYPE_LABEL.Virtual}</SelectItem>
+            <SelectItem value="Webinar">{SESSION_TYPE_LABEL.Webinar}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -460,7 +476,15 @@ function SessionsTab({
               rosterCount > 0 ? Math.round((credited / rosterCount) * 100) : 0;
 
             return (
-              <Card key={s.id} className="overflow-hidden hover:shadow-md transition-shadow">
+              <Card
+                key={s.id}
+                ref={String(s.id) === String(focusSessionId) ? focusRef : null}
+                className={cn(
+                  "overflow-hidden hover:shadow-md transition-shadow",
+                  String(s.id) === String(highlighted) &&
+                    "ring-2 ring-navy/40 shadow-md",
+                )}
+              >
                 <CardContent className="p-5">
                   <Box className="flex items-start gap-4">
 
@@ -1066,6 +1090,10 @@ function AttendanceReportsTab({ sessions }) {
 ══════════════════════════════════════════ */
 
 export function AdminSessionsContent() {
+  // Set when the admin arrived from a training card in the Content Library.
+  // Landing on an unfiltered list of every session would make them hunt for
+  // the one they just clicked.
+  const focusSessionId = useSearchParams().get("session");
   const { user } = useAuth();
 
   const [activeTab,   setActiveTab]   = useState("sessions");
@@ -1222,6 +1250,7 @@ export function AdminSessionsContent() {
           load={load}
           setDeleteTarget={setDeleteTarget}
           onMarkAttendance={onMarkAttendance}
+          focusSessionId={focusSessionId}
         />
       )}
 
@@ -1262,7 +1291,7 @@ export function AdminSessionsContent() {
                         : "bg-white text-muted-foreground")}
                       onClick={() => setForm((p) => ({ ...p, session_type: type }))}>
                       {type === "ILT" ? <MapPin className="h-3.5 w-3.5 mr-1.5" /> : <Video className="h-3.5 w-3.5 mr-1.5" />}
-                      {type === "ILT" ? "ILT (In-Person)" : "Virtual"}
+                      {sessionTypeLabel(type)}
                     </Button>
                   ))}
                 </Box>

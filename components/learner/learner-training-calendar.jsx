@@ -16,13 +16,14 @@ import {
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
+import { SESSION_TYPE_LABEL } from "@/lib/session-types";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 
 const SESSION_TYPES = {
-  ILT:     { label: "ILT",     dot: "bg-navy",    chip: "border-l-2 border-navy/20 bg-paper-cream text-navy"         },
-  Virtual: { label: "Virtual", dot: "bg-navy",  chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
-  Webinar: { label: "Webinar", dot: "bg-navy",     chip: "border-l-2 border-navy/20 bg-paper-cream text-navy"         },
+  ILT:     { label: SESSION_TYPE_LABEL.ILT,     dot: "bg-navy", chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
+  Virtual: { label: SESSION_TYPE_LABEL.Virtual, dot: "bg-navy", chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
+  Webinar: { label: SESSION_TYPE_LABEL.Webinar, dot: "bg-navy", chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
 };
 
 /* `in_progress` is derived from the scheduled start time by the API

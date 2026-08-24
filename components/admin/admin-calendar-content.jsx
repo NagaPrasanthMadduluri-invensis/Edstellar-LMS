@@ -12,14 +12,15 @@ import { ChevronLeft, ChevronRight, CalendarDays, Clock, Users, MapPin, Video } 
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
+import { SESSION_TYPE_LABEL, sessionTypeLabel } from "@/lib/session-types";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 
 /* ── Session type display config ── */
 const SESSION_TYPES = {
-  ILT:     { label: "ILT",     dot: "bg-navy",    chip: "border-l-2 border-navy/20 bg-paper-cream text-navy"       },
-  Virtual: { label: "Virtual", dot: "bg-navy",  chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
-  Webinar: { label: "Webinar", dot: "bg-navy",     chip: "border-l-2 border-navy/20 bg-paper-cream text-navy"       },
+  ILT:     { label: SESSION_TYPE_LABEL.ILT,     dot: "bg-navy", chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
+  Virtual: { label: SESSION_TYPE_LABEL.Virtual, dot: "bg-navy", chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
+  Webinar: { label: SESSION_TYPE_LABEL.Webinar, dot: "bg-navy", chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
 };
 
 /* The four session states, in the design system's fill weights. `in_progress`
@@ -203,7 +204,7 @@ export function AdminCalendarContent() {
             <Box className="space-y-3 pt-1">
               <Box className="flex items-center gap-2">
                 <Badge className={cn("text-xs w-fit border-0", (SESSION_TYPES[selected.session_type] || SESSION_TYPES.ILT).chip)}>
-                  {selected.session_type}
+                  {sessionTypeLabel(selected.session_type)}
                 </Badge>
                 {/* Reads the derived status, so a session already under way no
                     longer shows as merely scheduled. The three shades this
