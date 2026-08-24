@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   BookOpen, Layers, ClipboardList, Users, Pencil, PlayCircle,
-  Clock, CheckCircle2, XCircle, BarChart3,
+  Clock, CheckCircle2, XCircle, BarChart3, CalendarCheck,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -27,6 +28,7 @@ import { updateCourse } from "@/services/api/admin/admin-api";
 import { apiClient } from "@/lib/api-client";
 
 export function AdminCourseTabsContent({ courseId }) {
+  const router = useRouter();
   const { user } = useAuth();
   const [course, setCourse] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -122,12 +124,40 @@ export function AdminCourseTabsContent({ courseId }) {
                 </Box>
               </Box>
 
-              <Button size="sm" variant="outline" onClick={openEdit} className="shrink-0 h-9">
-                <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                Edit Course
-              </Button>
+              {/* A live session's companion training is generated from the
+                  session and kept in step with it, so editing it here would be
+                  overwritten on the next save — the API refuses it (422). The
+                  page stays readable for tracking; the action points at the
+                  place that owns it. `sessionId` is camelCase because this
+                  detail route returns the row as Drizzle selects it. */}
+              {course.sessionId ? (
+                <Button size="sm" variant="outline" className="shrink-0 h-9"
+                  onClick={() => router.push("/admin/sessions")}>
+                  <CalendarCheck className="h-3.5 w-3.5 mr-1.5" />
+                  Manage in Sessions
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={openEdit} className="shrink-0 h-9">
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                  Edit Course
+                </Button>
+              )}
             </Box>
           </CardContent>
+        </Card>
+      )}
+
+      {course?.sessionId && (
+        <Card className="p-4 bg-paper-warm border-navy/15">
+          <Box className="flex items-start gap-2.5">
+            <CalendarCheck className="h-4 w-4 text-navy mt-0.5 shrink-0" />
+            <Text as="p" className="text-sm text-ink/70 leading-relaxed">
+              This training belongs to a live session. Its lesson, title and
+              schedule come from the session, and its enrolment is the session
+              roster — change them in Sessions. Certificates for a session are
+              issued by an admin by hand.
+            </Text>
+          </Box>
         </Card>
       )}
 

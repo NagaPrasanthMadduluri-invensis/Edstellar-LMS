@@ -103,7 +103,9 @@ export function AdminAssignLearningContent() {
     if (!user) return;
     fetchAdminCourses()
       .then((d) => {
-        const list = (d.courses || []).filter((c) => c.is_active);
+        // Session trainings are assigned by adding the learner to the
+        // session roster, not from here, so they are not offered.
+        const list = (d.courses || []).filter((c) => c.is_active && !c.session_id);
         setCourses(list);
         if (list.length) setSelectedCourseId(String(list[0].id));
       })

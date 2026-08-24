@@ -22,7 +22,7 @@ import {
 import {
   Plus, Pencil, Trash2, GripVertical, PlayCircle, FileText,
   ExternalLink, HelpCircle, Eye, EyeOff, Clock, Sparkles,
-  FileArchive, Upload, AlertCircle,
+  FileArchive, Upload, AlertCircle, Link2, Paperclip, X,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -32,22 +32,33 @@ import {
   presignLessonVideo, presignNewVideo, uploadToR2, confirmLessonVideo, deleteLessonVideo,
   readVideoDuration,
   uploadLessonCaptions, deleteLessonCaptions,
+  presignDocument, createLessonResource, deleteLessonResource,
 } from "@/services/api/admin/admin-api";
 import { LessonMediaFields } from "@/components/admin/lesson-media-fields";
+import {
+  LessonResourcesFields, DOCUMENT_ACCEPT, documentMimeFor, formatBytes,
+} from "@/components/admin/lesson-resources-fields";
 import { useRef } from "react";
 
 const CONTENT_TYPE_CONFIG = {
   video:    { label: "Video",    icon: PlayCircle,   color: "bg-paper-cream text-navy"      },
+  document: { label: "Document", icon: FileText,     color: "bg-paper-cream text-navy"    },
+  // Still in the data from before `document` existed, and it behaves the same.
   pdf:      { label: "PDF",      icon: FileText,     color: "bg-paper-cream text-ink/70"  },
   external: { label: "External", icon: ExternalLink, color: "bg-paper-cream text-navy"  },
   quiz:     { label: "Quiz",     icon: HelpCircle,   color: "bg-paper-cream text-navy" },
   scorm:    { label: "SCORM",    icon: FileArchive,  color: "bg-paper-cream text-navy"   },
 };
 
+/** Content types that ARE a document — mirrors DOCUMENT_TYPES on the API. */
+const DOCUMENT_TYPES = new Set(["document", "pdf", "ppt", "doc", "xls"]);
+const isDocumentType = (t) => DOCUMENT_TYPES.has((t || "").toLowerCase());
+
 /** Shown when a lesson has no content source of the kind its type requires. */
 const MISSING_CONTENT_MESSAGE = {
   video: "Add a video file or a content URL (for example a YouTube link) before saving.",
-  pdf: "Add a link to the PDF before saving.",
+  document: "Upload the document or paste a link to it before saving.",
+  pdf: "Upload the document or paste a link to it before saving.",
   external: "Add the external link before saving.",
   scorm: "Upload a SCORM package (.zip) before saving.",
   quiz: "Add the quiz content before saving.",
@@ -64,11 +75,19 @@ const EMPTY_LESSON = {
   video_duration_seconds: null,
   has_video: false, has_captions: false,
   remove_video: false, remove_captions: false,
+  // A primary document uploads the moment it is picked, like the video does;
+  // document_key holds the R2 key it landed on until the lesson is saved.
+  document_key: null, document_name: "", document_mime: "",
+  document_size_bytes: null,
+  // Supporting resources. Rows with an id already exist on the API; rows
+  // without one are staged and created after the lesson row does.
+  resources: [],
 };
 
 export function ModuleLessons({ moduleId }) {
   const { user } = useAuth();
   const fileRef = useRef(null);
+  const documentRef = useRef(null);
   const [lessons, setLessons] = useState(null);
   const [error, setError] = useState(null);
 
@@ -123,6 +142,14 @@ export function ModuleLessons({ moduleId }) {
       has_captions: Boolean(lesson.captionKey ?? lesson.caption_key),
       remove_video: false,
       remove_captions: false,
+      // The stored key is carried back unchanged so a save that does not touch
+      // the document leaves it exactly where it was.
+      document_key: lesson.documentKey ?? lesson.document_key ?? null,
+      document_name: lesson.documentName ?? lesson.document_name ?? "",
+      document_mime: lesson.documentMime ?? lesson.document_mime ?? "",
+      document_size_bytes:
+        lesson.documentSizeBytes ?? lesson.document_size_bytes ?? null,
+      resources: lesson.resources ?? [],
     });
     setFormErrors({});
     setDialogOpen(true);
@@ -214,6 +241,94 @@ export function ModuleLessons({ moduleId }) {
     }
   };
 
+  /**
+   * The primary document uploads the moment it is picked, for the same reason
+   * the video does: the admin should not sit through a progress bar after
+   * pressing Save. The key is claimed by the lesson row on save.
+   */
+  const startDocumentUpload = async (file) => {
+    if (!file) return;
+    setFormErrors({});
+
+    const contentType = documentMimeFor(file);
+    if (!contentType) {
+      setFormErrors({ _general: `${file.name} is not a supported document type.` });
+      return;
+    }
+
+    try {
+      setUploadProgress({ stage: `Uploading ${file.name}`, percent: 0 });
+      const { uploadUrl, key } = await presignDocument({
+        filename: file.name, contentType, sizeBytes: file.size,
+      });
+      await uploadToR2({
+        uploadUrl, file, contentType,
+        onProgress: (percent) =>
+          setUploadProgress({ stage: `Uploading ${file.name}`, percent }),
+      });
+
+      setForm((f) => ({
+        ...f,
+        document_key: key,
+        document_name: file.name,
+        document_mime: contentType,
+        document_size_bytes: file.size,
+        // An uploaded file and a link are alternatives, not a pair — keeping
+        // both would leave it ambiguous which one the learner gets.
+        content_url: "",
+      }));
+      setUploadProgress(null);
+    } catch (e) {
+      // Never leave the form claiming a document that never reached storage.
+      setForm((f) => ({ ...f, document_key: null, document_name: "" }));
+      setUploadProgress(null);
+      setFormErrors({ _general: e.message });
+    }
+  };
+
+  const clearDocument = () =>
+    setForm((f) => ({
+      ...f,
+      document_key: null,
+      document_name: "",
+      document_mime: "",
+      document_size_bytes: null,
+    }));
+
+  /**
+   * Writes the staged resources once the lesson row exists.
+   *
+   * Rows that already have an id are untouched; removals are applied by id.
+   * Reconciling here rather than as the admin clicks means closing the dialog
+   * without saving discards the changes, which is what Cancel should do.
+   */
+  const syncResources = async (lessonId, original) => {
+    const kept = new Set(
+      form.resources.filter((r) => r.id).map((r) => r.id),
+    );
+    await Promise.all(
+      original
+        .filter((r) => r.id && !kept.has(r.id))
+        .map((r) => deleteLessonResource({ resourceId: r.id })),
+    );
+    // Sequential: sort_order is assigned per insert from the current maximum,
+    // so racing them would collapse the ordering the admin just chose.
+    for (const resource of form.resources.filter((r) => !r.id)) {
+      await createLessonResource({
+        lessonId,
+        data: {
+          title: resource.title,
+          source: resource.source,
+          file_key: resource.file_key ?? null,
+          file_name: resource.file_name ?? null,
+          mime_type: resource.mime_type ?? null,
+          url: resource.url ?? null,
+          resource_type: resource.resource_type,
+        },
+      });
+    }
+  };
+
   const handleSave = async () => {
     if (!form.title.trim()) { setFormErrors({ title: ["Title is required"] }); return; }
     if (form.content_type === "scorm" && !editingLesson && !form.scorm_file) {
@@ -228,9 +343,26 @@ export function ModuleLessons({ moduleId }) {
       setFormErrors({ _general: MISSING_CONTENT_MESSAGE[form.content_type] });
       return;
     }
+    // SCORM is exempt while a package is being uploaded: the manifest may
+    // declare the runtime, and refusing before reading it would ask the admin
+    // for a number the package is about to supply.
+    const scormWillDeclare = form.content_type === "scorm" && form.scorm_file;
+    if (durationRequired && !scormWillDeclare && !(Number(form.duration_minutes) > 0)) {
+      setFormErrors({
+        duration_minutes: [
+          isDocumentType(form.content_type)
+            ? "Enter how long this document takes. It has no runtime to read, and this is the time it adds to learning hours."
+            : "Enter how long this package takes, in minutes.",
+        ],
+      });
+      return;
+    }
     setSaving(true); setFormErrors({});
     try {
       let scormPackageId = form.scorm_package_id;
+      // Filled from the SCORM manifest below, when it declares a runtime. Held
+      // in a variable because the payload is built after the upload.
+      let scormDuration = null;
 
       /* ── Upload SCORM zip first if a new file was selected ── */
       if (form.content_type === "scorm" && form.scorm_file) {
@@ -247,6 +379,15 @@ export function ModuleLessons({ moduleId }) {
         setUploadingScorm(false);
         if (!res.ok) throw new Error(data.message || "SCORM upload failed");
         scormPackageId = data.package.id;
+
+        // The manifest's typicalLearningTime, when the package declares one.
+        // Only fills a blank field — an admin who typed a number meant it.
+        const declared =
+          data.package.durationMinutes ?? data.package.duration_minutes;
+        if (declared && form.duration_minutes === "") {
+          scormDuration = Number(declared);
+          setForm((f) => ({ ...f, duration_minutes: String(declared) }));
+        }
       }
 
       const payload = {
@@ -255,7 +396,15 @@ export function ModuleLessons({ moduleId }) {
         content_type: form.content_type,
         content_url: form.content_type === "scorm" ? null : (form.content_url || null),
         scorm_package_id: form.content_type === "scorm" ? scormPackageId : null,
-        duration_minutes: form.duration_minutes === "" ? null : Number(form.duration_minutes),
+        // Only meaningful for a document lesson; the API clears them for any
+        // other type anyway, but sending null keeps the intent obvious.
+        document_key: isDocumentType(form.content_type) ? form.document_key : null,
+        document_name: isDocumentType(form.content_type) ? (form.document_name || null) : null,
+        document_mime: isDocumentType(form.content_type) ? (form.document_mime || null) : null,
+        duration_minutes:
+          form.duration_minutes === ""
+            ? scormDuration
+            : Number(form.duration_minutes),
         sort_order: form.sort_order,
         is_preview: form.is_preview,
         is_active: form.is_active,
@@ -283,6 +432,16 @@ export function ModuleLessons({ moduleId }) {
         if (lessonId) await syncLessonMedia(lessonId);
       }
 
+      // Resources hang off the lesson id, so they are written after the row —
+      // the same reason the video is.
+      if (lessonId) {
+        await syncResources(lessonId, editingLesson?.resources ?? []);
+      } else if (form.resources.some((r) => !r.id)) {
+        throw new Error(
+          "The lesson was saved but its id was not returned, so its resources could not be attached. Re-open the lesson and add them again.",
+        );
+      }
+
       setDialogOpen(false);
       await loadLessons();
     } catch (e) {
@@ -297,6 +456,18 @@ export function ModuleLessons({ moduleId }) {
    * A lesson must carry something to actually show the learner. Quizzes are the
    * exception — their content is the question set, held elsewhere.
    */
+  /**
+   * Duration is mandatory for documents and SCORM — and only for those. The
+   * API enforces the same rule; this is so the admin hears it before pressing
+   * Save rather than as a 422 afterwards.
+   *
+   * Video is exempt because the length is read from the uploaded file, and for
+   * a linked video there is nothing to read — the hours come from measured
+   * watch time either way.
+   */
+  const durationRequired =
+    isDocumentType(form.content_type) || form.content_type === "scorm";
+
   const contentReady = (() => {
     const url = (form.content_url || "").trim();
     switch (form.content_type) {
@@ -306,6 +477,11 @@ export function ModuleLessons({ moduleId }) {
         return Boolean(form.scorm_file || form.scorm_package_id);
       case "video":
         return Boolean(form.video_key_pending || form.has_video || url);
+      case "document":
+      case "pdf":
+        // Uploaded or linked — the two options are equivalent, but one of them
+        // has to be there.
+        return Boolean(form.document_key || url);
       default:
         return Boolean(url);
     }
@@ -463,13 +639,13 @@ export function ModuleLessons({ moduleId }) {
               <Box className="grid grid-cols-2 gap-4">
                 <Box className="space-y-1.5">
                   <Label className="text-sm font-medium text-ink/80">Content Type <Text as="span" className="text-error">*</Text></Label>
-                  <Select value={form.content_type} onValueChange={(v) => setForm((f) => ({ ...f, content_type: v, content_url: "", scorm_file: null, scorm_package_id: f.content_type === "scorm" ? null : f.scorm_package_id }))}>
+                  <Select value={form.content_type} onValueChange={(v) => setForm((f) => ({ ...f, content_type: v, content_url: "", scorm_file: null, scorm_package_id: f.content_type === "scorm" ? null : f.scorm_package_id, ...(isDocumentType(v) ? {} : { document_key: null, document_name: "", document_mime: "", document_size_bytes: null }) }))}>
                     <SelectTrigger className="h-10 bg-white border-border text-sm focus:ring-2 focus:ring-navy/20">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="video">Video</SelectItem>
-                      <SelectItem value="pdf">PDF Document</SelectItem>
+                      <SelectItem value="document">Document (PDF, Word, PowerPoint, Excel)</SelectItem>
                       <SelectItem value="external">External Link</SelectItem>
                       <SelectItem value="quiz">Quiz</SelectItem>
                       <SelectItem value="scorm">SCORM Package</SelectItem>
@@ -478,7 +654,10 @@ export function ModuleLessons({ moduleId }) {
                   {formErrors.content_type && <Text as="p" className="text-xs text-error mt-1">{formErrors.content_type[0]}</Text>}
                 </Box>
                 <Box className="space-y-1.5">
-                  <Label className="text-sm font-medium text-ink/80">Duration (minutes)</Label>
+                  <Label className="text-sm font-medium text-ink/80">
+                    Duration (minutes)
+                    {durationRequired && <Text as="span" className="text-error"> *</Text>}
+                  </Label>
                   <Input
                     type="number"
                     min={0}
@@ -487,6 +666,23 @@ export function ModuleLessons({ moduleId }) {
                     onChange={(e) => setForm((f) => ({ ...f, duration_minutes: e.target.value }))}
                     className="h-10 bg-white border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors"
                   />
+                  {/* Say where the number comes from, so the required star on a
+                      document and the auto-filled value on a video do not look
+                      like the field behaving inconsistently. */}
+                  {formErrors.duration_minutes && (
+                    <Text as="p" className="text-xs text-error">
+                      {formErrors.duration_minutes[0]}
+                    </Text>
+                  )}
+                  <Text as="p" className="text-[11px] text-ink/50 leading-relaxed">
+                    {form.content_type === "video"
+                      ? "Read from the file when you upload one. Type it for a linked video."
+                      : form.content_type === "scorm"
+                        ? "Taken from the package manifest when it declares one — otherwise enter it."
+                        : isDocumentType(form.content_type)
+                          ? "A document has no runtime to read, so this is the time it contributes to learning hours."
+                          : "Shown to the learner as the lesson's length."}
+                  </Text>
                 </Box>
               </Box>
 
@@ -512,16 +708,75 @@ export function ModuleLessons({ moduleId }) {
                 </>
               )}
 
+              {isDocumentType(form.content_type) && (
+                <Box className="space-y-2">
+                  <Label className="text-sm font-medium text-ink/80">
+                    Document <Text as="span" className="text-error">*</Text>
+                  </Label>
+
+                  {form.document_key ? (
+                    <Box className="flex items-center gap-3 rounded-lg border border-navy/15 bg-white px-3 py-2.5">
+                      <Box className="w-9 h-9 rounded-lg bg-paper-cream border border-navy/10 flex items-center justify-center shrink-0">
+                        <FileText className="h-4 w-4 text-navy" />
+                      </Box>
+                      <Box className="flex-1 min-w-0">
+                        <Text as="p" className="text-sm font-medium truncate text-ink">
+                          {form.document_name || "Uploaded document"}
+                        </Text>
+                        <Text as="p" className="text-[11px] text-ink/50">
+                          {formatBytes(form.document_size_bytes) ?? "Stored"}
+                        </Text>
+                      </Box>
+                      <Button
+                        type="button" variant="ghost" size="icon"
+                        className="h-7 w-7 text-error hover:bg-error/10 shrink-0"
+                        onClick={clearDocument}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Box>
+                      <input
+                        ref={documentRef}
+                        type="file"
+                        accept={DOCUMENT_ACCEPT}
+                        className="hidden"
+                        onChange={(e) => startDocumentUpload(e.target.files?.[0])}
+                      />
+                      <Button
+                        type="button" variant="outline"
+                        className="h-10 w-full text-sm gap-2 justify-start"
+                        disabled={Boolean(uploadProgress)}
+                        onClick={() => documentRef.current?.click()}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadProgress
+                          ? `${uploadProgress.stage} ${uploadProgress.percent}%`
+                          : "Upload a PDF, Word, PowerPoint or Excel file"}
+                      </Button>
+                    </Box>
+                  )}
+
+                  <Text as="p" className="text-xs text-ink/50">
+                    Upload the file, or link to it below. An uploaded file takes
+                    precedence.
+                  </Text>
+                </Box>
+              )}
+
               {form.content_type !== "quiz" && form.content_type !== "scorm" && (
                 <Box className="space-y-1.5">
                   <Label className="text-sm font-medium text-ink/80">
-                    {form.content_type === "video" ? "Or content URL" : "Content URL"}
+                    {form.content_type === "video" || isDocumentType(form.content_type)
+                      ? "Or link to it"
+                      : "Content URL"}
                   </Label>
                   <Input
                     placeholder={
-                      form.content_type === "video"    ? "https://youtu.be/..." :
-                      form.content_type === "pdf"      ? "https://example.com/file.pdf" :
-                                                         "https://portal.example.com/..."
+                      form.content_type === "video"          ? "https://youtu.be/..." :
+                      isDocumentType(form.content_type)      ? "https://example.com/handbook.pdf" :
+                                                               "https://portal.example.com/..."
                     }
                     value={form.content_url}
                     onChange={(e) => setForm((f) => ({ ...f, content_url: e.target.value }))}
@@ -588,6 +843,21 @@ export function ModuleLessons({ moduleId }) {
                   )}
                 </Box>
               )}
+            </Box>
+
+            {/* ── Section: Resources ──
+                Its own card, deliberately below Content: these sit alongside
+                whatever the lesson's primary content is, and are available for
+                every type — including a live session's slide deck. */}
+            <Box className="rounded-xl bg-paper-warm border border-border p-4 space-y-4">
+              <Text as="p" className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                Resources
+              </Text>
+              <LessonResourcesFields
+                resources={form.resources}
+                disabled={saving}
+                onChange={(resources) => setForm((f) => ({ ...f, resources }))}
+              />
             </Box>
 
             {/* ── Section: Settings ── */}

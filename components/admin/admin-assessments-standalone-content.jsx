@@ -92,7 +92,12 @@ export function AdminAssessmentsStandaloneContent() {
 
   useEffect(() => {
     if (!user) return;
-    fetchAdminCourses().then((d) => setCourses(d.courses || [])).catch(() => {});
+    // Session trainings are excluded: completion there comes from attendance,
+    // and their certificates are issued by hand, so an assessment on one
+    // would gate nothing.
+    fetchAdminCourses()
+      .then((d) => setCourses((d.courses || []).filter((c) => !c.session_id)))
+      .catch(() => {});
   }, [user]);
 
   const handleCreate = async () => {

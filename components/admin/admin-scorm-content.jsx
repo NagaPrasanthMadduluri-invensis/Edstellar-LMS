@@ -92,7 +92,9 @@ export function AdminScormContent() {
   useEffect(() => {
     if (!user) return;
     apiClient("/api/admin/scorm").then((d) => setPackages(d.packages || [])).catch(() => setPackages([]));
-    apiClient("/api/admin/courses").then((d) => setCourses((d.courses || []).filter(c => c.is_active)));
+    // A session training holds one session lesson and the API refuses new
+    // ones, so SCORM cannot be attached to it.
+    apiClient("/api/admin/courses").then((d) => setCourses((d.courses || []).filter(c => c.is_active && !c.session_id)));
   }, [user]);
 
   const loadAssignees = async (pkgId) => {

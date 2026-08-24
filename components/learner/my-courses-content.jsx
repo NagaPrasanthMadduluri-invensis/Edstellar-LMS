@@ -13,6 +13,7 @@ import {
   Clock, Flag, BookOpen, Map, ArrowRight, CalendarDays,
   Play, GraduationCap, Users, Brain, RefreshCcw, Shield,
   BarChart3, Target, ChevronRight, Search, X,
+  MapPin, Video, UserCircle,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -72,9 +73,49 @@ const STATUS_CFG = {
   },
 };
 
+/* ── Live session status ──
+   A session training's card cannot say "Not Started": there is nothing for the
+   learner to start. What matters is where the sitting is in time, which is what
+   these three read as. Completion still comes from the trainer. */
+const SESSION_STATUS_CFG = {
+  upcoming: {
+    label: "Upcoming",
+    badgeCls: "bg-paper-warm text-ink/60 border-border border",
+    btnLabel: "View session",
+  },
+  in_progress: {
+    label: "In progress",
+    badgeCls: "bg-paper-cream text-ink border-navy/25 border",
+    btnLabel: "View session",
+  },
+  completed: {
+    label: "Completed",
+    badgeCls: "bg-navy text-paper border-navy border",
+    btnLabel: "Review session",
+  },
+};
+
+function formatTimeRange(start, end) {
+  const one = (t) => {
+    if (!t) return "";
+    const [h, m] = t.split(":").map(Number);
+    if (Number.isNaN(h)) return "";
+    return `${h % 12 || 12}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+  };
+  const from = one(start);
+  const to = one(end);
+  if (!from) return "";
+  return to ? `${from} – ${to}` : from;
+}
+
 /* ── Course card (grid, vertical) ── */
 function CourseCard({ c }) {
-  const st = STATUS_CFG[c.status] || STATUS_CFG.assigned;
+  const base = STATUS_CFG[c.status] || STATUS_CFG.assigned;
+  // A live session overrides only the wording and the chip; the button colour
+  // and bar treatment still come from the shared status config.
+  const st = c.session
+    ? { ...base, ...(SESSION_STATUS_CFG[c.session.status] ?? SESSION_STATUS_CFG.upcoming) }
+    : base;
   const durationLabel = c.totalMinutes >= 60
     ? `${Math.floor(c.totalMinutes / 60)}h${c.totalMinutes % 60 > 0 ? ` ${c.totalMinutes % 60}m` : ""}`
     : c.totalMinutes > 0 ? `${c.totalMinutes}m` : null;
@@ -124,29 +165,70 @@ function CourseCard({ c }) {
           {c.course.name}
         </Text>
 
-        {/* Progress bar */}
-        <Box className="space-y-1.5">
-          <Box className="flex items-center justify-between">
-            <Text as="span" className="text-xs text-muted-foreground">
-              {c.status === "assigned"
-                ? "Not started yet"
-                : c.status === "completed"
-                ? "All lessons done"
-                : "Progress"}
-            </Text>
-            {c.status !== "assigned" && (
-              <Text as="span" className={cn("text-xs font-bold tabular-nums", st.pctCls)}>
-                {c.progressPct}%
+        {/* Where the training stands. A live session has no progress the
+            learner can move — a 0% bar would read as their own inaction — so
+            it shows when and where the sitting is instead. */}
+        {c.session ? (
+          <Box className="space-y-1.5 rounded-lg border border-navy/15 bg-paper-warm px-3 py-2.5">
+            <Box className="flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0 text-ink/70" />
+              <Text as="span" className="text-xs font-semibold text-ink">
+                {c.session.date_label}
+              </Text>
+              <Text as="span" className="text-xs text-muted-foreground">
+                {formatTimeRange(c.session.start_time, c.session.end_time)}
+              </Text>
+            </Box>
+            {c.session.venue && (
+              <Box className="flex items-center gap-1.5">
+                {c.session.type === "Virtual" ? (
+                  <Video className="h-3.5 w-3.5 shrink-0 text-ink/70" />
+                ) : (
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-ink/70" />
+                )}
+                <Text as="span" className="text-xs text-muted-foreground truncate">
+                  {c.session.venue}
+                </Text>
+              </Box>
+            )}
+            {c.session.trainer && (
+              <Box className="flex items-center gap-1.5">
+                <UserCircle className="h-3.5 w-3.5 shrink-0 text-ink/70" />
+                <Text as="span" className="text-xs text-muted-foreground truncate">
+                  {c.session.trainer}
+                </Text>
+              </Box>
+            )}
+            {c.status !== "completed" && (
+              <Text as="p" className="text-[11px] text-ink/50 pt-0.5">
+                Your trainer marks this complete after the session.
               </Text>
             )}
           </Box>
-          <Box className="h-2 bg-paper-cream rounded-full overflow-hidden">
-            <Box
-              className={cn("h-full rounded-full transition-all duration-500", st.barCls)}
-              style={{ width: `${c.status === "assigned" ? 0 : c.progressPct}%` }}
-            />
+        ) : (
+          <Box className="space-y-1.5">
+            <Box className="flex items-center justify-between">
+              <Text as="span" className="text-xs text-muted-foreground">
+                {c.status === "assigned"
+                  ? "Not started yet"
+                  : c.status === "completed"
+                  ? "All lessons done"
+                  : "Progress"}
+              </Text>
+              {c.status !== "assigned" && (
+                <Text as="span" className={cn("text-xs font-bold tabular-nums", st.pctCls)}>
+                  {c.progressPct}%
+                </Text>
+              )}
+            </Box>
+            <Box className="h-2 bg-paper-cream rounded-full overflow-hidden">
+              <Box
+                className={cn("h-full rounded-full transition-all duration-500", st.barCls)}
+                style={{ width: `${c.status === "assigned" ? 0 : c.progressPct}%` }}
+              />
+            </Box>
           </Box>
-        </Box>
+        )}
 
         {/* Meta row */}
         <Box className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
@@ -234,7 +316,11 @@ function JourneyView({ courses }) {
               </Box>
               <Box className="flex-1 min-w-0">
                 <Text as="p" className="text-sm font-semibold truncate">{c.course.name}</Text>
-                <Text as="p" className="text-xs text-muted-foreground">{c.category || "Course"} · {c.progressPct}% complete</Text>
+                <Text as="p" className="text-xs text-muted-foreground">
+                  {c.session
+                    ? `Live session · ${c.session.date_label}`
+                    : `${c.category || "Course"} · ${c.progressPct}% complete`}
+                </Text>
               </Box>
               {isCurrent && <Badge className="bg-navy text-white border-0 text-[10px]">Current</Badge>}
               {isDone    && <Badge className="bg-paper-cream text-navy border-0 text-[10px]">Done</Badge>}
@@ -287,10 +373,11 @@ const STATUS_TABS = [
 ];
 
 const TYPE_TABS = [
-  { key: "all",   label: "All Types" },
-  { key: "VIDEO", label: "Video",    icon: <Play className="h-2.5 w-2.5 fill-current" /> },
-  { key: "SCORM", label: "SCORM"     },
-  { key: "Doc",   label: "Doc"       },
+  { key: "all",     label: "All Types" },
+  { key: "VIDEO",   label: "Video",    icon: <Play className="h-2.5 w-2.5 fill-current" /> },
+  { key: "SCORM",   label: "SCORM"     },
+  { key: "SESSION", label: "Live session" },
+  { key: "Doc",     label: "Doc"       },
 ];
 
 /* ── Main component ── */

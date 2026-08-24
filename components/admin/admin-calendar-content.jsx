@@ -22,6 +22,15 @@ const SESSION_TYPES = {
   Webinar: { label: "Webinar", dot: "bg-navy",     chip: "border-l-2 border-navy/20 bg-paper-cream text-navy"       },
 };
 
+/* The four session states, in the design system's fill weights. `in_progress`
+   is derived from the clock by the API (display_status), not stored. */
+const STATUS_CFG = {
+  upcoming:    { label: "Upcoming",    cls: "bg-paper-warm text-ink/60 border-border"   },
+  in_progress: { label: "In progress", cls: "bg-paper-cream text-ink border-navy/25"    },
+  completed:   { label: "Completed",   cls: "bg-navy text-paper border-navy"            },
+  cancelled:   { label: "Cancelled",   cls: "bg-error/10 text-error border-error/30"    },
+};
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -196,8 +205,12 @@ export function AdminCalendarContent() {
                 <Badge className={cn("text-xs w-fit border-0", (SESSION_TYPES[selected.session_type] || SESSION_TYPES.ILT).chip)}>
                   {selected.session_type}
                 </Badge>
-                <Badge className={`text-xs border-0 ${selected.status === "completed" ? "bg-paper-cream text-navy" : selected.status === "cancelled" ? "bg-paper-cream text-ink/60" : "bg-paper-cream text-ink/70"}`}>
-                  {selected.status.charAt(0).toUpperCase() + selected.status.slice(1)}
+                {/* Reads the derived status, so a session already under way no
+                    longer shows as merely scheduled. The three shades this
+                    replaced were also nearly identical to each other. */}
+                <Badge className={cn("text-xs border",
+                  (STATUS_CFG[selected.display_status || selected.status] || STATUS_CFG.upcoming).cls)}>
+                  {(STATUS_CFG[selected.display_status || selected.status] || STATUS_CFG.upcoming).label}
                 </Badge>
               </Box>
               {[

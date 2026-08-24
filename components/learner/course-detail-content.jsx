@@ -16,6 +16,7 @@ import {
 import {
   PlayCircle, CheckCircle2, ArrowLeft, BookOpen, ClipboardList,
   ChevronRight, Clock, Award, RotateCcw, Lock, FileArchive, Package,
+  Play, FileText, Users,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -24,6 +25,28 @@ import { useAuth } from "@/hooks/use-auth";
 import { fetchCourseDetail } from "@/services/api/learner/learner-api";
 import { CourseArt } from "@/components/shared/course-art";
 
+
+/**
+ * What a lesson actually is, at a glance.
+ *
+ * Every row used to carry the same play glyph regardless of content, so the
+ * icon column told the learner nothing they could not already see. These are
+ * the content types the API returns; anything unrecognised falls back to play,
+ * which is what most lessons are.
+ */
+const LESSON_TYPE = {
+  video:   { icon: Play,           label: "Video",        filled: true },
+  scorm:   { icon: Package,        label: "SCORM",        filled: false },
+  session: { icon: Users,          label: "Live session", filled: false },
+  pdf:     { icon: FileText,       label: "Document",     filled: false },
+  doc:     { icon: FileText,       label: "Document",     filled: false },
+  document:{ icon: FileText,       label: "Document",     filled: false },
+  quiz:    { icon: ClipboardList,  label: "Quiz",         filled: false },
+};
+
+function lessonTypeOf(contentType) {
+  return LESSON_TYPE[(contentType || "").toLowerCase()] ?? LESSON_TYPE.video;
+}
 
 function DetailSkeleton() {
   return (
@@ -186,115 +209,194 @@ export function CourseDetailContent({ courseId }) {
                   className="border rounded-xl overflow-hidden bg-white shadow-sm"
                 >
                   <AccordionTrigger className="hover:no-underline hover:bg-paper-warm px-0 py-0 w-full">
-                    <Box className="flex items-center gap-3 w-full px-4 py-3.5 text-left">
-                      {/* Module number */}
+                    <Box className="flex items-center gap-3.5 w-full px-4 sm:px-5 py-4 text-left">
+                      {/* Module number. A tile rather than a bare digit, and it
+                          carries the state: filled navy once the module is
+                          finished, cream while it is not. */}
                       <Box
                         className={cn(
-                          "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold",
-                          moduleComplete ? "bg-navy text-white" : "bg-paper-cream text-ink/70"
+                          "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                          moduleComplete
+                            ? "bg-navy text-paper"
+                            : "bg-paper-cream text-navy border border-navy/10"
                         )}
                       >
-                        {moduleComplete ? <CheckCircle2 className="h-4 w-4" /> : mIdx + 1}
+                        {moduleComplete ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : (
+                          <Text as="span" className="font-mono text-sm font-bold tabular-nums">
+                            {mIdx + 1}
+                          </Text>
+                        )}
                       </Box>
-                      {/* Module info */}
+
+                      {/* Module info. The "MODULE n" eyebrow is what tells the
+                          learner where they are in the course — the title alone
+                          never said which module it was. */}
                       <Box className="flex-1 min-w-0">
-                        <Text as="p" className="text-sm font-semibold truncate">{module.title}</Text>
-                        <Text as="span" className="text-[11px] text-muted-foreground">
+                        <Text
+                          as="span"
+                          className="block font-mono text-[10px] uppercase tracking-[0.18em] text-ink/50 mb-1"
+                        >
+                          Module {mIdx + 1}
+                        </Text>
+                        <Text as="p" className="text-base font-bold leading-snug truncate text-ink">
+                          {module.title}
+                        </Text>
+                        <Text as="span" className="text-xs text-ink/55">
                           {module.completed_count} of {module.total_count} lesson{module.total_count !== 1 ? "s" : ""} completed
                         </Text>
+
+                        {/* Progress reads faster than the count alone, and only
+                            matters while there is progress left to make. */}
+                        {module.total_count > 0 && !moduleComplete && (
+                          <Box className="mt-2 h-1 w-full max-w-[220px] rounded-full bg-paper-cream overflow-hidden">
+                            <Box
+                              className="h-full rounded-full bg-navy transition-all duration-500"
+                              style={{ width: `${Math.round((module.completed_count / module.total_count) * 100)}%` }}
+                            />
+                          </Box>
+                        )}
                       </Box>
-                      {/* Completion indicator */}
-                      {moduleComplete ? (
-                        <Text as="span" className="text-xs font-semibold text-navy mr-2 shrink-0">Done</Text>
-                      ) : module.total_count > 0 ? (
-                        <Text as="span" className="text-xs text-muted-foreground mr-2 shrink-0 tabular-nums">
-                          {module.completed_count}/{module.total_count}
-                        </Text>
-                      ) : null}
+
+                      {/* Status chip, in the design system's fill weights. */}
+                      {module.total_count > 0 && (
+                        <Badge
+                          className={cn(
+                            "text-[11px] font-semibold px-2.5 py-0.5 mr-2 shrink-0 border",
+                            moduleComplete
+                              ? "bg-navy text-paper border-navy"
+                              : module.completed_count > 0
+                                ? "bg-paper-cream text-ink border-navy/25"
+                                : "bg-paper-warm text-ink/60 border-border"
+                          )}
+                        >
+                          {moduleComplete
+                            ? "Done"
+                            : `${module.completed_count}/${module.total_count}`}
+                        </Badge>
+                      )}
                     </Box>
                   </AccordionTrigger>
 
-                  <AccordionContent className="p-0">
-                    <Box className="border-t divide-y divide-border/50">
+                  {/* `[&_a]:no-underline` undoes the prose default the accordion
+                      primitive applies to every link inside it, which was
+                      underlining each lesson title as though it were body copy. */}
+                  <AccordionContent className="p-0 [&_a]:no-underline">
+                    <Box className="border-t divide-y divide-border/40">
                       {module.lessons.map((lesson, lIdx) => {
                         const done    = lesson.progress_status === "completed";
                         const locked  = lesson.is_locked;
                         const isScorm = lesson.content_type === "scorm";
+                        const type    = lessonTypeOf(lesson.content_type);
+                        const TypeIcon = type.icon;
 
                         const row = (
                           <Box
                             className={cn(
-                              "flex items-center gap-3 px-4 py-3 transition-colors",
+                              "flex items-center gap-3.5 px-4 sm:px-5 py-3.5 transition-colors",
                               locked
-                                ? "bg-paper-warm cursor-not-allowed opacity-60"
-                                : "hover:bg-paper-cream cursor-pointer group"
+                                ? "bg-paper-warm/60 cursor-not-allowed"
+                                : "hover:bg-paper-warm cursor-pointer group"
                             )}
                           >
-                            {/* Completion status */}
-                            <Box className="w-5 h-5 flex items-center justify-center shrink-0">
-                              {done ? (
-                                <CheckCircle2 className="h-[18px] w-[18px] text-navy" />
-                              ) : locked ? (
-                                <Lock className="h-3.5 w-3.5 text-ink/35" />
-                              ) : (
-                                <Box className="w-4 h-4 rounded-full border-2 border-border" />
-                              )}
-                            </Box>
-
-                            {/* Lesson index */}
-                            <Text as="span" className="text-[11px] text-muted-foreground/40 w-5 shrink-0 font-mono text-right select-none">
+                            {/* Lesson number */}
+                            <Text
+                              as="span"
+                              className="font-mono text-xs text-ink/40 w-4 shrink-0 text-right tabular-nums select-none"
+                            >
                               {lIdx + 1}
                             </Text>
 
-                            {/* Content type icon */}
+                            {/* One tile carrying both what the lesson is and
+                                where the learner stands on it. Three separate
+                                glyphs (a status ring, the index, a type icon)
+                                used to compete for the same job.
+
+                                The icon stays the content type throughout — a
+                                finished video is still a video, and swapping in
+                                a tick took away the one cue that said what the
+                                lesson was. State is carried by the fill weight
+                                instead, which is how every other status in the
+                                system reads (TASTE 10.3): solid navy once done,
+                                cream while it is open, flat warm when locked. */}
                             <Box
                               className={cn(
-                                "w-6 h-6 rounded flex items-center justify-center shrink-0",
-                                locked ? "bg-paper-cream" : isScorm ? "bg-paper-cream" : "bg-paper-cream"
+                                "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                                done
+                                  ? "bg-navy text-paper border border-navy"
+                                  : locked
+                                    ? "bg-paper-warm text-ink/30 border border-border"
+                                    // Hover deepens the hairline rather than
+                                    // flipping the fill to navy: a hovered
+                                    // unfinished lesson would otherwise look
+                                    // exactly like a finished one.
+                                    : "bg-paper-cream text-navy border border-navy/10 group-hover:border-navy/45"
                               )}
                             >
-                              {isScorm ? (
-                                <Package className={cn("h-3 w-3", locked ? "text-ink/35" : "text-navy")} />
+                              {locked ? (
+                                <Lock className="h-4 w-4" />
                               ) : (
-                                <PlayCircle className={cn("h-3 w-3", locked ? "text-ink/35" : "text-navy")} />
+                                <TypeIcon
+                                  className={cn("h-4 w-4", type.filled && "fill-current")}
+                                />
                               )}
                             </Box>
 
-                            {/* Title */}
-                            <Text
-                              as="span"
-                              className={cn(
-                                "flex-1 text-sm leading-snug",
-                                done    ? "text-muted-foreground line-through decoration-muted-foreground/30" :
-                                locked  ? "text-muted-foreground/40" :
-                                          "group-hover:text-navy transition-colors"
-                              )}
-                            >
-                              {lesson.title}
-                            </Text>
+                            {/* Title. Bigger than the meta around it — it is the
+                                thing the learner is actually scanning for. */}
+                            <Box className="flex-1 min-w-0">
+                              <Text
+                                as="span"
+                                className={cn(
+                                  "block text-[15px] leading-snug truncate",
+                                  done
+                                    ? "text-ink/50 font-medium"
+                                    : locked
+                                      ? "text-ink/35 font-medium"
+                                      : "text-ink font-semibold group-hover:text-navy transition-colors"
+                                )}
+                              >
+                                {lesson.title}
+                              </Text>
+                              <Box className="flex items-center gap-2 mt-0.5">
+                                <Text as="span" className="text-[11px] text-ink/45">
+                                  {type.label}
+                                </Text>
+                                {lesson.duration_minutes ? (
+                                  <>
+                                    <Text as="span" className="text-[11px] text-ink/25">·</Text>
+                                    <Box className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3 text-ink/40" />
+                                      <Text as="span" className="text-[11px] text-ink/45 tabular-nums">
+                                        {lesson.duration_minutes} min
+                                      </Text>
+                                    </Box>
+                                  </>
+                                ) : null}
+                              </Box>
+                            </Box>
 
-                            {/* SCORM badge */}
+                            {/* State, then the affordance to open it. */}
+                            {done && (
+                              <Text
+                                as="span"
+                                className="hidden sm:inline text-[11px] font-semibold text-navy shrink-0"
+                              >
+                                Completed
+                              </Text>
+                            )}
                             {isScorm && !locked && (
                               <Badge className="text-[10px] px-1.5 h-4 bg-paper-cream text-navy border-0 shrink-0">
                                 SCORM
                               </Badge>
                             )}
-
-                            {/* Duration */}
-                            {lesson.duration_minutes && (
-                              <Box className="flex items-center gap-1 shrink-0">
-                                <Clock className="h-3 w-3 text-muted-foreground/40" />
-                                <Text as="span" className="text-[11px] text-muted-foreground tabular-nums">
-                                  {lesson.duration_minutes}m
-                                </Text>
-                              </Box>
-                            )}
-
-                            {/* Arrow or lock */}
                             {locked ? (
-                              <Lock className="h-3.5 w-3.5 text-paper shrink-0" />
+                              // This was `text-paper` — white on a light row, so
+                              // the one cue that a lesson was locked was invisible.
+                              <Lock className="h-4 w-4 text-ink/30 shrink-0" />
                             ) : (
-                              <ChevronRight className="h-4 w-4 text-ink/35 group-hover:text-navy transition-colors shrink-0" />
+                              <ChevronRight className="h-4 w-4 text-ink/30 group-hover:text-navy group-hover:translate-x-0.5 transition-all shrink-0" />
                             )}
                           </Box>
                         );
@@ -302,7 +404,11 @@ export function CourseDetailContent({ courseId }) {
                         return locked ? (
                           <Box key={lesson.id}>{row}</Box>
                         ) : (
-                          <Link key={lesson.id} href={`/my-courses/${courseId}/lessons/${lesson.id}`} className="block">
+                          <Link
+                            key={lesson.id}
+                            href={`/my-courses/${courseId}/lessons/${lesson.id}`}
+                            className="block"
+                          >
                             {row}
                           </Link>
                         );

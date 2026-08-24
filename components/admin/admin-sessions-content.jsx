@@ -38,11 +38,21 @@ const EMPTY_FORM = {
   start_time: "", end_time: "", description: "", status: "upcoming",
 };
 
+/* Four states, in the fill weights the design system defines: not started is
+   the lightest, complete is the heaviest, failure is the only colour.
+   `in_progress` is derived from the clock by the API (display_status) rather
+   than stored — see server/src/modules/sessions/session-status.util.ts. */
 const STATUS_CFG = {
-  upcoming:  { label: "Scheduled", cls: "bg-paper-warm text-ink/60 border-border"    },
-  completed: { label: "Completed", cls: "bg-navy text-paper border-navy" },
-  cancelled: { label: "Cancelled", cls: "bg-error/10 text-error border-error/30"       },
+  upcoming:    { label: "Upcoming",    cls: "bg-paper-warm text-ink/60 border-border"   },
+  in_progress: { label: "In progress", cls: "bg-paper-cream text-ink border-navy/25"    },
+  completed:   { label: "Completed",   cls: "bg-navy text-paper border-navy"            },
+  cancelled:   { label: "Cancelled",   cls: "bg-error/10 text-error border-error/30"    },
 };
+
+/** The status to show. Falls back to the stored one if the API is older. */
+function displayOf(session) {
+  return session?.display_status || session?.status || "upcoming";
+}
 
 const TYPE_CFG = {
   ILT:     { label: "ILT",     cls: "bg-paper-cream text-navy border-0",    icon: MapPin },
@@ -308,26 +318,56 @@ function SessionsTab({
   onMarkAttendance,
 
 }) {
-  const [filterType,   setFilterType]   = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [rosterTarget, setRosterTarget] = useState(null);
-  const [cancelTarget, setCancelTarget] = useState(null);
-  const [cancelling,   setCancelling]   = useState(false);
+  const [filterType,     setFilterType]     = useState("all");
+  const [filterStatus,   setFilterStatus]   = useState("all");
+  const [rosterTarget,   setRosterTarget]   = useState(null);
+  const [cancelTarget,   setCancelTarget]   = useState(null);
+  const [cancelling,     setCancelling]     = useState(false);
+  const [completeTarget, setCompleteTarget] = useState(null);
+  const [completing,     setCompleting]     = useState(false);
+  const [completeError,  setCompleteError]  = useState(null);
 
   const filtered = sessions.filter((s) => {
     const matchType   = filterType   === "all" || s.session_type === filterType;
-    const matchStatus = filterStatus === "all" || s.status       === filterStatus;
+    const matchStatus = filterStatus === "all" || displayOf(s)   === filterStatus;
     return matchType && matchStatus;
   });
 
   const totalRegistered = sessions.reduce((sum, s) => sum + Number(s.roster_count || 0), 0);
+  const countOf = (status) => sessions.filter((s) => displayOf(s) === status).length;
 
   const statCards = [
-    { icon: CalendarCheck, value: sessions.length,                                    label: "Total Sessions",  sub: "All time",           iconBg: "bg-paper-cream",    iconColor: "text-navy",    circle: "bg-paper-cream"    },
-    { icon: AlertCircle,   value: sessions.filter((s) => s.status === "upcoming").length,  label: "Upcoming",        sub: "Scheduled sessions", iconBg: "bg-paper-cream",   iconColor: "text-ink/70",   circle: "bg-paper-cream"   },
-    { icon: CheckCircle2,  value: sessions.filter((s) => s.status === "completed").length, label: "Completed",       sub: "Sessions done",      iconBg: "bg-paper-cream", iconColor: "text-navy", circle: "bg-paper-cream" },
-    { icon: Users,         value: totalRegistered,                                    label: "Total Registered", sub: "Across all sessions",iconBg: "bg-paper-cream",  iconColor: "text-navy",  circle: "bg-paper-cream"  },
+    { icon: CalendarCheck, value: sessions.length,          label: "Total Sessions",   sub: "All time",             iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
+    { icon: AlertCircle,   value: countOf("upcoming"),      label: "Upcoming",         sub: "Not yet started",      iconBg: "bg-paper-cream", iconColor: "text-ink/70", circle: "bg-paper-cream" },
+    // The actionable number: these are past their start time and still waiting
+    // for the admin to mark them completed, which is what credits the learners.
+    { icon: Clock,         value: countOf("in_progress"),   label: "In progress",      sub: "Awaiting completion",  iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
+    { icon: CheckCircle2,  value: countOf("completed"),     label: "Completed",        sub: "Learners credited",    iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
+    { icon: Users,         value: totalRegistered,          label: "Total Registered", sub: "Across all sessions",  iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
   ];
+
+  /**
+   * Manual completion. This is the only thing that credits the roster with the
+   * training, its learning hours and its completion — so it confirms first, and
+   * surfaces the API's refusal (422) when attendance has not been marked rather
+   * than failing quietly.
+   */
+  const handleComplete = async () => {
+    if (!completeTarget) return;
+    setCompleting(true);
+    setCompleteError(null);
+    try {
+      await apiClient(`/api/admin/sessions/${completeTarget.id}/complete`, {
+        method: "POST",
+      });
+      load();
+      setCompleteTarget(null);
+    } catch (e) {
+      setCompleteError(e.message);
+    } finally {
+      setCompleting(false);
+    }
+  };
 
   const handleCancel = async () => {
     if (!cancelTarget) return;
@@ -346,7 +386,7 @@ function SessionsTab({
     <Box className="space-y-5">
 
       {/* Stat Cards */}
-      <Box className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <Box className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((s) => (
           <Card key={s.label} className="relative overflow-hidden p-5">
             <Box className="flex items-start gap-3">
@@ -383,7 +423,8 @@ function SessionsTab({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="upcoming">Scheduled</SelectItem>
+            <SelectItem value="upcoming">Upcoming</SelectItem>
+            <SelectItem value="in_progress">In progress</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
@@ -405,11 +446,18 @@ function SessionsTab({
       ) : (
         <Box className="space-y-3">
           {filtered.map((s) => {
-            const typeCfg   = TYPE_CFG[s.session_type]   || TYPE_CFG.ILT;
-            const statusCfg = STATUS_CFG[s.status]        || STATUS_CFG.upcoming;
+            const typeCfg   = TYPE_CFG[s.session_type] || TYPE_CFG.ILT;
+            const view      = displayOf(s);
+            const statusCfg = STATUS_CFG[view] || STATUS_CFG.upcoming;
             const TypeIcon  = typeCfg.icon;
-            const isCompleted = s.status === "completed";
-            const isUpcoming  = s.status === "upcoming";
+            const isCompleted = view === "completed";
+            const isCancelled = view === "cancelled";
+            const isUpcoming  = view === "upcoming";
+            const rosterCount = Number(s.roster_count || 0);
+            const credited    = Number(s.credited_count || 0);
+            const marked      = Number(s.attendance_marked_count || 0);
+            const attendancePct =
+              rosterCount > 0 ? Math.round((credited / rosterCount) * 100) : 0;
 
             return (
               <Card key={s.id} className="overflow-hidden hover:shadow-md transition-shadow">
@@ -475,12 +523,22 @@ function SessionsTab({
                         <Text as="span" className="text-foreground">{s.roster_count}/{s.capacity}</Text>
                       </Text>
 
-                      {/* Attendance % for completed */}
-                      {isCompleted && s.roster_count > 0 && (
+                      {/* Attendance, from the real tally the API returns. This
+                          read `roster/roster*75` before — the constant 75% for
+                          every session with anyone on it. */}
+                      {isCompleted && rosterCount > 0 && (
                         <Text as="p" className="text-sm font-bold text-navy">
-                          Attendance{" "}
-                          {/* Computed server-side would be ideal; we display after reports load */}
-                          {Math.round((s.roster_count > 0 ? s.roster_count : 0) / s.roster_count * 75)}%
+                          Attendance {attendancePct}%
+                          <Text as="span" className="font-normal text-muted-foreground">
+                            {" "}· {credited} credited
+                          </Text>
+                        </Text>
+                      )}
+                      {!isCompleted && !isCancelled && rosterCount > 0 && (
+                        <Text as="p" className="text-xs text-muted-foreground">
+                          {marked > 0
+                            ? `Attendance marked for ${marked} of ${rosterCount}`
+                            : "Attendance not marked yet"}
                         </Text>
                       )}
 
@@ -502,6 +560,13 @@ function SessionsTab({
                         {!isCompleted && (
                           <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => openEdit(s)}>
                             <Pencil className="h-3 w-3 mr-1" />Edit
+                          </Button>
+                        )}
+                        {!isCompleted && !isCancelled && (
+                          <Button size="sm"
+                            className="h-7 text-xs px-2.5 bg-navy hover:bg-navy-soft text-paper"
+                            onClick={() => { setCompleteError(null); setCompleteTarget(s); }}>
+                            <CheckCircle2 className="h-3 w-3 mr-1" />Mark Completed
                           </Button>
                         )}
                         {isUpcoming && (
@@ -530,6 +595,32 @@ function SessionsTab({
           onRosterSaved={load}
         />
       )}
+
+      {/* Complete Confirm — spells out the side effects, because they reach the
+          learner's course card, their learning hours and their completion. */}
+      <AlertDialog open={!!completeTarget} onOpenChange={(o) => { if (!o) { setCompleteTarget(null); setCompleteError(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark session completed</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{completeTarget?.title}</strong> will be credited to the
+              learners recorded as present, late or partial. Their training is
+              marked complete and the session&apos;s duration counts toward their
+              learning hours. Learners marked absent or excused are not credited.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {completeError && (
+            <Text as="p" className="text-sm text-error">{completeError}</Text>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={completing}>Back</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleComplete(); }} disabled={completing}
+              className="bg-navy hover:bg-navy-soft text-paper">
+              {completing ? "Completing…" : "Mark Completed"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cancel Confirm */}
       <AlertDialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}>
@@ -611,8 +702,12 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
 
   const markedCount = localRows.filter((r) => r.status).length;
 
-  const statusLabel = selectedSession ? `${selectedSession.status === "upcoming" ? "Scheduled" : "Completed"}` : "";
-  const statusCls   = selectedSession?.status === "upcoming" ? "bg-paper-cream text-ink/70" : "bg-paper-cream text-navy";
+  // The same four states the Sessions tab shows, from the same config — this
+  // used to read "Scheduled" for anything that was not completed, including a
+  // cancelled session.
+  const statusCfg   = STATUS_CFG[displayOf(selectedSession)] || STATUS_CFG.upcoming;
+  const statusLabel = selectedSession ? statusCfg.label : "";
+  const statusCls   = statusCfg.cls;
 
   return (
     <Box className="space-y-5">
@@ -637,7 +732,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
           </SelectContent>
         </Select>
         {selectedSession && (
-          <Badge className={`text-[11px] font-medium border-0 ${statusCls}`}>{statusLabel}</Badge>
+          <Badge className={`text-[11px] font-medium border ${statusCls}`}>{statusLabel}</Badge>
         )}
       </Box>
 
@@ -1053,12 +1148,14 @@ export function AdminSessionsContent() {
     try {
       const body = { ...form, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
       if (editTarget) {
-        const d = await apiClient(`/api/admin/sessions/${editTarget.id}`, { method: "PUT", body });
-        setSessions((prev) => prev.map((s) => s.id === editTarget.id ? { ...s, ...d.session, capacity: Number(d.session.capacity), roster_count: s.roster_count } : s));
+        await apiClient(`/api/admin/sessions/${editTarget.id}`, { method: "PUT", body });
       } else {
-        const d = await apiClient("/api/admin/sessions", { method: "POST", body });
-        setSessions((prev) => [{ ...d.session, capacity: Number(d.session.capacity), roster_count: 0 }, ...prev]);
+        await apiClient("/api/admin/sessions", { method: "POST", body });
       }
+      // Reloading rather than merging the response in: the row carries derived
+      // fields the write does not return (the attendance tally), and a merge
+      // left them undefined, which the stat cards and percentages read.
+      load();
       setDialogOpen(false);
     } catch (e) { setFormError(e.message); } finally { setSaving(false); }
   };
@@ -1192,7 +1289,11 @@ export function AdminSessionsContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None — Standalone session</SelectItem>
-                  {courses.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                  {/* Session trainings are generated from sessions, so they are
+                      not catalog courses a session can be linked to. */}
+                  {courses.filter((c) => !c.session_id).map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Box>

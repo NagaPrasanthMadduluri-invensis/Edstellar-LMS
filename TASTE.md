@@ -389,6 +389,38 @@ mirrored by `statusChip()` in `lib/brand.js`:
 
 When adding a state, pick one of these four. Do not invent a fifth colour.
 
+**Sessions carry four states too** — upcoming, in progress, completed,
+cancelled — mapped onto the same weights (idle, partial, complete, error).
+"In progress" is derived by the API from the scheduled start time and arrives as
+`display_status`; render that, and keep sending the stored `status` back when
+editing. A session's training card shows the date, time, venue and trainer in
+place of a progress bar: the learner cannot move that progress themselves — the
+trainer marks the session complete — and a 0% bar would read as their own
+inaction.
+
+**These chips invert on a dark surface.** The light weights (paper-warm →
+paper-cream → navy) collapse to nothing on navy. There, the heaviest state is
+lime on navy and the lighter ones are paper at decreasing opacity. Note also
+that `.surface-dark` is a component-layer class, so a shadcn `Card`'s own
+`bg-card` utility beats it — put `surface-dark` on a `Box` inside the card, not
+on the card.
+
+### 10.3.1 Lesson content types
+
+A lesson's icon says **what it is**, not what state it is in: play for video,
+package for SCORM, people for a live session, document for a file. State is
+carried by the tile's fill weight instead — solid navy once complete, cream
+while open, flat warm when locked. Swapping the glyph for a tick on completion
+throws away the only cue that said what the lesson was.
+
+Duration is mandatory for documents and SCORM and optional for video, so the
+field always says where its number comes from. A required star with no
+explanation reads as the form behaving inconsistently between types.
+
+Supporting resources render under the primary content, never mixed into it, and
+are labelled as reference material — they carry no duration and do not count
+toward learning hours, and the learner should not have to guess that.
+
 ### 10.4 Surfaces & data visualisation
 
 - Alternate between `paper`, `paper-warm`, `navy` and `white`. Use white cards

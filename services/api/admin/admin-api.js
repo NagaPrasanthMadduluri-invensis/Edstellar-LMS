@@ -91,6 +91,35 @@ export async function presignNewVideo({ filename, contentType, sizeBytes }) {
   });
 }
 
+/* ── Documents ──
+   One presign endpoint serves both a lesson's primary document and its
+   supporting resources: the key is claimed by whichever row is saved next, so
+   the upload does not need to know which it will become. There is no separate
+   confirm step — the save itself proves the object exists before recording it,
+   and unlike video there is no duration to report back. */
+
+export async function presignDocument({ filename, contentType, sizeBytes }) {
+  return apiClient("/api/admin/media/document/presign", {
+    method: "POST",
+    body: { filename, contentType, sizeBytes },
+  });
+}
+
+export async function fetchLessonResources({ lessonId }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/resources`);
+}
+
+export async function createLessonResource({ lessonId, data }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/resources`, {
+    method: "POST",
+    body: data,
+  });
+}
+
+export async function deleteLessonResource({ resourceId }) {
+  return apiClient(`/api/admin/resources/${resourceId}`, { method: "DELETE" });
+}
+
 /** Step 3 — tell the API the upload landed, so the key is saved on the lesson. */
 export async function confirmLessonVideo({ lessonId, key, durationSeconds }) {
   return apiClient(`/api/admin/lessons/${lessonId}/video/confirm`, {

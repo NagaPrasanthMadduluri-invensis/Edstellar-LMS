@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,20 @@ const SESSION_TYPES = {
   Webinar: { label: "Webinar", dot: "bg-navy",     chip: "border-l-2 border-navy/20 bg-paper-cream text-navy"         },
 };
 
+/* `in_progress` is derived from the scheduled start time by the API
+   (display_status), so a session already under way stops reading "Upcoming"
+   without anything having to run on a timer. */
 const STATUS_CFG = {
-  upcoming:  { label: "Upcoming",  cls: "bg-paper-warm text-ink/60 border-border"    },
-  completed: { label: "Completed", cls: "bg-navy text-paper border-navy" },
-  cancelled: { label: "Cancelled", cls: "bg-error/10 text-error border-error/30"       },
+  upcoming:    { label: "Upcoming",    cls: "bg-paper-warm text-ink/60 border-border"  },
+  in_progress: { label: "In progress", cls: "bg-paper-cream text-ink border-navy/25"   },
+  completed:   { label: "Completed",   cls: "bg-navy text-paper border-navy"           },
+  cancelled:   { label: "Cancelled",   cls: "bg-error/10 text-error border-error/30"   },
 };
+
+/** The status to show. Falls back to the stored one if the API is older. */
+function displayOf(session) {
+  return session?.display_status || session?.status || "upcoming";
+}
 
 const ATTENDANCE_CFG = {
   present:  { label: "Present",  cls: "bg-navy text-paper border-navy" },
@@ -86,7 +96,7 @@ export function LearnerTrainingCalendar() {
   const daysInMonth   = getDaysInMonth(year, month);
   const firstWeekday  = getFirstWeekday(year, month);
   const thisMonth     = (sessions || []).filter((s) => s.year === year && s.month === month);
-  const upcoming      = (sessions || []).filter((s) => s.status === "upcoming");
+  const upcoming      = (sessions || []).filter((s) => displayOf(s) === "upcoming");
 
   const prevMonth = () => setViewDate(({ year: y, month: m }) =>
     m === 0 ? { year: y - 1, month: 11 } : { year: y, month: m - 1 }
@@ -239,7 +249,7 @@ export function LearnerTrainingCalendar() {
         <Box className="space-y-3">
           {sessions.map((s) => {
             const typeCfg   = SESSION_TYPES[s.session_type] || SESSION_TYPES.ILT;
-            const statusCfg = STATUS_CFG[s.status] || STATUS_CFG.upcoming;
+            const statusCfg = STATUS_CFG[displayOf(s)] || STATUS_CFG.upcoming;
             const attCfg    = s.attendance_status ? ATTENDANCE_CFG[s.attendance_status] : null;
             return (
               <Card
@@ -286,7 +296,7 @@ export function LearnerTrainingCalendar() {
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         {selected && (() => {
           const typeCfg   = SESSION_TYPES[selected.session_type] || SESSION_TYPES.ILT;
-          const statusCfg = STATUS_CFG[selected.status] || STATUS_CFG.upcoming;
+          const statusCfg = STATUS_CFG[displayOf(selected)] || STATUS_CFG.upcoming;
           const attCfg    = selected.attendance_status ? ATTENDANCE_CFG[selected.attendance_status] : null;
           return (
             <DialogContent className="sm:max-w-sm">
@@ -323,6 +333,16 @@ export function LearnerTrainingCalendar() {
                   <Text as="p" className="text-sm text-muted-foreground leading-relaxed border-t pt-3">
                     {selected.description}
                   </Text>
+                )}
+
+                {/* Being on the roster IS being assigned the training, so the
+                    calendar entry leads to the same card My Courses shows. */}
+                {selected.training_course_id && (
+                  <Link href={`/my-courses/${selected.training_course_id}`} className="block pt-1">
+                    <Button size="sm" className="w-full bg-navy hover:bg-navy-soft text-paper">
+                      Open training
+                    </Button>
+                  </Link>
                 )}
               </Box>
             </DialogContent>

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import {
   BookOpen, Search, Plus, Clock, CalendarDays, Settings2, Link2,
-  Pencil, Eye, PowerOff, Power, Trash2, Layers, Users, TrendingUp,
+  Pencil, Eye, PowerOff, Power, Trash2, Layers, Users, TrendingUp, CalendarCheck,
   CheckCircle, ClipboardList, GripVertical,
 } from "lucide-react";
 import Text from "@/components/ui/text";
@@ -235,6 +235,11 @@ export function CourseSelector() {
         <Box className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filtered.map((course) => {
             const duration = formatDuration(course.total_duration_minutes);
+            // A live session's companion training. It is generated from the
+            // session and kept in step with it, so the API refuses edits here
+            // (422) — the buttons say so rather than offering an action that
+            // will be rejected.
+            const isSessionTraining = Boolean(course.session_id);
             return (
               <Card
                 key={course.id}
@@ -257,6 +262,11 @@ export function CourseSelector() {
                             <ClipboardList className="h-3 w-3 mr-1" />Assessment
                           </Badge>
                         )}
+                        {isSessionTraining && (
+                          <Badge className="text-[11px] bg-navy text-paper border-0 font-medium px-2 py-0.5">
+                            <CalendarCheck className="h-3 w-3 mr-1" />Live session
+                          </Badge>
+                        )}
                         <Badge className="text-[11px] bg-paper-cream text-ink/70 border-0 font-medium px-2 py-0.5">
                           <Layers className="h-3 w-3 mr-1" />
                           {course.modules_count} Module{course.modules_count !== 1 ? "s" : ""}
@@ -277,31 +287,43 @@ export function CourseSelector() {
 
                     {/* Action buttons — horizontal row at top right */}
                     <Box className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit"
-                        onClick={(e) => { e.stopPropagation(); router.push(`/admin/courses/${course.id}`); }}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      {!isSessionTraining && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/admin/courses/${course.id}`); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-8 w-8" title="View"
                         onClick={(e) => { e.stopPropagation(); router.push(`/admin/courses/${course.id}`); }}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
-                      <Button
-                        variant="ghost" size="icon"
-                        className={`h-8 w-8 ${course.is_active ? "text-ink/70 hover:bg-paper-cream" : "text-navy hover:bg-paper-cream"}`}
-                        title={course.is_active ? "Deactivate" : "Activate"}
-                        disabled={toggling === course.id}
-                        onClick={(e) => handleToggleActive(course, e)}
-                      >
-                        {course.is_active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-8 w-8 text-error hover:bg-error/10"
-                        title="Delete"
-                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ id: course.id, name: course.name }); }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {isSessionTraining ? (
+                        <Button variant="ghost" size="sm" className="h-8 text-xs px-2.5 text-navy"
+                          title="Managed from Sessions"
+                          onClick={(e) => { e.stopPropagation(); router.push("/admin/sessions"); }}>
+                          Manage in Sessions
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost" size="icon"
+                            className={`h-8 w-8 ${course.is_active ? "text-ink/70 hover:bg-paper-cream" : "text-navy hover:bg-paper-cream"}`}
+                            title={course.is_active ? "Deactivate" : "Activate"}
+                            disabled={toggling === course.id}
+                            onClick={(e) => handleToggleActive(course, e)}
+                          >
+                            {course.is_active ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 text-error hover:bg-error/10"
+                            title="Delete"
+                            onClick={(e) => { e.stopPropagation(); setConfirmDelete({ id: course.id, name: course.name }); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
                     </Box>
                   </Box>
 
