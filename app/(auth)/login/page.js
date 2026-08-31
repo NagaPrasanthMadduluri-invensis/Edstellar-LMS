@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,11 +89,12 @@ function LoginForm() {
             {loading ? "Signing in..." : "Sign In"}
           </Button>
 
+          {/* Self-registration was retired with multi-tenancy: a public signup
+              form cannot know which organization a learner belongs to, and any
+              default would place strangers inside a real customer's tenant.
+              Accounts are created by an organization's admin. */}
           <Text as="p" className="text-sm text-center text-muted-foreground">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-navy font-medium hover:underline">
-              Register
-            </Link>
+            Need an account? Ask your organization&apos;s administrator.
           </Text>
         </form>
       </CardContent>

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 const TOKEN_COOKIE = "lms_token";
-const PUBLIC_PATHS = ["/login", "/register"];
+// Self-registration was retired with multi-tenancy — a public signup cannot
+// know which organization a learner belongs to. /login is the only public page.
+const PUBLIC_PATHS = ["/login"];
 
 /**
  * Navigation gate only — it checks whether an auth cookie is PRESENT, nothing
