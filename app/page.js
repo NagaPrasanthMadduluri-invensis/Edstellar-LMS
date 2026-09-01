@@ -8,6 +8,10 @@ export default async function Home() {
     redirect("/login");
   }
 
+  if (user.isPlatformAdmin) {
+    redirect("/platform/dashboard");
+  }
+
   if (user.role === "admin") {
     redirect("/admin/dashboard");
   }

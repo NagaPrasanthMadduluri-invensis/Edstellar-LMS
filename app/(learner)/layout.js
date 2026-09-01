@@ -10,7 +10,7 @@ export default async function LearnerLayout({ children }) {
   }
 
   if (user.role === "admin") {
-    redirect("/admin/dashboard");
+    redirect(user.isPlatformAdmin ? "/platform/dashboard" : "/admin/dashboard");
   }
 
   return <LearnerShell user={user}>{children}</LearnerShell>;

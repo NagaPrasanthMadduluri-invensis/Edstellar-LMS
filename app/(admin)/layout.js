@@ -13,5 +13,9 @@ export default async function AdminLayout({ children }) {
     redirect("/dashboard");
   }
 
+  if (user.isPlatformAdmin) {
+    redirect("/platform/dashboard");
+  }
+
   return <AdminShell user={user}>{children}</AdminShell>;
 }
