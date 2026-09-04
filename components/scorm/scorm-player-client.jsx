@@ -1,6 +1,10 @@
 "use client";
 
 import { apiClient } from "@/lib/api-client";
+import {
+  attachRecorder,
+  createDatamodelRecorder,
+} from "@/components/scorm/datamodel-recorder";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -24,6 +28,7 @@ export function ScormPlayerClient({ packageId }) {
   const router = useRouter();
   const apiRef  = useRef(null);
   const saveRef = useRef(null); // debounced save fn
+  const recorderRef = useRef(null); // granular data-model delta recorder
 
   const [pkg,      setPkg]      = useState(null);
   const [tracking, setTracking] = useState(null);
@@ -72,6 +77,17 @@ export function ScormPlayerClient({ packageId }) {
 
         const api = new APIClass({ autocommit: false, logLevel: 4 });
 
+        /**
+         * Granular telemetry, layered ON TOP of the runtime rather than
+         * replacing it. `scorm-again` keeps owning window.API and the whole
+         * data model; this records each individual SetValue so the API gets a
+         * timeline, not just the latest snapshot. Attached before any restore
+         * or event wiring so no write can slip past it.
+         */
+        const recorder = createDatamodelRecorder({ packageId });
+        recorderRef.current = recorder;
+        attachRecorder(api, recorder);
+
         /* Restore saved data */
         const savedCmi = trackingData.tracking?.cmi_data;
         if (savedCmi) {
@@ -81,8 +97,20 @@ export function ScormPlayerClient({ packageId }) {
           } catch { /* ignore corrupt data */ }
         }
 
-        /* Save on commit / finish */
-        const save = () => persistTracking(api);
+        /**
+         * Save on commit / finish.
+         *
+         * Two writes, deliberately not merged. `persistTracking` upserts the
+         * resume record the player reloads via loadFromJSON on next launch;
+         * the recorder appends the timeline. Losing a delta batch costs
+         * analytics, losing the resume record costs the learner their place —
+         * so a failure in one must not take the other down with it.
+         */
+        const save = () => {
+          const tracking = persistTracking(api);
+          const deltas = recorder.flush();
+          return Promise.allSettled([tracking, deltas]);
+        };
         saveRef.current = save;
 
         if (is2004) {
@@ -102,10 +130,22 @@ export function ScormPlayerClient({ packageId }) {
       })
       .catch(() => { if (!cancelled) setStatus("error"); });
 
+    /**
+     * The tab closing is not an unmount — React's cleanup never runs — so the
+     * last deltas need their own exit. `pagehide` rather than `beforeunload`:
+     * it fires for a backgrounded or discarded page too, which is how a mobile
+     * learner actually leaves, and it is compatible with the back/forward cache.
+     */
+    const handlePageHide = () => recorderRef.current?.flushOnUnload();
+    window.addEventListener("pagehide", handlePageHide);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("pagehide", handlePageHide);
       /* Save on unmount */
       if (apiRef.current && saveRef.current) saveRef.current();
+      void recorderRef.current?.close();
+      recorderRef.current = null;
       delete window.API;
       delete window.API_1484_11;
     };
@@ -114,6 +154,9 @@ export function ScormPlayerClient({ packageId }) {
   /* ── Exit handler: save then navigate back ── */
   const handleExit = async () => {
     if (apiRef.current && saveRef.current) await saveRef.current();
+    // Awaited, unlike the pagehide path: there IS still a page here, so the
+    // final batch can be confirmed rather than fired into an unloading document.
+    await recorderRef.current?.close();
     router.back();
   };
 

@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient, SERVER_URL } from "@/lib/api-client";
 
 /* ── Dashboard ── */
 
@@ -188,6 +188,146 @@ export function uploadToR2({ uploadUrl, file, contentType, onProgress, signal })
     signal?.addEventListener("abort", () => xhr.abort());
     xhr.send(file);
   });
+}
+
+/**
+ * SCORM package upload — the zip goes to the API, which extracts it.
+ *
+ * XMLHttpRequest rather than fetch, for the same reason `uploadToR2` uses it:
+ * only XHR reports upload progress, and a hundred-megabyte package pushed by
+ * `fetch` gives the admin a spinner that never moves — indistinguishable from
+ * a frozen page or a request that never left.
+ *
+ * The response is parsed defensively. A plain `res.json()` turns any non-JSON
+ * reply — a proxy's 413 page, or the Next dev server answering because
+ * NEXT_PUBLIC_SERVER_URL points somewhere that is not the API — into
+ * "Unexpected token", which tells the admin nothing about what went wrong.
+ */
+/**
+ * Largest SCORM zip the upload path can actually carry.
+ *
+ * This is NOT an application rule — the API itself accepts any size. It is the
+ * smallest ceiling on the network path, and the path has two:
+ *
+ *   - the origin nginx `client_max_body_size`
+ *   - Cloudflare's request-body cap, a hard 100 MiB below Enterprise
+ *
+ * Cloudflare's is the one that cannot be raised by editing config, so it is
+ * the default here. Override it if the origin limit is lower, or once uploads
+ * go straight to R2 and stop crossing the proxy at all.
+ */
+export const SCORM_MAX_BYTES =
+  Number(process.env.NEXT_PUBLIC_SCORM_MAX_BYTES) || 100 * 1024 * 1024;
+
+export function formatBytes(bytes) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+/** Checked before the bytes move, so nothing is pushed only to be refused. */
+export function scormSizeError(file) {
+  if (!file || file.size <= SCORM_MAX_BYTES) return null;
+  return (
+    `${file.name} is ${formatBytes(file.size)}, over the ${formatBytes(SCORM_MAX_BYTES)} ` +
+    "limit on the upload path. Split the package, or host it externally — " +
+    "raising the API's own limit will not help, the cap is in the proxy in front of it."
+  );
+}
+
+export function uploadScormPackage({
+  file,
+  title,
+  courseId,
+  provisional,
+  onProgress,
+  signal,
+}) {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("scorm_package", file);
+    if (title) fd.append("title", title);
+    if (courseId) fd.append("course_id", courseId);
+    /**
+     * The lesson editor sets this because it has to upload before it can save
+     * the lesson. The API leaves such a package provisional — hidden from the
+     * SCORM library and swept if no lesson ever claims it — which is what stops
+     * a failed save leaving debris an admin can see. The library page does not
+     * set it: an upload there IS the finished action.
+     */
+    if (provisional) fd.append("provisional", "1");
+
+    const url = `${SERVER_URL}/api/admin/scorm/upload`;
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    // The auth cookie is HttpOnly and cross-origin, so it only travels when
+    // credentials are explicitly requested — the same reason apiClient sets
+    // credentials: "include".
+    xhr.withCredentials = true;
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+
+    xhr.onload = () => {
+      // 413 comes from the proxy, never from the API, so it arrives as HTML
+      // rather than the { message } envelope. Name the layer that refused it.
+      if (xhr.status === 413) {
+        reject(
+          new Error(
+            `The package was rejected as too large (HTTP 413) by a proxy in front ` +
+              `of the API, before it reached it. ${formatBytes(file.size)} exceeded ` +
+              "either the origin's client_max_body_size or Cloudflare's 100 MB " +
+              "request cap.",
+          ),
+        );
+        return;
+      }
+
+      let body = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        // Not JSON: say who answered instead of quoting a parse error.
+        reject(
+          new Error(
+            `The SCORM upload was answered by ${url} with HTTP ${xhr.status} and ` +
+              "a non-JSON body, so it did not reach the API. Check that the API " +
+              "server is running and that NEXT_PUBLIC_SERVER_URL points at it.",
+          ),
+        );
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body);
+        return;
+      }
+      const error = new Error(body?.message || `SCORM upload failed (HTTP ${xhr.status})`);
+      if (body?.errors) error.errors = body.errors;
+      reject(error);
+    };
+
+    xhr.onerror = () =>
+      reject(
+        new Error(
+          `Could not reach ${url} to upload the package. Check that the API ` +
+            "server is running and that its CLIENT_ORIGIN matches this page's origin.",
+        ),
+      );
+    xhr.onabort = () => reject(new Error("SCORM upload cancelled"));
+
+    signal?.addEventListener("abort", () => xhr.abort());
+    xhr.send(fd);
+  });
+}
+
+
+/**
+ * Deletes a SCORM package. Used both by the library page and as the lesson
+ * editor's rollback when a save fails after its upload succeeded.
+ */
+export async function deleteScormPackage({ packageId }) {
+  return apiClient(`/api/admin/scorm/${packageId}`, { method: "DELETE" });
 }
 
 /** Captions go through the API, which converts SRT to the WebVTT `<track>` needs. */

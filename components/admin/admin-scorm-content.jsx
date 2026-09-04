@@ -1,6 +1,5 @@
 "use client";
 
-import { SERVER_URL } from "@/lib/api-client";
 import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { uploadScormPackage, scormSizeError } from "@/services/api/admin/admin-api";
 
 const VERSION_CFG = {
   "1.2":  { label: "SCORM 1.2", cls: "bg-paper-cream text-navy border-0"   },
@@ -107,21 +107,23 @@ export function AdminScormContent() {
   /* ── Upload ── */
   const handleUpload = async () => {
     if (!uploadFile) return;
-    setUploading(true);
+    const tooBig = scormSizeError(uploadFile);
+    if (tooBig) {
+      setUploadError(tooBig);
+      return;
+    }
+    // Percent, not a bare spinner — a package runs to hundreds of megabytes,
+    // and a still spinner cannot be told apart from a stalled request.
+    setUploading({ percent: 0, extracting: false });
     setUploadError("");
     try {
-      const fd = new FormData();
-      fd.append("scorm_package", uploadFile);
-      if (uploadTitle.trim()) fd.append("title", uploadTitle.trim());
-      if (uploadCourse !== "none") fd.append("course_id", uploadCourse);
-
-      const res = await fetch(`${SERVER_URL}/api/admin/scorm/upload`, {
-        credentials: "include",
-        method: "POST",
-        body: fd,
+      const data = await uploadScormPackage({
+        file: uploadFile,
+        title: uploadTitle.trim() || undefined,
+        courseId: uploadCourse !== "none" ? uploadCourse : undefined,
+        onProgress: (percent) =>
+          setUploading({ percent, extracting: percent >= 100 }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
 
       setPackages((prev) => [data.package, ...(prev || [])]);
       setUploadOpen(false);
@@ -396,7 +398,10 @@ export function AdminScormContent() {
             <Button variant="outline" onClick={() => setUploadOpen(false)} disabled={uploading}>Cancel</Button>
             <Button onClick={handleUpload} disabled={!uploadFile || uploading} className="gap-1.5">
               {uploading ? (
-                <><Box className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Processing…</>
+                <>
+                  <Box className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  {uploading.extracting ? "Extracting…" : `Uploading… ${uploading.percent}%`}
+                </>
               ) : (
                 <><Upload className="h-4 w-4" />Upload & Process</>
               )}

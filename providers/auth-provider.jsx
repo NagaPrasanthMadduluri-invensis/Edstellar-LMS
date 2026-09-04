@@ -47,6 +47,15 @@ export function AuthProvider({ children, initialUser }) {
     async ({ email, password }) => {
       const data = await loginUser({ email, password });
       const normalizedUser = normalizeUser(data.user);
+      // normalizeUser returns null for a response that carried no user, and
+      // reading .role off that produced a bare TypeError that said nothing
+      // about the cause. Say what was actually wrong instead.
+      if (!normalizedUser) {
+        throw new Error(
+          "Signed in, but the server's response carried no user, so there is " +
+            "no role to route on. The API may not be reachable.",
+        );
+      }
       setUser(normalizedUser);
 
       const destination =
@@ -72,6 +81,12 @@ export function AuthProvider({ children, initialUser }) {
         department,
       });
       const normalizedUser = normalizeUser(data.user);
+      if (!normalizedUser) {
+        throw new Error(
+          "Registered, but the server's response carried no user. The API may " +
+            "not be reachable.",
+        );
+      }
       setUser(normalizedUser);
 
       router.replace("/dashboard");

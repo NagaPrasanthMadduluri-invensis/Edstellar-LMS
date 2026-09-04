@@ -24,7 +24,7 @@ function formatSize(bytes) {
 }
 
 /** Filled bar — no accent hue, fill weight carries the state (TASTE §10.3). */
-function ProgressBar({ percent }) {
+export function ProgressBar({ percent }) {
   return (
     <Box className="h-1.5 w-full rounded-full bg-paper-warm overflow-hidden">
       <Box

@@ -1,6 +1,5 @@
 "use client";
 
-import { SERVER_URL } from "@/lib/api-client";
 import { useEffect, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,11 +29,12 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   fetchLessons, createLesson, updateLesson, deleteLesson,
   presignLessonVideo, presignNewVideo, uploadToR2, confirmLessonVideo, deleteLessonVideo,
+  uploadScormPackage, scormSizeError, deleteScormPackage,
   readVideoDuration,
   uploadLessonCaptions, deleteLessonCaptions,
   presignDocument, createLessonResource, deleteLessonResource,
 } from "@/services/api/admin/admin-api";
-import { LessonMediaFields } from "@/components/admin/lesson-media-fields";
+import { LessonMediaFields, ProgressBar } from "@/components/admin/lesson-media-fields";
 import {
   LessonResourcesFields, DOCUMENT_ACCEPT, documentMimeFor, formatBytes,
 } from "@/components/admin/lesson-resources-fields";
@@ -363,22 +363,40 @@ export function ModuleLessons({ moduleId }) {
       // Filled from the SCORM manifest below, when it declares a runtime. Held
       // in a variable because the payload is built after the upload.
       let scormDuration = null;
+      /**
+       * Set only for a package THIS save uploaded, so the catch block can undo
+       * it. The upload has to happen before the lesson save — we need the id
+       * for the payload and the manifest's duration to prefill the field — so
+       * a failed save would otherwise leave a package behind that no lesson
+       * points at. Ten uploads on 2026-09-04 left eight of them.
+       *
+       * An existing lesson's already-saved package id is NOT put here: that one
+       * is real, and rolling it back would delete content that is in use.
+       */
+      let uploadedPackageId = null;
 
       /* ── Upload SCORM zip first if a new file was selected ── */
       if (form.content_type === "scorm" && form.scorm_file) {
-        setUploadingScorm(true);
-        const fd = new FormData();
-        fd.append("scorm_package", form.scorm_file);
-        if (form.title.trim()) fd.append("title", form.title.trim());
-        const res = await fetch(`${SERVER_URL}/api/admin/scorm/upload`, {
-        credentials: "include",
-        method: "POST",
-        body: fd,
-        });
-        const data = await res.json();
-        setUploadingScorm(false);
-        if (!res.ok) throw new Error(data.message || "SCORM upload failed");
+        // Percent, not just a spinner: a package can be hundreds of megabytes,
+        // and without a moving number "uploading" and "hung" look the same.
+        setUploadingScorm({ percent: 0, extracting: false });
+        let data;
+        try {
+          data = await uploadScormPackage({
+            file: form.scorm_file,
+            title: form.title.trim() || undefined,
+            // Provisional until the lesson below saves — see uploadedPackageId.
+            provisional: true,
+            onProgress: (percent) =>
+              // At 100% the bytes are sent but the API is still unzipping, so
+              // the label has to stop claiming to be uploading.
+              setUploadingScorm({ percent, extracting: percent >= 100 }),
+          });
+        } finally {
+          setUploadingScorm(false);
+        }
         scormPackageId = data.package.id;
+        uploadedPackageId = data.package.id;
 
         // The manifest's typicalLearningTime, when the package declares one.
         // Only fills a blank field — an admin who typed a number meant it.
@@ -447,6 +465,20 @@ export function ModuleLessons({ moduleId }) {
     } catch (e) {
       setUploadingScorm(false);
       setUploadProgress(null);
+      /**
+       * Roll back a package this save uploaded but never attached.
+       *
+       * The API sweeps provisional packages on its own, but only after hours —
+       * it cannot know a browser gave up. Here we know immediately, so undo it
+       * now and keep the admin's SCORM library clean. Failure to roll back is
+       * not worth reporting over the error that actually caused this: the
+       * sweep is the backstop.
+       */
+      if (uploadedPackageId) {
+        try {
+          await deleteScormPackage({ packageId: uploadedPackageId });
+        } catch { /* the server-side sweep will collect it */ }
+      }
       if (e.errors) setFormErrors(e.errors);
       else setFormErrors({ _general: e.message });
     } finally { setSaving(false); }
@@ -596,7 +628,7 @@ export function ModuleLessons({ moduleId }) {
 
       {/* ── Lesson Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg gap-0 p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-6xl gap-0 p-0 overflow-hidden">
           <Box className="px-6 py-5 border-b bg-white shrink-0">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold">{editingLesson ? "Edit Lesson" : "Add Lesson"}</DialogTitle>
@@ -798,7 +830,16 @@ export function ModuleLessons({ moduleId }) {
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      if (f) setForm((prev) => ({ ...prev, scorm_file: f }));
+                      if (!f) return;
+                      // Refused here, not after pushing it across the network.
+                      const tooBig = scormSizeError(f);
+                      if (tooBig) {
+                        setFormErrors({ _general: tooBig });
+                        e.target.value = "";
+                        return;
+                      }
+                      setFormErrors({});
+                      setForm((prev) => ({ ...prev, scorm_file: f }));
                     }}
                   />
                   <Box
@@ -836,9 +877,19 @@ export function ModuleLessons({ moduleId }) {
                     )}
                   </Box>
                   {uploadingScorm && (
-                    <Box className="flex items-center gap-2 text-xs text-navy">
-                      <Box className="h-3 w-3 animate-spin rounded-full border-2 border-navy/20 border-t-transparent" />
-                      Uploading and extracting SCORM package…
+                    <Box className="space-y-1.5">
+                      <Box className="flex items-center justify-between text-xs text-navy">
+                        <Box className="flex items-center gap-2">
+                          <Box className="h-3 w-3 animate-spin rounded-full border-2 border-navy/20 border-t-transparent" />
+                          {uploadingScorm.extracting
+                            ? "Extracting package on the server…"
+                            : `Uploading ${form.scorm_file?.name ?? "package"}…`}
+                        </Box>
+                        {!uploadingScorm.extracting && (
+                          <Text as="span" className="font-mono">{uploadingScorm.percent}%</Text>
+                        )}
+                      </Box>
+                      <ProgressBar percent={uploadingScorm.percent} />
                     </Box>
                   )}
                 </Box>
@@ -891,12 +942,17 @@ export function ModuleLessons({ moduleId }) {
               </Box>
             </Box>
 
-            {formErrors._general && (
-              <Box className="bg-error/10 border border-error/30 rounded-xl px-4 py-3">
-                <Text as="p" className="text-sm text-error">{formErrors._general}</Text>
-              </Box>
-            )}
           </Box>
+
+          {/* Outside the scrolling body on purpose. A failed upload used to
+              render at the bottom of a form the admin had scrolled away from,
+              so the only visible change was the Save button reverting — which
+              read as "nothing happened, and no error". */}
+          {formErrors._general && (
+            <Box className="mx-6 mt-4 bg-error/10 border border-error/30 rounded-xl px-4 py-3 shrink-0">
+              <Text as="p" className="text-sm text-error">{formErrors._general}</Text>
+            </Box>
+          )}
 
           <Box className="px-6 py-4 border-t bg-paper-warm shrink-0 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
@@ -910,7 +966,10 @@ export function ModuleLessons({ moduleId }) {
             >
               {uploadProgress
                 ? `Uploading… ${uploadProgress.percent}%`
-                : uploadingScorm ? "Uploading SCORM…"
+                : uploadingScorm
+                  ? uploadingScorm.extracting
+                    ? "Extracting SCORM…"
+                    : `Uploading SCORM… ${uploadingScorm.percent}%`
                 : saving ? "Saving…"
                 : editingLesson ? "Update Lesson" : "Add Lesson"}
             </Button>
