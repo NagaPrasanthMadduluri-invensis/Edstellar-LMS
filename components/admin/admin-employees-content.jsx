@@ -351,7 +351,7 @@ function UserDetailModal({ userId, open, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Learner Details</DialogTitle>
         </DialogHeader>
@@ -365,7 +365,7 @@ function UserDetailModal({ userId, open, onClose }) {
                 <Skeleton className="h-3 w-56" />
               </Box>
             </Box>
-            <Box className="grid grid-cols-2 gap-2">
+            <Box className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
             </Box>
             {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
@@ -404,7 +404,7 @@ function UserDetailModal({ userId, open, onClose }) {
               </Box>
             </Box>
 
-            <Box className="grid grid-cols-4 gap-3">
+            <Box className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {summaryCards.map((s) => (
                 <Box key={s.label} className={`${s.bg} rounded-xl p-3 text-center border`}>
                   <Text as="p" className={`text-2xl font-bold ${s.color}`}>{s.value}</Text>
@@ -736,7 +736,7 @@ export function AdminEmployeesContent() {
       <Card className="overflow-hidden">
 
         {/* ── Header ── */}
-        <Box className="flex items-center justify-between px-6 py-4 border-b">
+        <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b">
           <Box>
             <Text as="h2" className="text-base font-bold">All Users</Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">
@@ -1082,7 +1082,7 @@ export function AdminEmployeesContent() {
                   {editUser.is_active ? "Active" : "Inactive"}
                 </Badge>
               </Box>
-              <Box className="grid grid-cols-2 gap-3">
+              <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Box className="space-y-1.5">
                   <Label>First Name <Text as="span" className="text-error">*</Text></Label>
                   <Input value={editForm.first_name} onChange={(e) => setEditForm((p) => ({ ...p, first_name: e.target.value }))} />
@@ -1096,7 +1096,7 @@ export function AdminEmployeesContent() {
                 <Label>Email <Text as="span" className="text-error">*</Text></Label>
                 <Input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} />
               </Box>
-              <Box className="grid grid-cols-2 gap-3">
+              <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Box className="space-y-1.5">
                   <Label>Location</Label>
                   <Input placeholder="e.g. Bangalore" value={editForm.location} onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))} />
@@ -1134,7 +1134,7 @@ export function AdminEmployeesContent() {
             <DialogTitle>Add New Learner</DialogTitle>
           </DialogHeader>
           <Box className="space-y-3 py-2">
-            <Box className="grid grid-cols-2 gap-3">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Box className="space-y-1.5">
                 <Label>First Name <Text as="span" className="text-error">*</Text></Label>
                 <Input placeholder="Alice" value={form.first_name} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} />
@@ -1159,7 +1159,7 @@ export function AdminEmployeesContent() {
                 </SelectContent>
               </Select>
             </Box>
-            <Box className="grid grid-cols-2 gap-3">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Box className="space-y-1.5">
                 <Label>Location</Label>
                 <Input placeholder="e.g. Bangalore" value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} />
@@ -1198,7 +1198,7 @@ export function AdminEmployeesContent() {
           {bulkResult ? (
             /* Results screen */
             <Box className="space-y-4 py-2">
-              <Box className="grid grid-cols-3 gap-3">
+              <Box className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <Box className="rounded-xl bg-paper-cream border border-navy/20 p-4 text-center">
                   <Text as="p" className="text-2xl font-bold text-navy">{bulkResult.created}</Text>
                   <Text as="p" className="text-xs text-muted-foreground mt-0.5">Users Created</Text>
@@ -1217,7 +1217,7 @@ export function AdminEmployeesContent() {
                   <Box className="px-4 py-2.5 bg-error/10 border-b">
                     <Text as="p" className="text-xs font-semibold text-error uppercase tracking-wide">Failed Rows</Text>
                   </Box>
-                  <Box className="max-h-48 overflow-y-auto">
+                  <Box className="max-h-48 overflow-auto">
                     <table className="w-full text-xs">
                       <thead className="bg-muted/40">
                         <tr>

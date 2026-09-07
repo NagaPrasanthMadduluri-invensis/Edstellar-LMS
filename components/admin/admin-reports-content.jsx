@@ -338,7 +338,7 @@ export function AdminReportsContent() {
           <Text as="p" className="text-[11px] text-muted-foreground">Download full 4-sheet Excel report</Text>
         </CardHeader>
         <CardContent className="px-5 pb-4 space-y-4">
-          <Box className="grid grid-cols-3 gap-2">
+          <Box className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
               { label: "Total Enrolled", val: stats.total,                       color: "text-navy"  },
               { label: "Certified",      val: stats.completed,                   color: "text-navy" },

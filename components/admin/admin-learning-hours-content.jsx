@@ -108,7 +108,7 @@ export function AdminLearningHoursContent() {
       <Box className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((s) => (
           <Card key={s.label} className="relative overflow-hidden p-5">
-            <Box className="flex items-start gap-3">
+            <Box className="relative z-10 flex items-start gap-3">
               <Box className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
                 <s.icon className={`h-5 w-5 ${s.iconColor}`} />
               </Box>
@@ -118,7 +118,7 @@ export function AdminLearningHoursContent() {
                 <Text as="p" className={`text-xs font-medium mt-0.5 ${s.subColor}`}>{s.sub}</Text>
               </Box>
             </Box>
-            <Box className={`absolute -right-5 -top-5 w-24 h-24 rounded-full opacity-60 ${s.circle}`} />
+            <Box className={`pointer-events-none absolute -right-5 -top-5 h-20 w-20 rounded-full opacity-60 sm:h-24 sm:w-24 ${s.circle}`} />
           </Card>
         ))}
       </Box>
@@ -192,7 +192,7 @@ export function AdminLearningHoursContent() {
 
       {/* Individual Learner Table */}
       <Card className="overflow-hidden">
-        <Box className="flex items-center justify-between px-6 py-4 border-b">
+        <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b">
           <Box>
             <Text as="h3" className="text-base font-bold">Individual Learner Hours</Text>
             <Text as="p" className="text-xs text-muted-foreground">Click column headers to sort</Text>

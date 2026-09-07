@@ -341,7 +341,7 @@ function Skeleton_() {
         <Skeleton className="h-10 w-28 rounded-xl" />
         <Skeleton className="h-10 w-36 rounded-xl" />
       </Box>
-      <Box className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
       </Box>
       <Skeleton className="h-11 w-full rounded-xl" />
@@ -472,9 +472,9 @@ export function MyCoursesContent() {
             <Text as="p" className="text-[10px] font-bold tracking-[0.18em] uppercase text-muted-foreground mb-3">
               Your Learning Overview
             </Text>
-            <Box className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+            <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {overviewCards.map((c) => (
-                <Card key={c.label} className="relative overflow-hidden p-4">
+                <Card key={c.label} className="gap-0 relative overflow-hidden p-4">
                   <Box className={cn("w-9 h-9 rounded-lg flex items-center justify-center mb-2", c.iconBg)}>
                     <c.icon className={cn("h-4 w-4", c.iconColor)} />
                   </Box>

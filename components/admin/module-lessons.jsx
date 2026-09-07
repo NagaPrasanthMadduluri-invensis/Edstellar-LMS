@@ -636,7 +636,7 @@ export function ModuleLessons({ moduleId }) {
             </DialogHeader>
           </Box>
 
-          <Box className="overflow-y-auto max-h-[70vh] px-6 py-5 space-y-5">
+          <Box className="overflow-y-auto max-h-[70dvh] px-6 py-5 space-y-5">
 
             {/* ── Section: Basic Info ── */}
             <Box className="rounded-xl bg-paper-warm border border-border p-4 space-y-4">
@@ -668,7 +668,7 @@ export function ModuleLessons({ moduleId }) {
             {/* ── Section: Content ── */}
             <Box className="rounded-xl bg-paper-warm border border-border p-4 space-y-4">
               <Text as="p" className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Content</Text>
-              <Box className="grid grid-cols-2 gap-4">
+              <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Box className="space-y-1.5">
                   <Label className="text-sm font-medium text-ink/80">Content Type <Text as="span" className="text-error">*</Text></Label>
                   <Select value={form.content_type} onValueChange={(v) => setForm((f) => ({ ...f, content_type: v, content_url: "", scorm_file: null, scorm_package_id: f.content_type === "scorm" ? null : f.scorm_package_id, ...(isDocumentType(v) ? {} : { document_key: null, document_name: "", document_mime: "", document_size_bytes: null }) }))}>
@@ -914,7 +914,7 @@ export function ModuleLessons({ moduleId }) {
             {/* ── Section: Settings ── */}
             <Box className="rounded-xl bg-paper-warm border border-border p-4 space-y-4">
               <Text as="p" className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Settings</Text>
-              <Box className="grid grid-cols-3 gap-4">
+              <Box className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Box className="space-y-1.5">
                   <Label className="text-sm font-medium text-ink/80">Sort Order</Label>
                   <Input

@@ -81,8 +81,8 @@ export function AdminDepartmentsContent() {
 
               {/* ── Top row: name + percentage (gray header) ── */}
               <Box className="bg-muted/50 px-5 py-4 border-b border-border">
-                <Box className="flex items-start justify-between gap-3">
-                  <Box>
+                <Box className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                  <Box className="min-w-0 flex-1 basis-[8rem]">
                     <Text as="h3" className="text-base font-bold leading-tight">{dept.dept}</Text>
                     <Text as="p" className="text-xs text-muted-foreground mt-0.5">
                       {dept.total} employee{dept.total !== 1 ? "s" : ""}

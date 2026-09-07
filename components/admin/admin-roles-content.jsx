@@ -95,7 +95,7 @@ export function AdminRolesContent() {
       </Box>
 
       {/* ── Role summary cards ── */}
-      <Box className="grid grid-cols-3 gap-3">
+      <Box className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {ROLES.map((role) => {
           const count = perms[role.key].size;
           return (
@@ -120,15 +120,16 @@ export function AdminRolesContent() {
       {/* ── Permission Matrix ── */}
       <Card>
         <CardContent className="p-0">
-          <Box className="flex items-center justify-between px-6 py-4 border-b">
+          <Box className="flex flex-col gap-1 px-4 py-4 border-b sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
             <Text as="h3" className="text-base font-bold">Permission Matrix</Text>
             <Text as="p" className="text-xs text-muted-foreground">
               Admin permissions are editable except &ldquo;Manage Users&rdquo; (lockout safety). Learner is the baseline tier.
             </Text>
           </Box>
 
+          <Box className="overflow-x-auto">
           {/* Table header */}
-          <Box className="grid grid-cols-[1fr_120px_120px_120px] px-6 py-3 border-b bg-muted/30">
+          <Box className="grid min-w-[34rem] grid-cols-[1fr_120px_120px_120px] px-6 py-3 border-b bg-muted/30">
             <Text as="span" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Permission</Text>
             {ROLES.map((r) => (
               <Text key={r.key} as="span"
@@ -144,7 +145,7 @@ export function AdminRolesContent() {
           {PERMISSIONS.map((perm, idx) => (
             <Box
               key={perm.id}
-              className={`grid grid-cols-[1fr_120px_120px_120px] items-center px-6 py-3.5 ${
+              className={`grid min-w-[34rem] grid-cols-[1fr_120px_120px_120px] items-center px-6 py-3.5 ${
                 idx !== PERMISSIONS.length - 1 ? "border-b" : ""
               } hover:bg-muted/20 transition-colors`}
             >
@@ -173,6 +174,7 @@ export function AdminRolesContent() {
               })}
             </Box>
           ))}
+          </Box>
         </CardContent>
       </Card>
     </Box>

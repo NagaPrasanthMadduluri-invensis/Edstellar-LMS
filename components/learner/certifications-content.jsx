@@ -74,7 +74,7 @@ function StatsBar({ certs }) {
         </Box>
       </Box>
 
-      <Box className="grid grid-cols-3 gap-3">
+      <Box className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {stats.map((s) => (
           <Box key={s.label} className="rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm">
             <Text as="p" className="text-2xl font-bold text-white">{s.value}</Text>

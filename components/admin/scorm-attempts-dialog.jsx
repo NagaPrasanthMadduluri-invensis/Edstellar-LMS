@@ -129,7 +129,7 @@ export function ScormAttemptsDialog({ packageId, learner, open, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-xl max-h-[85dvh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-base">
             Attempts — {learner?.first_name} {learner?.last_name}

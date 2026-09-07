@@ -39,7 +39,7 @@ const TIMELINE_CFG = {
 function ProgressSkeleton() {
   return (
     <Box className="space-y-4">
-      <Box className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
       </Box>
       <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -130,7 +130,7 @@ export function MyProgressContent() {
     <Box className="space-y-4">
 
       {/* ── 6 stat cards ── */}
-      <Box className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {statCards.map((s) => <StatCard key={s.label} {...s} />)}
       </Box>
 
@@ -138,7 +138,7 @@ export function MyProgressContent() {
       <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Course History */}
-        <Card className="p-5">
+        <Card className="gap-0 p-5">
           <Box className="mb-4">
             <Text as="h3" className="text-base font-semibold">Course History</Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">Your record per course — scores, time, outcome</Text>
@@ -228,7 +228,7 @@ export function MyProgressContent() {
       <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Assessment Performance */}
-        <Card className="p-5">
+        <Card className="gap-0 p-5">
           <Box className="flex items-center justify-between mb-5">
             <Text as="h3" className="text-base font-semibold">Assessment Performance</Text>
             <Text as="p" className="text-xs text-muted-foreground">Your scores across all assessments taken</Text>
@@ -242,7 +242,7 @@ export function MyProgressContent() {
           ) : (
             <Box className="space-y-4">
               {/* 3 big numbers */}
-              <Box className="grid grid-cols-3 gap-4 pb-4 border-b">
+              <Box className="grid grid-cols-2 sm:grid-cols-3 gap-4 pb-4 border-b">
                 {[
                   { val: assessmentPerformance.avgScore,  label: "AVG SCORE",  cls: assessmentPerformance.avgScore  !== null && assessmentPerformance.avgScore  < 50 ? "text-error" : "text-navy" },
                   { val: assessmentPerformance.bestScore, label: "BEST SCORE", cls: "text-navy" },
@@ -280,14 +280,14 @@ export function MyProgressContent() {
         </Card>
 
         {/* Learning Hours Trend */}
-        <Card className="p-5">
+        <Card className="gap-0 p-5">
           <Box className="flex items-center justify-between mb-5">
             <Text as="h3" className="text-base font-semibold">Learning Hours Trend</Text>
             <Text as="p" className="text-xs text-muted-foreground">Month-on-month investment</Text>
           </Box>
 
           {/* 3 big numbers */}
-          <Box className="grid grid-cols-3 gap-4 mb-5">
+          <Box className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
             {[
               { val: `${learningHours.thisMonth}h`, label: "THIS MONTH", cls: "text-navy" },
               { val: `${learningHours.lastMonth}h`, label: "LAST MONTH", cls: "text-navy" },

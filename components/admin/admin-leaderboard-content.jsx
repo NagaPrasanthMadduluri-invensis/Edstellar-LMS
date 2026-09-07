@@ -107,18 +107,18 @@ export function AdminLeaderboardContent() {
           { icon: TrendingUp,value: `${stats.avgCompletion}%`, label: "Avg Completion", sub: "Course completion rate", iconBg: "bg-paper-cream",  iconColor: "text-ink/70",  circle: "bg-paper-cream"  },
           { icon: Award,     value: stats.topName?.split(" ")[0] || "—", label: "Top Performer", sub: stats.topDept || "", iconBg: "bg-paper-cream",   iconColor: "text-ink/70",   circle: "bg-paper-cream"   },
         ].map((s) => (
-          <Card key={s.label} className="relative overflow-hidden p-5">
-            <Box className="flex items-start gap-3">
+          <Card key={s.label} className="relative overflow-hidden p-4 sm:p-5">
+            <Box className="relative z-10 flex items-start gap-3">
               <Box className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
                 <s.icon className={`h-5 w-5 ${s.iconColor}`} />
               </Box>
-              <Box>
-                <Text as="h2" className="text-2xl font-bold leading-tight">{s.value}</Text>
+              <Box className="min-w-0">
+                <Text as="h2" className="text-xl font-bold leading-tight sm:text-2xl">{s.value}</Text>
                 <Text as="p" className="text-sm text-muted-foreground">{s.label}</Text>
                 <Text as="p" className="text-xs text-muted-foreground/70 mt-0.5">{s.sub}</Text>
               </Box>
             </Box>
-            <Box className={`absolute -right-5 -top-5 w-24 h-24 rounded-full opacity-60 ${s.circle}`} />
+            <Box className={`pointer-events-none absolute -right-5 -top-5 h-20 w-20 rounded-full opacity-60 sm:h-24 sm:w-24 ${s.circle}`} />
           </Card>
         ))}
       </Box>
@@ -211,13 +211,13 @@ export function AdminLeaderboardContent() {
       )}
 
       {/* Full Rankings Table */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-x-auto">
         <Box className="px-6 py-4 border-b">
           <Text as="h3" className="text-base font-bold">Full Rankings</Text>
           <Text as="p" className="text-xs text-muted-foreground">Score = 60% course completion + 40% learning hours (normalised)</Text>
         </Box>
 
-        <Box className="grid grid-cols-[48px_1fr_130px_110px_110px_160px_100px_110px] gap-0 px-5 py-2.5 border-b bg-muted/30">
+        <Box className="grid min-w-[56rem] grid-cols-[48px_1fr_130px_110px_110px_160px_100px_110px] gap-0 px-5 py-2.5 border-b bg-muted/30">
           {["RANK","LEARNER","DEPARTMENT","THIS MONTH","ALL TIME","COMPLETION","SCORE","BADGE"].map((h) => (
             <Text key={h} as="span" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{h}</Text>
           ))}
@@ -233,7 +233,7 @@ export function AdminLeaderboardContent() {
             <Box
               key={l.id}
               className={cn(
-                "grid grid-cols-[48px_1fr_130px_110px_110px_160px_100px_110px] gap-0 items-center px-5 py-3.5 border-b last:border-b-0 hover:bg-muted/20 transition-colors",
+                "grid min-w-[56rem] grid-cols-[48px_1fr_130px_110px_110px_160px_100px_110px] gap-0 items-center px-5 py-3.5 border-b last:border-b-0 hover:bg-muted/20 transition-colors",
                 idx < 3 && "bg-paper-cream"
               )}
             >

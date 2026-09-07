@@ -203,7 +203,7 @@ function DocumentLessonView({ lesson, media }) {
 
   if (looksPdf) {
     return (
-      <Card className="overflow-hidden h-[80vh] p-0">
+      <Card className="overflow-hidden h-[80dvh] p-0">
         <iframe
           src={url}
           title={lesson.title}
@@ -705,7 +705,7 @@ export function LessonContent({ courseId, lessonId }) {
           onStatusRefresh={loadLesson}
         />
       ) : isHosted ? (
-        <Card className="overflow-hidden h-[80vh]">
+        <Card className="overflow-hidden aspect-video sm:aspect-auto sm:h-[80dvh]">
           {media === undefined ? (
             <Box className="h-full w-full bg-navy flex items-center justify-center">
               <Text as="p" className="text-sm text-paper/60 font-mono">Preparing video…</Text>
@@ -732,7 +732,7 @@ export function LessonContent({ courseId, lessonId }) {
           )}
         </Card>
       ) : lesson.content_url ? (
-        <Card className="overflow-hidden h-[80vh]">
+        <Card className="overflow-hidden aspect-video sm:aspect-auto sm:h-[80dvh]">
           {isYT ? (
             <YoutubePlayer
               videoId={extractYouTubeId(lesson.content_url)}

@@ -109,7 +109,7 @@ export function AdminJourneysContent() {
     <Box className="space-y-5">
 
       {/* ── Toolbar ── */}
-      <Box className="flex items-center justify-between">
+      <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Text as="p" className="text-sm text-muted-foreground">
           {journeys.length} learning path{journeys.length !== 1 ? "s" : ""} created
         </Text>
@@ -229,7 +229,7 @@ export function AdminJourneysContent() {
 
       {/* ── Create Journey Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold">Create Learning Journey</DialogTitle>
           </DialogHeader>
@@ -271,7 +271,7 @@ export function AdminJourneysContent() {
             </Box>
 
             {/* Due Date + Duration + Assign To */}
-            <Box className="grid grid-cols-3 gap-3">
+            <Box className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Box className="space-y-1.5">
                 <Label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Due Date</Label>
                 <Input
@@ -308,7 +308,7 @@ export function AdminJourneysContent() {
             </Box>
 
             {/* Completion Criteria + Status */}
-            <Box className="grid grid-cols-2 gap-3">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Box className="space-y-1.5">
                 <Label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Completion Criteria</Label>
                 <Select value={form.criteria} onValueChange={(v) => setForm((p) => ({ ...p, criteria: v }))}>

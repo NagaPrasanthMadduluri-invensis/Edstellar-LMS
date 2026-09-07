@@ -161,7 +161,7 @@ export function CourseSelector() {
       <Box className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((s) => (
           <Card key={s.label} className="relative overflow-hidden p-5">
-            <Box className="flex items-start gap-3">
+            <Box className="relative z-10 flex items-start gap-3">
               <Box className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
                 <s.icon className={`h-5 w-5 ${s.iconColor}`} />
               </Box>
@@ -171,7 +171,7 @@ export function CourseSelector() {
                 {s.sub && <Text as="p" className="text-xs text-muted-foreground/70">{s.sub}</Text>}
               </Box>
             </Box>
-            <Box className={`absolute -right-5 -top-5 w-24 h-24 rounded-full opacity-60 ${s.circle}`} />
+            <Box className={`pointer-events-none absolute -right-5 -top-5 h-20 w-20 rounded-full opacity-60 sm:h-24 sm:w-24 ${s.circle}`} />
           </Card>
         ))}
       </Box>
@@ -253,15 +253,15 @@ export function CourseSelector() {
                 className="cursor-pointer hover:shadow-md transition-shadow group overflow-hidden border-l-4 border-l-blue-500"
                 onClick={() => router.push(href)}
               >
-                <Box className="p-6 space-y-4">
+                <Box className="p-4 space-y-4 sm:p-6">
 
                   {/* ── Top row: icon + title + action buttons ── */}
-                  <Box className="flex items-start gap-3">
+                  <Box className="flex flex-wrap items-start gap-3">
                     <Box className="w-12 h-12 rounded-xl bg-paper-cream border border-navy/20 flex items-center justify-center shrink-0">
                       <Settings2 className="h-5.5 w-5.5 text-navy" />
                     </Box>
 
-                    <Box className="flex-1 min-w-0">
+                    <Box className="min-w-0 flex-1 basis-[12rem]">
                       {/* Badges row */}
                       <Box className="flex items-center gap-1.5 flex-wrap mb-1.5">
                         {course.assessments_count > 0 && (
@@ -287,13 +287,13 @@ export function CourseSelector() {
                       </Box>
 
                       {/* Title */}
-                      <Text as="h3" className="text-[17px] font-extrabold leading-snug group-hover:text-navy transition-colors">
+                      <Text as="h3" className="text-[17px] font-extrabold leading-snug break-words group-hover:text-navy transition-colors">
                         {course.name}
                       </Text>
                     </Box>
 
                     {/* Action buttons — horizontal row at top right */}
-                    <Box className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Box className="ml-auto flex flex-wrap items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       {!isSessionTraining && (
                         <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit"
                           onClick={(e) => { e.stopPropagation(); router.push(href); }}>

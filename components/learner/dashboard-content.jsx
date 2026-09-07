@@ -155,8 +155,8 @@ export function DashboardContent() {
       </Card>
 
       {/* ── Stats Bar (gradient) ── */}
-      <Box className="bg-navy rounded-xl px-6 py-4 flex items-center gap-0">
-        <Box className="flex items-center gap-8 text-white flex-1">
+      <Box className="bg-navy rounded-xl px-4 py-4 flex flex-wrap items-center gap-3 sm:px-6">
+        <Box className="flex flex-wrap items-center gap-4 text-white basis-full sm:flex-1 sm:basis-auto sm:gap-8">
           <Box>
             <Text as="p" className="text-2xl font-extrabold leading-none text-white">{points}</Text>
             <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Points</Text>
@@ -209,7 +209,7 @@ export function DashboardContent() {
         <Box className="space-y-4">
 
           {/* Continue Learning */}
-          <Card className="p-5">
+          <Card className="gap-0 p-5">
             <Box className="flex items-center justify-between mb-4">
               <Text as="h3" className="text-base font-semibold">Continue Learning</Text>
               <Text as="p" className="text-xs text-muted-foreground">Pick up where you left off</Text>
@@ -257,7 +257,7 @@ export function DashboardContent() {
           </Card>
 
           {/* Learning Journey */}
-          <Card className="p-5">
+          <Card className="gap-0 p-5">
             <Box className="flex items-center justify-between mb-1">
               <Text as="h3" className="text-base font-semibold">Learning Journey</Text>
               <Link href="/my-courses" className="text-xs text-navy hover:underline font-medium flex items-center gap-0.5">
@@ -336,7 +336,7 @@ export function DashboardContent() {
         <Box className="space-y-4">
 
           {/* Upcoming Deadlines */}
-          <Card className="p-5">
+          <Card className="gap-0 p-5">
             <Box className="flex items-center justify-between mb-4">
               <Text as="h3" className="text-base font-semibold">Upcoming Deadlines</Text>
               <Text as="p" className="text-xs text-muted-foreground">Courses due soon</Text>
@@ -370,7 +370,7 @@ export function DashboardContent() {
           </Card>
 
           {/* Hours Goal */}
-          <Card className="p-5">
+          <Card className="gap-0 p-5">
             <Box className="flex items-center justify-between mb-3">
               <Box>
                 <Text as="h3" className="text-base font-semibold">Hours Goal</Text>
@@ -403,7 +403,7 @@ export function DashboardContent() {
           </Card>
 
           {/* Recent Activity */}
-          <Card className="p-5">
+          <Card className="gap-0 p-5">
             <Text as="h3" className="text-base font-semibold mb-4">Recent Activity</Text>
             {recent_activity.length === 0 ? (
               <Box className="py-4 text-center">

@@ -120,7 +120,7 @@ export function CourseModulesContent({ courseId }) {
 
   return (
     <Box className="space-y-4">
-      <Box className="flex items-center justify-between">
+      <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Text as="p" className="text-sm text-muted-foreground">
           {modules.length} module{modules.length !== 1 ? "s" : ""}
         </Text>
@@ -231,7 +231,7 @@ export function CourseModulesContent({ courseId }) {
                 className="bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 resize-none transition-colors"
               />
             </Box>
-            <Box className="grid grid-cols-2 gap-4">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-1.5">
                 <Label className="text-sm font-medium text-ink/80">Sort Order</Label>
                 <Input

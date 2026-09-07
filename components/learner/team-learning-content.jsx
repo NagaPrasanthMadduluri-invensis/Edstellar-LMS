@@ -146,7 +146,7 @@ export function TeamLearningContent() {
       <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Team Completion */}
-        <Card className="p-5">
+        <Card className="gap-0 p-5">
           <Box className="flex items-center justify-between mb-4">
             <Text as="h3" className="text-base font-semibold">Team Completion</Text>
             <Text as="span" className="text-xs text-muted-foreground">Status distribution</Text>
@@ -219,7 +219,7 @@ export function TeamLearningContent() {
       </Box>
 
       {/* ── Individual Progress table ── */}
-      <Card className="p-5">
+      <Card className="gap-0 p-5">
         <Box className="mb-4">
           <Text as="h3" className="text-base font-semibold">Individual Progress</Text>
           <Text as="p" className="text-xs text-muted-foreground mt-0.5">All courses · click name to view full profile</Text>

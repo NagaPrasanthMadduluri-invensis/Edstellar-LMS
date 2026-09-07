@@ -221,7 +221,7 @@ export function AdminScormContent() {
       </Box>
 
       {/* ── Header ── */}
-      <Box className="flex items-center justify-between gap-3">
+      <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Text as="h2" className="text-base font-bold">SCORM Packages</Text>
         <Button size="sm" className="gap-1.5 h-9" onClick={() => setUploadOpen(true)}>
           <Upload className="h-4 w-4" />Upload SCORM Package
@@ -412,7 +412,7 @@ export function AdminScormContent() {
 
       {/* ── Assign Dialog ── */}
       <Dialog open={!!assignPkg} onOpenChange={(o) => { if (!o) setAssignPkg(null); }}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-lg max-h-[85dvh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Assign — {assignPkg?.title}</DialogTitle>
           </DialogHeader>
@@ -464,9 +464,9 @@ export function AdminScormContent() {
             {/* Add learners */}
             <Box className="space-y-2">
               <Text as="p" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Learners</Text>
-              <Box className="flex gap-2">
+              <Box className="flex flex-col gap-2 sm:flex-row">
                 <Select value={assignDept} onValueChange={setAssignDept}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[160px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
                     {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}

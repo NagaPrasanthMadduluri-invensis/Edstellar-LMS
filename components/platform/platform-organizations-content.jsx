@@ -94,7 +94,7 @@ export function PlatformOrganizationsContent() {
 
   return (
     <Box className="space-y-5">
-      <Box className="flex items-center justify-between">
+      <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Text as="p" className="text-sm text-muted-foreground">
           {organizations.length} organisation{organizations.length !== 1 ? "s" : ""}
         </Text>

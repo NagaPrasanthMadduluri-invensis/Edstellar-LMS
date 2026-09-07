@@ -44,6 +44,22 @@ export const metadata = {
   },
 };
 
+/**
+ * Next injects a default viewport meta tag, but it is declared explicitly here
+ * because the whole responsive layer depends on it: without
+ * `width=device-width` a phone lays the page out at ~980px and then scales it
+ * down, so every breakpoint below `lg` would never match and the work in the
+ * shells and grids would be invisible.
+ *
+ * No `maximumScale` and no `userScalable: false` — pinch-zoom stays available.
+ * Disabling it is an accessibility regression, and it is the usual reason a
+ * "mobile-optimised" page cannot be zoomed to read a dense table.
+ */
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html

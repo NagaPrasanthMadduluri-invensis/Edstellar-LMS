@@ -188,7 +188,7 @@ export function CourseAssessmentsContent({ courseId }) {
 
   return (
     <Box className="space-y-4">
-      <Box className="flex items-center justify-between">
+      <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Text as="p" className="text-sm text-muted-foreground">
           {assessments.length} assessment{assessments.length !== 1 ? "s" : ""}
         </Text>
@@ -364,7 +364,7 @@ export function CourseAssessmentsContent({ courseId }) {
 
       {/* ── Question Dialog ── */}
       <Dialog open={qDialog} onOpenChange={setQDialog}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingQ ? "Edit Question" : "Add Question"}</DialogTitle>
           </DialogHeader>

@@ -271,7 +271,7 @@ export function AssessmentContent({ courseId, assessmentId }) {
       </Button>
 
       {/* ── Assessment Header ── */}
-      <Card>
+      <Card className="gap-0">
         <Box className="h-1.5 bg-navy" />
         <CardContent className="p-5">
           <Box className="flex items-start justify-between gap-4 flex-wrap">

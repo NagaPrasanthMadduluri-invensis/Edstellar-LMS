@@ -58,7 +58,7 @@ function LBSkeleton() {
   return (
     <Box className="space-y-5">
       <Skeleton className="h-20 rounded-xl" />
-      <Box className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</Box>
+      <Box className="grid grid-cols-1 md:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</Box>
       <Skeleton className="h-56 rounded-xl" />
       <Skeleton className="h-64 rounded-xl" />
     </Box>
@@ -122,7 +122,7 @@ export function LeaderboardContent() {
             const rec = recognition[key];
             const cfg = RECOGNITION_CFG[key];
             return (
-              <Card key={key} className={cn("p-4 border-l-4", cfg.border)}>
+              <Card key={key} className={cn("gap-0 p-4 border-l-4", cfg.border)}>
                 <Box className="flex items-center gap-1.5 mb-2">
                   <Text as="span" className="text-sm">{cfg.icon}</Text>
                   <Text as="p" className={cn("text-[10px] font-bold tracking-widest uppercase", cfg.tag)}>

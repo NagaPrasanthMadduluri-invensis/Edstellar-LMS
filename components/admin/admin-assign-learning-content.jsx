@@ -68,7 +68,7 @@ function formatDateDisplay(iso) {
 function LoadingSkeleton() {
   return (
     <Box className="space-y-5 mt-5">
-      <Box className="grid grid-cols-2 gap-4">
+      <Box className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Skeleton className="h-28 rounded-xl" />
         <Skeleton className="h-28 rounded-xl" />
       </Box>
@@ -211,7 +211,7 @@ export function AdminAssignLearningContent() {
 
   /* ── Page header ── */
   const header = (
-    <Box className="flex items-start justify-between gap-4">
+    <Box className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <Box>
         <Text as="h1" className="text-2xl font-bold">Assign Learning</Text>
         <Text as="p" className="text-sm text-muted-foreground mt-0.5">
@@ -222,7 +222,7 @@ export function AdminAssignLearningContent() {
       </Box>
 
       {/* Tab bar */}
-      <Box className="flex items-center gap-1 shrink-0">
+      <Box className="-mx-1 flex shrink-0 items-center gap-1 overflow-x-auto px-1">
         {TABS.map((tab) => {
           const active = activeTab === tab.id;
           return (
@@ -230,7 +230,7 @@ export function AdminAssignLearningContent() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-xl text-sm font-medium transition-all sm:px-4",
                 active
                   ? "bg-navy text-white shadow-sm"
                   : "text-ink/60 hover:text-ink/80 hover:bg-paper-cream"
@@ -298,7 +298,7 @@ export function AdminAssignLearningContent() {
             <Text as="p" className="text-xs text-muted-foreground mb-1.5">Course to assign:</Text>
             <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
               <SelectTrigger className="h-10 text-sm w-full bg-white">
-                <SelectValue placeholder="Choose a course" />
+                <SelectValue placeholder="Choose a course">{selectedCourse?.name}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {courses.map((c) => (
@@ -318,7 +318,7 @@ export function AdminAssignLearningContent() {
         </Card>
 
         {/* Right — Set Due Date */}
-        <Card className="p-5 space-y-3">
+        <Card className="gap-0 p-5 space-y-3">
           <Text as="h3" className="text-sm font-bold">Set Due Date</Text>
           <Box>
             <Text as="p" className="text-xs text-muted-foreground mb-1.5">Global due date for all selected:</Text>
@@ -422,7 +422,7 @@ export function AdminAssignLearningContent() {
             return (
               <Card key={dept} className="overflow-hidden">
                 {/* Dept header */}
-                <Box className="flex items-center gap-3 px-5 py-3 border-b">
+                <Box className="flex flex-wrap items-center gap-3 px-4 py-3 border-b sm:px-5">
                   <Box className="min-w-0">
                     <Text as="span" className={`text-sm font-bold ${cfg.text}`}>{dept}</Text>
                     <Text as="span" className="text-xs text-muted-foreground ml-2">
@@ -470,7 +470,7 @@ export function AdminAssignLearningContent() {
                   return (
                     <Box
                       key={emp.id}
-                      className="flex items-center gap-4 px-5 py-3 border-b last:border-b-0 hover:bg-muted/10 transition-colors"
+                      className="flex flex-wrap items-center gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-muted/10 transition-colors sm:gap-4 sm:px-5"
                     >
                       {/* Avatar */}
                       <Avatar className="h-10 w-10 shrink-0">
@@ -480,7 +480,7 @@ export function AdminAssignLearningContent() {
                       </Avatar>
 
                       {/* Name + role + location */}
-                      <Box className="flex-1 min-w-0">
+                      <Box className="min-w-0 flex-1 basis-[10rem]">
                         <Text as="p" className="text-sm font-semibold leading-tight">{emp.first_name} {emp.last_name}</Text>
                         <Box className="flex items-center gap-1.5 flex-wrap mt-0.5">
                           {emp.department && (
@@ -496,7 +496,7 @@ export function AdminAssignLearningContent() {
                       </Box>
 
                       {/* Status */}
-                      <Text as="span" className={`text-xs w-16 shrink-0 ${st.cls}`}>{st.label}</Text>
+                      <Text as="span" className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${st.cls}`}>{st.label}</Text>
 
                       {/* Per-row due date */}
                       <input

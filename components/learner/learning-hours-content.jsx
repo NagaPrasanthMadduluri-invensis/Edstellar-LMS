@@ -53,7 +53,7 @@ function Medal({ rank }) {
 function LHSkeleton() {
   return (
     <Box className="space-y-4">
-      <Box className="grid grid-cols-3 lg:grid-cols-6 gap-3">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</Box>
+      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</Box>
       <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4"><Skeleton className="h-56 rounded-xl" /><Skeleton className="h-56 rounded-xl" /></Box>
       <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4"><Skeleton className="h-52 rounded-xl" /><Skeleton className="h-52 rounded-xl" /></Box>
       <Skeleton className="h-64 rounded-xl" />
@@ -131,9 +131,9 @@ export function LearningHoursContent() {
     <Box className="space-y-4">
 
       {/* ── 6 stat cards ── */}
-      <Box className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {statCards.map((sc) => (
-          <Card key={sc.label} className="relative overflow-hidden p-4">
+          <Card key={sc.label} className="gap-0 relative overflow-hidden p-4">
             <Box className={cn("w-9 h-9 rounded-lg flex items-center justify-center mb-2", sc.iconBg)}>
               <sc.icon className={cn("h-4 w-4", sc.iconColor)} />
             </Box>
@@ -149,7 +149,7 @@ export function LearningHoursContent() {
       <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Monthly Goal Progress */}
-        <Card className="p-5">
+        <Card className="gap-0 p-5">
           <Box className="flex items-center justify-between mb-4">
             <Box>
               <Text as="h3" className="text-base font-semibold">Monthly Goal Progress</Text>
@@ -323,7 +323,7 @@ export function LearningHoursContent() {
       </Box>
 
       {/* ── Dept Peers table ── */}
-      <Card className="p-5">
+      <Card className="gap-0 p-5">
         <Box className="flex items-center justify-between mb-1">
           <Box>
             <Text as="h3" className="text-base font-semibold">Your Department — {s.dept}</Text>
@@ -406,9 +406,9 @@ export function LearningHoursContent() {
           {orgOverview.map((d) => {
             const col = deptColor(d.dept);
             return (
-              <Card key={d.dept} className={cn("p-4 relative overflow-hidden border-l-4")} style={{ borderLeftColor: col }}>
-                <Box className="flex items-center gap-2 mb-2">
-                  <Text as="h4" className="text-sm font-bold" style={{ color: col }}>{d.dept}</Text>
+              <Card key={d.dept} className={cn("gap-0 p-4 relative overflow-hidden border-l-4")} style={{ borderLeftColor: col }}>
+                <Box className="flex flex-wrap items-center gap-2 mb-2">
+                  <Text as="h4" className="text-sm font-bold basis-full sm:basis-auto" style={{ color: col }}>{d.dept}</Text>
                   {d.isYourDept && (
                     <Badge className="text-[9px] px-1.5 py-0 border-0" style={{ background: col + "22", color: col }}>Your dept</Badge>
                   )}

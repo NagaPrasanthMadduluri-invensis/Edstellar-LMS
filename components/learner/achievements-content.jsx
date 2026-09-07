@@ -135,9 +135,9 @@ export function AchievementsContent() {
     <Box className="space-y-6">
 
       {/* ── Hero stats banner ── */}
-      <Box className="rounded-xl bg-navy px-6 py-5 flex items-center gap-0">
+      <Box className="rounded-xl bg-navy px-4 py-5 flex flex-wrap items-center gap-4 sm:px-6">
         {/* 3 stats */}
-        <Box className="flex items-center gap-0 flex-1">
+        <Box className="flex flex-wrap items-center gap-y-3 basis-full sm:flex-1 sm:basis-auto">
           <Box className="pr-6">
             <Text as="h2" className="text-3xl font-extrabold text-white leading-none">{summary.points}</Text>
             <Text as="p" className="text-[10px] font-bold tracking-widest uppercase text-white/70 mt-1">Total Points</Text>
@@ -156,7 +156,7 @@ export function AchievementsContent() {
 
         {/* next badge card */}
         {nextBadge && (
-          <Box className="bg-white/15 rounded-xl px-4 py-3 min-w-[180px] max-w-[220px]">
+          <Box className="w-full bg-white/15 rounded-xl px-4 py-3 sm:w-auto sm:min-w-[180px] sm:max-w-[220px]">
             <Text as="p" className="text-[10px] font-bold tracking-widest uppercase text-white/60 mb-1.5">Next Badge</Text>
             <Box className="flex items-center gap-2">
               <Box className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">

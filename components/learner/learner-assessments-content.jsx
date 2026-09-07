@@ -92,7 +92,7 @@ function AssessmentCard({ assessment }) {
             )}
           </Box>
 
-          <Box className="flex-1 min-w-0">
+          <Box className="min-w-0 flex-1 basis-[12rem]">
             <Text as="p" className="text-sm font-semibold">{title}</Text>
             <Box className="flex items-center gap-1.5 mt-0.5">
               <BookOpen className="h-3 w-3 text-muted-foreground" />

@@ -362,8 +362,8 @@ export function AdminAssessmentsStandaloneContent() {
         const detail = expandedData[a.id];
         return (
           <Card key={a.id} className="overflow-hidden">
-            <Box className="flex items-start justify-between gap-4 px-5 py-4">
-              <Box className="flex items-start gap-3 flex-1 min-w-0">
+            <Box className="flex flex-wrap items-start justify-between gap-4 px-4 py-4 sm:px-5">
+              <Box className="flex min-w-0 flex-1 basis-[14rem] items-start gap-3">
                 <Box className="w-9 h-9 rounded-xl bg-paper-cream flex items-center justify-center shrink-0">
                   <ClipboardList className="h-4 w-4 text-navy" />
                 </Box>
@@ -390,7 +390,7 @@ export function AdminAssessmentsStandaloneContent() {
                   </Box>
                 </Box>
               </Box>
-              <Box className="flex items-center gap-1.5 shrink-0">
+              <Box className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
                 <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleExpand(a.id)}>
                   {isExpanded ? "Hide" : "Edit Questions"}
                 </Button>

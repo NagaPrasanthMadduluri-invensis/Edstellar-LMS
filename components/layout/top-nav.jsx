@@ -24,6 +24,12 @@ import { useAuth } from "@/hooks/use-auth";
  * The label used to be a prop, which let the two shells drift apart — admin
  * read "Edstellar Admin" and learner "Invensis LMS" — with a "powered by"
  * line under each. It is a constant now, so the two cannot disagree again.
+ *
+ * Responsive notes: the left group carries `min-w-0` and the title `truncate`,
+ * so a narrow screen shortens the product name rather than pushing the avatar
+ * and the sidebar trigger off the right edge. The trigger itself is the only
+ * way to reach navigation under 768px, so it must never be the element that
+ * overflows.
  */
 export function TopNav() {
   const { user, logout } = useAuth();
@@ -31,20 +37,20 @@ export function TopNav() {
   return (
     <Box
       as="header"
-      className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between bg-sidebar px-4"
+      className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between gap-2 bg-sidebar px-3 sm:px-4"
     >
-      <Box className="flex items-center gap-3">
-        <SidebarTrigger className="bg-transparent hover:bg-transparent" />
-        <Separator orientation="vertical" className="h-6 text-white" />
+      <Box className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <SidebarTrigger className="shrink-0 bg-transparent hover:bg-transparent" />
+        <Separator orientation="vertical" className="hidden h-6 text-white sm:block" />
         <Text
           as="h2"
-          className="text-lg font-semibold tracking-tight text-background leading-none select-none"
+          className="truncate text-base font-semibold leading-none tracking-tight text-background select-none sm:text-lg"
         >
           Edstellar LMS
         </Text>
       </Box>
 
-      <Box className="flex items-center gap-2">
+      <Box className="flex shrink-0 items-center gap-1 sm:gap-2">
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5 text-white" />
           <Text
@@ -59,7 +65,7 @@ export function TopNav() {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="flex items-center gap-2 rounded-full p-1 pr-3 bg-background hover:bg-muted transition-colors"
+              className="flex items-center gap-2 rounded-full bg-background p-1 pr-1 transition-colors hover:bg-muted sm:pr-3"
             >
               <Avatar className="h-8 w-8">
                 <AvatarImage src={user?.avatar || ""} alt={user?.name || "User"} />
@@ -67,7 +73,10 @@ export function TopNav() {
                   {user?.initials || "U"}
                 </AvatarFallback>
               </Avatar>
-              <Text as="span" className="hidden text-sm font-medium sm:inline-block">
+              <Text
+                as="span"
+                className="hidden max-w-[10rem] truncate text-sm font-medium sm:inline-block"
+              >
                 {user?.name || "User"}
               </Text>
             </Button>

@@ -147,7 +147,7 @@ export function LearnerTrainingCalendar() {
           </Box>
         </Box>
 
-        <Box className="flex items-center gap-2">
+        <Box className="flex flex-wrap items-center gap-2">
           {/* Calendar / List toggle */}
           <Box className="flex rounded-lg border overflow-hidden">
             <Button
@@ -167,7 +167,7 @@ export function LearnerTrainingCalendar() {
           </Box>
 
           {view === "calendar" && (
-            <>
+            <Box className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 px-3 gap-1" onClick={prevMonth}>
                 <ChevronLeft className="h-4 w-4" />Prev
               </Button>
@@ -175,7 +175,7 @@ export function LearnerTrainingCalendar() {
               <Button variant="outline" size="sm" className="h-9 px-3 gap-1" onClick={nextMonth}>
                 Next<ChevronRight className="h-4 w-4" />
               </Button>
-            </>
+            </Box>
           )}
         </Box>
       </Box>
@@ -188,8 +188,8 @@ export function LearnerTrainingCalendar() {
       ) : view === "calendar" ? (
 
         /* ── Calendar grid ── */
-        <Card className="overflow-hidden">
-          <Box className="grid grid-cols-7 border-b bg-muted/30">
+        <Card className="overflow-x-auto">
+          <Box className="grid min-w-[44rem] grid-cols-7 border-b bg-muted/30">
             {WEEKDAYS.map((d) => (
               <Box key={d} className="py-3 text-center">
                 <Text as="span" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{d}</Text>
@@ -197,7 +197,7 @@ export function LearnerTrainingCalendar() {
             ))}
           </Box>
 
-          <Box className="grid grid-cols-7 divide-x divide-y">
+          <Box className="grid min-w-[44rem] grid-cols-7 divide-x divide-y">
             {cells.map((day, idx) => {
               const events    = day ? sessionsForDay(day) : [];
               const todayCell = day ? isToday(day) : false;

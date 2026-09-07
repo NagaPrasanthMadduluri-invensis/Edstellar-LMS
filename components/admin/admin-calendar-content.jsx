@@ -137,9 +137,9 @@ export function AdminCalendarContent() {
       </Box>
 
       {/* ── Calendar grid ── */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-x-auto">
         {/* Weekday headers */}
-        <Box className="grid grid-cols-7 border-b bg-muted/30">
+        <Box className="grid min-w-[44rem] grid-cols-7 border-b bg-muted/30">
           {WEEKDAYS.map((d) => (
             <Box key={d} className="py-3 text-center">
               <Text as="span" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{d}</Text>
@@ -148,7 +148,7 @@ export function AdminCalendarContent() {
         </Box>
 
         {/* Day cells */}
-        <Box className="grid grid-cols-7 divide-x divide-y">
+        <Box className="grid min-w-[44rem] grid-cols-7 divide-x divide-y">
           {cells.map((day, idx) => {
             const events = day ? sessionsForDay(day) : [];
             const todayCell = day ? isToday(day) : false;

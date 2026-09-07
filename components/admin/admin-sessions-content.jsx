@@ -169,7 +169,7 @@ function RosterDialog({ sessionId, sessionTitle, open, onClose, onRosterSaved })
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Session Roster</DialogTitle>
           <Text as="p" className="text-xs text-muted-foreground mt-0.5">{sessionTitle}</Text>
@@ -405,7 +405,7 @@ function SessionsTab({
       <Box className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((s) => (
           <Card key={s.label} className="relative overflow-hidden p-5">
-            <Box className="flex items-start gap-3">
+            <Box className="relative z-10 flex items-start gap-3">
               <Box className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
                 <s.icon className={`h-5 w-5 ${s.iconColor}`} />
               </Box>
@@ -415,7 +415,7 @@ function SessionsTab({
                 <Text as="p" className="text-xs text-muted-foreground/70 mt-0.5">{s.sub}</Text>
               </Box>
             </Box>
-            <Box className={`absolute -right-5 -top-5 w-24 h-24 rounded-full opacity-60 ${s.circle}`} />
+            <Box className={`pointer-events-none absolute -right-5 -top-5 h-20 w-20 rounded-full opacity-60 sm:h-24 sm:w-24 ${s.circle}`} />
           </Card>
         ))}
       </Box>
@@ -485,11 +485,11 @@ function SessionsTab({
                     "ring-2 ring-navy/40 shadow-md",
                 )}
               >
-                <CardContent className="p-5">
-                  <Box className="flex items-start gap-4">
+                <CardContent className="p-4 sm:p-5">
+                  <Box className="flex flex-wrap items-start gap-4">
 
                     {/* Left */}
-                    <Box className="flex-1 min-w-0 space-y-2">
+                    <Box className="min-w-0 flex-1 basis-[14rem] space-y-2">
 
                       {/* Row 1: badges */}
                       <Box className="flex items-center gap-2 flex-wrap">
@@ -540,7 +540,7 @@ function SessionsTab({
                     </Box>
 
                     {/* Right */}
-                    <Box className="shrink-0 flex flex-col items-end gap-2 ml-2">
+                    <Box className="ml-auto flex w-full shrink-0 flex-col items-start gap-2 sm:ml-2 sm:w-auto sm:items-end">
                       {/* Registered count */}
                       <Text as="p" className="text-sm font-semibold text-muted-foreground">
                         Registered{" "}
@@ -567,7 +567,7 @@ function SessionsTab({
                       )}
 
                       {/* Action buttons */}
-                      <Box className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <Box className="flex flex-wrap items-center gap-1.5 justify-start sm:justify-end">
                         {!isCompleted && (
                           <Button variant="outline" size="sm" className="h-7 text-xs px-2.5"
                             onClick={() => setRosterTarget({ id: s.id, title: s.title })}>
@@ -841,9 +841,9 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
           <Text as="p" className="text-sm text-muted-foreground">No learners enrolled in this session yet. Add them via Roster.</Text>
         </Card>
       ) : (
-        <Card className="overflow-hidden">
+        <Card className="overflow-x-auto">
           {/* Table header */}
-          <Box className="grid grid-cols-[40px_1fr_130px_160px_110px_1fr_120px] gap-0 px-5 py-2.5 border-b bg-muted/30">
+          <Box className="grid min-w-[52rem] grid-cols-[40px_1fr_130px_160px_110px_1fr_120px] gap-0 px-5 py-2.5 border-b bg-muted/30">
             {["#","LEARNER","DEPARTMENT","STATUS","JOIN TIME","NOTES","MARKED BY"].map((h) => (
               <Text key={h} as="span" className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{h}</Text>
             ))}
@@ -856,7 +856,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
             return (
               <Box
                 key={row.user_id}
-                className="grid grid-cols-[40px_1fr_130px_160px_110px_1fr_120px] gap-0 items-center px-5 py-3 border-b last:border-b-0 hover:bg-muted/10"
+                className="grid min-w-[52rem] grid-cols-[40px_1fr_130px_160px_110px_1fr_120px] gap-0 items-center px-5 py-3 border-b last:border-b-0 hover:bg-muted/10"
               >
                 <Text as="span" className="text-sm text-muted-foreground">{idx + 1}</Text>
 
@@ -1003,7 +1003,7 @@ function AttendanceReportsTab({ sessions }) {
       <Box className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {reportStatCards.map((s) => (
           <Card key={s.label} className="relative overflow-hidden p-5">
-            <Box className="flex items-start gap-3">
+            <Box className="relative z-10 flex items-start gap-3">
               <Box className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
                 <s.icon className={`h-5 w-5 ${s.iconColor}`} />
               </Box>
@@ -1012,7 +1012,7 @@ function AttendanceReportsTab({ sessions }) {
                 <Text as="p" className="text-sm text-muted-foreground">{s.label}</Text>
               </Box>
             </Box>
-            <Box className={`absolute -right-5 -top-5 w-24 h-24 rounded-full opacity-60 ${s.circle}`} />
+            <Box className={`pointer-events-none absolute -right-5 -top-5 h-20 w-20 rounded-full opacity-60 sm:h-24 sm:w-24 ${s.circle}`} />
           </Card>
         ))}
       </Box>
@@ -1037,9 +1037,9 @@ function AttendanceReportsTab({ sessions }) {
             return (
               <Card key={s.id} className="border">
                 <CardContent className="px-4 py-3">
-                  <Box className="flex items-start justify-between gap-4">
-                    <Box className="flex-1 min-w-0">
-                      <Box className="flex items-center gap-2 mb-1">
+                  <Box className="flex flex-wrap items-start justify-between gap-4">
+                    <Box className="min-w-0 flex-1 basis-[12rem]">
+                      <Box className="flex flex-wrap items-center gap-2 mb-1">
                         <Badge className={`text-[10px] font-medium border-0 ${typeCfg.cls}`}>{typeCfg.label}</Badge>
                         <Text as="p" className="text-sm font-semibold leading-snug truncate">{s.title}</Text>
                       </Box>
@@ -1065,7 +1065,7 @@ function AttendanceReportsTab({ sessions }) {
                         </Box>
                       )}
                     </Box>
-                    <Box className="shrink-0 text-right">
+                    <Box className="ml-auto shrink-0 text-right">
                       <Text as="p" className="text-xs text-muted-foreground">{formatDate(s.date)}</Text>
                       {attPct !== null && (
                         <Text as="p" className="text-base font-extrabold text-navy">{attPct}%</Text>
@@ -1217,7 +1217,7 @@ export function AdminSessionsContent() {
     <Box className="space-y-5">
 
       {/* ── Tab Bar ── */}
-      <Box className="flex gap-0 border-b">
+      <Box className="flex gap-0 overflow-x-auto border-b">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -1226,7 +1226,7 @@ export function AdminSessionsContent() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px",
+                "flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px sm:px-5",
                 active
                   ? "border-navy/20 text-navy bg-white"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-paper-warm"
@@ -1269,7 +1269,7 @@ export function AdminSessionsContent() {
 
       {/* ── Create / Edit Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editTarget ? "Edit Session" : "Create New Session"}</DialogTitle>
           </DialogHeader>
@@ -1280,7 +1280,7 @@ export function AdminSessionsContent() {
               <Input placeholder="e.g. Leadership Bootcamp — Batch 1" value={form.title} onChange={set("title")} className="h-10" />
             </Box>
 
-            <Box className="grid grid-cols-2 gap-4">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Session Type</Label>
                 <Box className="flex gap-2">
@@ -1327,7 +1327,7 @@ export function AdminSessionsContent() {
               </Select>
             </Box>
 
-            <Box className="grid grid-cols-2 gap-4">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Trainer / Facilitator <Text as="span" className="text-error">*</Text></Label>
                 <Input placeholder="Full name" value={form.trainer} onChange={set("trainer")} className="h-10" />
@@ -1343,7 +1343,7 @@ export function AdminSessionsContent() {
               <Input placeholder="Room name / Address — or paste Zoom/Teams/Meet URL" value={form.venue_url} onChange={set("venue_url")} className="h-10" />
             </Box>
 
-            <Box className="grid grid-cols-2 gap-4">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Date <Text as="span" className="text-error">*</Text></Label>
                 <Input type="date" value={form.date} onChange={set("date")} className="h-10" />
@@ -1354,7 +1354,7 @@ export function AdminSessionsContent() {
               </Box>
             </Box>
 
-            <Box className="grid grid-cols-2 gap-4">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">End Time <Text as="span" className="text-error">*</Text></Label>
                 <Input type="time" value={form.end_time} onChange={set("end_time")} className="h-10" />

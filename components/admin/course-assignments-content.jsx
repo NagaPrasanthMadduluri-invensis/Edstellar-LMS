@@ -94,7 +94,7 @@ export function CourseAssignmentsContent({ courseId }) {
 
   return (
     <Box className="space-y-4">
-      <Box className="flex items-center justify-between">
+      <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Text as="p" className="text-sm text-muted-foreground">
           {assignments.length} learner{assignments.length !== 1 ? "s" : ""} enrolled
         </Text>

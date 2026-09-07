@@ -46,6 +46,17 @@ function DialogOverlay({
   );
 }
 
+/**
+ * The dialog is centred with -translate-y-1/2, so a form taller than the
+ * viewport used to extend past both the top and the bottom edge with no way to
+ * reach either — the Save button simply was not on screen. Twenty call sites
+ * set their own `max-h-[90vh]`; the other twenty did not, and each was one long
+ * form away from the same bug.
+ *
+ * Capping height here fixes all of them at once, and a call site that sets its
+ * own max-h still wins through `cn`. `dvh` rather than `vh` because mobile
+ * browser chrome makes `vh` taller than the space actually visible.
+ */
 function DialogContent({
   className,
   children,
@@ -58,7 +69,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}>

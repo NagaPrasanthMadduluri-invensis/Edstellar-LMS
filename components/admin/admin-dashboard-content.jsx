@@ -146,7 +146,7 @@ export function AdminDashboardContent() {
             ) : (() => {
               const total = statusBreakdown.reduce((sum, d) => sum + d.value, 0) || 1;
               return (
-                <Box className="grid grid-cols-2 items-center gap-4">
+                <Box className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4">
                   {/* Left — donut */}
                   <Box>
                     <ChartContainer config={pieConfig} className="h-[170px] w-full">

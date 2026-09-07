@@ -191,7 +191,7 @@ export function CertificatesTable() {
       )}
       <Card className="overflow-hidden">
         {/* ── Header ── */}
-        <Box className="flex items-center justify-between px-6 py-4 border-b">
+        <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-6 py-4 border-b">
           <Box>
             <Text as="h2" className="text-base font-bold">Issued Certificates</Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">

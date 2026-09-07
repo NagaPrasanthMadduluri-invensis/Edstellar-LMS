@@ -427,7 +427,7 @@ export function AdminUsersContent() {
                 </Box>
 
                 {/* Fields */}
-                <Box className="grid grid-cols-2 gap-3">
+                <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Box className="space-y-1.5">
                     <Label className="text-sm font-medium text-ink/80">First Name <Text as="span" className="text-error">*</Text></Label>
                     <Input value={editForm.first_name} onChange={(e) => setEditForm((p) => ({ ...p, first_name: e.target.value }))}
@@ -444,7 +444,7 @@ export function AdminUsersContent() {
                   <Input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
                     className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
                 </Box>
-                <Box className="grid grid-cols-2 gap-3">
+                <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Box className="space-y-1.5">
                     <Label className="text-sm font-medium text-ink/80">Location</Label>
                     <Input placeholder="e.g. Bangalore" value={editForm.location} onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))}
@@ -480,7 +480,7 @@ export function AdminUsersContent() {
           BULK UPLOAD MODAL
       ════════════════════════════════ */}
       <Dialog open={bulkOpen} onOpenChange={(o) => { if (!o) closeBulk(); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[88vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-2xl max-h-[88dvh] flex flex-col gap-0 p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>Bulk Upload Learners</DialogTitle>
             <Text as="p" className="text-sm text-muted-foreground mt-0.5">
@@ -695,7 +695,7 @@ export function AdminUsersContent() {
           </Box>
           <Box className="px-6 py-5 space-y-4">
             {/* Name */}
-            <Box className="grid grid-cols-2 gap-3">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Box className="space-y-1.5">
                 <Label className="text-sm font-medium text-ink/80">First Name <Text as="span" className="text-error">*</Text></Label>
                 <Input placeholder="Alice" value={form.first_name} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))}
@@ -720,7 +720,7 @@ export function AdminUsersContent() {
                 className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
             </Box>
             {/* Location + Job Role */}
-            <Box className="grid grid-cols-2 gap-3">
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Box className="space-y-1.5">
                 <Label className="text-sm font-medium text-ink/80">Location</Label>
                 <Input placeholder="e.g. Bangalore" value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
