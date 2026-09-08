@@ -12,6 +12,10 @@ export default async function Home() {
     redirect("/platform/dashboard");
   }
 
+  if (user.role === "trainer") {
+    redirect("/trainer/sessions");
+  }
+
   if (user.role === "admin") {
     redirect("/admin/dashboard");
   }

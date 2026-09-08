@@ -10,7 +10,7 @@ export default async function AdminLayout({ children }) {
   }
 
   if (user.role !== "admin") {
-    redirect("/dashboard");
+    redirect(user.role === "trainer" ? "/trainer/sessions" : "/dashboard");
   }
 
   if (user.isPlatformAdmin) {

@@ -44,6 +44,7 @@ export function OrganizationDetailContent({ organizationId }) {
   const { user } = useAuth();
   const [organization, setOrganization] = useState(null);
   const [stats, setStats] = useState(null);
+  const [roles, setRoles] = useState([]);
   const [error, setError] = useState(null);
 
   const [confirmToggle, setConfirmToggle] = useState(false);
@@ -57,7 +58,7 @@ export function OrganizationDetailContent({ organizationId }) {
   useEffect(() => {
     if (!user) return;
     apiClient(`/api/platform/organizations/${organizationId}`)
-      .then((d) => { setOrganization(d.organization); setStats(d.stats); })
+      .then((d) => { setOrganization(d.organization); setStats(d.stats); setRoles(d.roles || []); })
       .catch((e) => setError(e.message));
   }, [user, organizationId]);
 
@@ -175,6 +176,71 @@ export function OrganizationDetailContent({ organizationId }) {
           </Card>
         ))}
       </Box>
+
+      {/* ── Roles this organization has defined ── */}
+      <Card className="overflow-hidden">
+        <Box className="flex flex-col gap-1 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
+          <Box className="min-w-0">
+            <Text as="h3" className="text-base font-bold">Roles</Text>
+            <Text as="p" className="text-xs text-muted-foreground">
+              What this organization has defined, who holds each one, and how many
+              permissions it carries
+            </Text>
+          </Box>
+          <Text as="span" className="shrink-0 text-xs text-muted-foreground">
+            {roles.length} role{roles.length === 1 ? "" : "s"}
+          </Text>
+        </Box>
+
+        {roles.length === 0 ? (
+          <Box className="px-6 py-8 text-center">
+            <Text as="p" className="text-sm text-muted-foreground">
+              No roles yet — run the RBAC migration to seed this organization&rsquo;s.
+            </Text>
+          </Box>
+        ) : (
+          <Box className="overflow-x-auto">
+            <Box className="grid min-w-[34rem] grid-cols-[1fr_110px_110px_90px_110px] border-b bg-muted/30 px-6 py-2.5">
+              {["ROLE", "PORTAL", "SCOPE", "HOLDERS", "PERMISSIONS"].map((h) => (
+                <Text
+                  key={h}
+                  as="span"
+                  className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground"
+                >
+                  {h}
+                </Text>
+              ))}
+            </Box>
+            {roles.map((r, idx) => (
+              <Box
+                key={r.id}
+                className={`grid min-w-[34rem] grid-cols-[1fr_110px_110px_90px_110px] items-center px-6 py-3 ${
+                  idx !== roles.length - 1 ? "border-b" : ""
+                }`}
+              >
+                <Box className="min-w-0">
+                  <Text as="span" className="text-sm font-semibold">{r.label}</Text>
+                  <Text as="span" className="ml-2 text-[11px] text-muted-foreground">{r.key}</Text>
+                </Box>
+                <Text as="span" className="text-xs text-muted-foreground">{r.portal}</Text>
+                <Text as="span" className="text-xs text-muted-foreground">{r.scope}</Text>
+                <Text as="span" className="text-sm font-semibold">{r.users}</Text>
+                <Box className="flex items-center gap-2">
+                  <Text as="span" className="text-sm font-semibold">{r.permissions}</Text>
+                  {!r.isSystem && (
+                    <Badge
+                      variant="secondary"
+                      className="border-navy/20 bg-paper-cream px-1.5 text-[10px] text-navy"
+                    >
+                      custom
+                    </Badge>
+                  )}
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Card>
 
       {/* ── Seed first admin ── */}
       <Card className="overflow-hidden">

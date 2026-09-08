@@ -59,7 +59,11 @@ export function AuthProvider({ children, initialUser }) {
       setUser(normalizedUser);
 
       const destination =
-        normalizedUser.role === "admin" ? "/admin/dashboard" : "/dashboard";
+        normalizedUser.role === "admin"
+          ? "/admin/dashboard"
+          : normalizedUser.role === "trainer"
+            ? "/trainer/sessions"
+            : "/dashboard";
 
       // refresh() re-runs the Server Component layouts so the shell picks up
       // the new cookie; without it the redirect can render the signed-out tree.

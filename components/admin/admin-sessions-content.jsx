@@ -36,7 +36,7 @@ import { apiClient } from "@/lib/api-client";
 
 const EMPTY_FORM = {
   title: "", session_type: "ILT", department: "", course_id: "",
-  capacity: 20, trainer: "", venue_url: "", date: "",
+  capacity: 20, trainer: "", trainer_user_id: "", venue_url: "", date: "",
   start_time: "", end_time: "", description: "", status: "upcoming",
 };
 
@@ -939,76 +939,73 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
 ══════════════════════════════════════════ */
 
 function AttendanceReportsTab({ sessions }) {
-  const [reportData, setReportData] = useState(null);
-  const [loading,    setLoading]    = useState(false);
+  /**
+   * Reads the counts the sessions endpoint already returns — `roster_count`,
+   * `attendance_marked_count` and `credited_count` — rather than fetching each
+   * session's full attendance record.
+   *
+   * This replaces two bugs that made a trainer's saved attendance look like it
+   * had never happened:
+   *
+   *  1. It gated every figure on `is_locked`, so attendance that had been saved
+   *     but not LOCKED counted as zero and the session read "Not yet held — no
+   *     attendance data". Nothing in the trainer portal locks, and an admin who
+   *     saves without ticking lock hit the same thing.
+   *  2. It counted only `status === "present"`. `late` and `partial` also credit
+   *     the learner with the training, its hours and its completion
+   *     (`CREDITING_STATUSES` on the server), so the report disagreed with both
+   *     the sessions list and the learner's own record.
+   *
+   * It also removes an N+1: the old version issued one request per session from
+   * the browser, so ten sessions meant ten round trips for numbers already
+   * present in the list response.
+   */
+  const rows = sessions.map((s) => {
+    const roster = Number(s.roster_count || 0);
+    const marked = Number(s.attendance_marked_count || 0);
+    const credited = Number(s.credited_count || 0);
+    return {
+      session: s,
+      roster,
+      marked,
+      credited,
+      // Marked, but with a status that earns nothing — absent or excused.
+      notCredited: Math.max(0, marked - credited),
+      unmarked: Math.max(0, roster - marked),
+      // Null until something has actually been recorded, so "no data yet" and
+      // "everyone was absent" stay distinguishable.
+      pct: marked > 0 && roster > 0 ? Math.round((credited / roster) * 100) : null,
+    };
+  });
 
-  useEffect(() => {
-    if (sessions.length === 0) return;
-    setLoading(true);
-
-    Promise.all(
-      sessions.map((s) =>
-        apiClient(`/api/admin/sessions/${s.id}/attendance`)
-          .then((d) => ({ sessionId: s.id, ...d }))
-          .catch(() => ({ sessionId: s.id, records: [], is_locked: false }))
-      )
-    )
-      .then((results) => {
-        const bySession = {};
-        for (const r of results) bySession[r.sessionId] = r;
-        setReportData(bySession);
-      })
-      .finally(() => setLoading(false));
-  }, [sessions]);
-
-  if (loading || !reportData) {
-    return (
-      <Box className="space-y-4">
-        <Box className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-        </Box>
-        {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
-      </Box>
-    );
-  }
-
-  // Compute global stats
-  let totalRegistered = 0, totalPresent = 0, sessionAttPcts = [];
-  for (const s of sessions) {
-    const d = reportData[s.id];
-    const rosterN = Number(s.roster_count || 0);
-    totalRegistered += rosterN;
-    if (d?.is_locked && d.records?.length) {
-      const presentN = d.records.filter((r) => r.status === "present").length;
-      totalPresent += presentN;
-      if (rosterN > 0) sessionAttPcts.push(Math.round((presentN / rosterN) * 100));
-    }
-  }
-  const overallPct = totalRegistered > 0 ? Math.round((totalPresent / totalRegistered) * 100) : 0;
-  const avgPerSession = sessionAttPcts.length > 0
-    ? Math.round(sessionAttPcts.reduce((a, b) => a + b, 0) / sessionAttPcts.length)
-    : 0;
+  const totalRegistered = rows.reduce((sum, r) => sum + r.roster, 0);
+  const totalCredited = rows.reduce((sum, r) => sum + r.credited, 0);
+  const withData = rows.filter((r) => r.pct !== null);
+  const overallPct =
+    totalRegistered > 0 ? Math.round((totalCredited / totalRegistered) * 100) : 0;
+  const avgPerSession =
+    withData.length > 0
+      ? Math.round(withData.reduce((sum, r) => sum + r.pct, 0) / withData.length)
+      : 0;
 
   const reportStatCards = [
-    { icon: CalendarCheck, value: sessions.length,   label: "Total Sessions",    iconBg: "bg-paper-cream",    iconColor: "text-navy",    circle: "bg-paper-cream"    },
-    { icon: Users,         value: totalRegistered,   label: "Total Registered",  iconBg: "bg-paper-cream",  iconColor: "text-navy",  circle: "bg-paper-cream"  },
-    { icon: CheckCircle2,  value: `${overallPct}%`,  label: "Overall Attendance",iconBg: "bg-paper-cream", iconColor: "text-navy", circle: "bg-paper-cream" },
-    { icon: BarChart3,     value: `${avgPerSession}%`,label: "Avg per Session",   iconBg: "bg-paper-cream",  iconColor: "text-ink/70",  circle: "bg-paper-cream"  },
+    { icon: CalendarCheck, value: sessions.length,     label: "Total Sessions",     circle: "bg-paper-cream" },
+    { icon: Users,         value: totalRegistered,     label: "Total Registered",   circle: "bg-paper-cream" },
+    { icon: CheckCircle2,  value: `${overallPct}%`,    label: "Overall Attendance", circle: "bg-paper-cream" },
+    { icon: BarChart3,     value: `${avgPerSession}%`, label: "Avg per Session",    circle: "bg-paper-cream" },
   ];
 
   return (
     <Box className="space-y-5">
-
-      {/* Stat cards */}
       <Box className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {reportStatCards.map((s) => (
-          <Card key={s.label} className="relative overflow-hidden p-5">
+          <Card key={s.label} className="gap-0 relative overflow-hidden p-4 sm:p-5">
             <Box className="relative z-10 flex items-start gap-3">
-              <Box className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
-                <s.icon className={`h-5 w-5 ${s.iconColor}`} />
+              <Box className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-paper-cream">
+                <s.icon className="h-5 w-5 text-navy" />
               </Box>
-              <Box>
-                <Text as="h2" className="text-3xl font-bold leading-tight">{s.value}</Text>
+              <Box className="min-w-0">
+                <Text as="h2" className="text-xl font-bold leading-tight sm:text-2xl">{s.value}</Text>
                 <Text as="p" className="text-sm text-muted-foreground">{s.label}</Text>
               </Box>
             </Box>
@@ -1023,56 +1020,52 @@ function AttendanceReportsTab({ sessions }) {
           Session Attendance Breakdown
         </Text>
         <Box className="space-y-2">
-          {sessions.map((s) => {
-            const d = reportData[s.id];
+          {rows.map(({ session: s, roster, credited, notCredited, unmarked, marked, pct }) => {
             const typeCfg = TYPE_CFG[s.session_type] || TYPE_CFG.ILT;
-            const hasData = d?.is_locked && d.records?.length > 0;
-            const rosterN = Number(s.roster_count || 0);
-            const presentN = hasData ? d.records.filter((r) => r.status === "present").length : 0;
-            const absentN  = hasData ? d.records.filter((r) => r.status === "absent").length  : 0;
-            const unmarkedN = hasData ? d.records.filter((r) => !r.status).length : 0;
-            const attPct   = hasData && rosterN > 0 ? Math.round((presentN / rosterN) * 100) : null;
-            const barWidth = attPct ?? 0;
-
             return (
-              <Card key={s.id} className="border">
+              <Card key={s.id} className="gap-0 border">
                 <CardContent className="px-4 py-3">
                   <Box className="flex flex-wrap items-start justify-between gap-4">
                     <Box className="min-w-0 flex-1 basis-[12rem]">
                       <Box className="flex flex-wrap items-center gap-2 mb-1">
                         <Badge className={`text-[10px] font-medium border-0 ${typeCfg.cls}`}>{typeCfg.label}</Badge>
-                        <Text as="p" className="text-sm font-semibold leading-snug truncate">{s.title}</Text>
+                        <Text as="p" className="text-sm font-semibold leading-snug">{s.title}</Text>
                       </Box>
-                      {hasData ? (
+                      {marked > 0 ? (
                         <Box className="space-y-1.5">
                           <Text as="p" className="text-xs text-muted-foreground">
-                            <Text as="span" className="text-navy font-medium">✓ Present: {presentN}</Text>
+                            {/* "Credited" rather than "Present": late and partial
+                                earn the training too, so counting only present
+                                would disagree with the learner's own record. */}
+                            <Text as="span" className="text-navy font-medium">✓ Credited: {credited}</Text>
                             {"  "}
-                            <Text as="span" className="text-error font-medium">✗ Absent: {absentN}</Text>
+                            <Text as="span" className="text-error font-medium">✗ Not credited: {notCredited}</Text>
                             {"  "}
-                            <Text as="span" className="text-muted-foreground">○ Unmarked: {unmarkedN}</Text>
+                            <Text as="span" className="text-muted-foreground">○ Unmarked: {unmarked}</Text>
                             {"  "}
-                            Total registered: {rosterN}
+                            Total registered: {roster}
                           </Text>
                           <Box className="h-1.5 bg-muted rounded-full overflow-hidden">
-                            <Box className="h-full rounded-full bg-navy" style={{ width: `${barWidth}%` }} />
+                            <Box className="h-full rounded-full bg-navy" style={{ width: `${pct ?? 0}%` }} />
                           </Box>
                         </Box>
                       ) : (
                         <Box className="flex items-center gap-1.5">
                           <CalendarCheck className="h-3.5 w-3.5 text-muted-foreground/40" />
-                          <Text as="p" className="text-xs text-muted-foreground">Not yet held — no attendance data</Text>
+                          <Text as="p" className="text-xs text-muted-foreground">
+                            No attendance recorded yet
+                          </Text>
                         </Box>
                       )}
                     </Box>
                     <Box className="ml-auto shrink-0 text-right">
                       <Text as="p" className="text-xs text-muted-foreground">{formatDate(s.date)}</Text>
-                      {attPct !== null && (
-                        <Text as="p" className="text-base font-extrabold text-navy">{attPct}%</Text>
-                      )}
-                      {attPct === null && (
-                        <Text as="p" className="text-base font-bold text-muted-foreground">—</Text>
-                      )}
+                      <Text
+                        as="p"
+                        className={pct !== null ? "text-base font-extrabold text-navy" : "text-base font-bold text-muted-foreground"}
+                      >
+                        {pct !== null ? `${pct}%` : "—"}
+                      </Text>
                     </Box>
                   </Box>
                 </CardContent>
@@ -1100,6 +1093,7 @@ export function AdminSessionsContent() {
   const [attendanceSessionId, setAttendanceSessionId] = useState("");
   const [sessions,    setSessions]    = useState(null);
   const [courses,     setCourses]     = useState([]);
+  const [trainers,    setTrainers]    = useState([]);
   const [deptOptions, setDeptOptions] = useState([]);
   const [error,       setError]       = useState(null);
 
@@ -1118,10 +1112,14 @@ export function AdminSessionsContent() {
       apiClient("/api/admin/sessions"),
       apiClient("/api/admin/courses"),
       apiClient("/api/admin/employees"),
+      // The organization's trainer accounts. Assigning one is what puts the
+      // session in that trainer's portal (`specs/rbac.md` §3.6.1).
+      apiClient("/api/admin/sessions/trainers"),
     ])
-      .then(([sRes, cRes, eRes]) => {
+      .then(([sRes, cRes, eRes, tRes]) => {
         setSessions(sRes.sessions || []);
         setCourses((cRes.courses || []).filter((c) => c.is_active));
+        setTrainers(tRes.trainers || []);
         const depts = [...new Set((eRes.employees || []).map((e) => e.department).filter(Boolean))].sort();
         setDeptOptions(depts);
       })
@@ -1153,6 +1151,7 @@ export function AdminSessionsContent() {
       course_id:    s.course_id ? String(s.course_id) : "",
       capacity:     s.capacity     ?? 20,
       trainer:      s.trainer      || "",
+      trainer_user_id: s.trainer_user_id ? String(s.trainer_user_id) : "",
       venue_url:    s.venue_url    || "",
       date:         s.date         || "",
       start_time:   s.start_time   || "",
@@ -1174,7 +1173,7 @@ export function AdminSessionsContent() {
 
     setSaving(true); setFormError(null);
     try {
-      const body = { ...form, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
+      const body = { ...form, trainer_user_id: form.trainer_user_id ? Number(form.trainer_user_id) : null, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
       if (editTarget) {
         await apiClient(`/api/admin/sessions/${editTarget.id}`, { method: "PUT", body });
       } else {
@@ -1330,7 +1329,60 @@ export function AdminSessionsContent() {
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Trainer / Facilitator <Text as="span" className="text-error">*</Text></Label>
-                <Input placeholder="Full name" value={form.trainer} onChange={set("trainer")} className="h-10" />
+                {/* A picker, with free text still available.
+                    Choosing a trainer account is what puts this session in that
+                    trainer's portal — it sets `trainer_user_id`, and the server
+                    then DERIVES the display name from that account so the two
+                    cannot disagree (`specs/rbac.md` §3.6.1).
+                    "Someone else" keeps the original behaviour, which an
+                    external facilitator needs and which is the only option for
+                    an organization that has no trainer accounts yet. */}
+                {trainers.length > 0 && (
+                  <Select
+                    value={form.trainer_user_id ? String(form.trainer_user_id) : "none"}
+                    onValueChange={(v) => {
+                      if (v === "none") {
+                        setForm((f) => ({ ...f, trainer_user_id: "" }));
+                        return;
+                      }
+                      const picked = trainers.find((t) => String(t.id) === v);
+                      setForm((f) => ({
+                        ...f,
+                        trainer_user_id: v,
+                        trainer: picked ? picked.name : f.trainer,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="h-10 w-full text-sm bg-white">
+                      <SelectValue>
+                        {form.trainer_user_id
+                          ? trainers.find((t) => String(t.id) === String(form.trainer_user_id))?.name
+                            ?? "Trainer account"
+                          : "Someone else (type a name)"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {trainers.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                      ))}
+                      <SelectItem value="none">Someone else (type a name)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                <Input
+                  placeholder="Full name"
+                  value={form.trainer}
+                  onChange={set("trainer")}
+                  disabled={Boolean(form.trainer_user_id)}
+                  className="h-10"
+                />
+                <Text as="p" className="text-[11px] text-muted-foreground">
+                  {form.trainer_user_id
+                    ? "This trainer will see the session, its participants and attendance in their own portal."
+                    : trainers.length > 0
+                      ? "Not linked to an account — the session stays admin-only."
+                      : "No trainer accounts in this organization yet, so the session stays admin-only."}
+                </Text>
               </Box>
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Capacity</Label>
