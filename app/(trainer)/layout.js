@@ -18,7 +18,9 @@ export default async function TrainerLayout({ children }) {
   const user = await getSessionUser();
 
   if (!user) {
-    redirect("/login");
+    // `session=expired` lets middleware.js render the form instead of
+    // bouncing back here — see the comment there.
+    redirect("/login?session=expired");
   }
 
   if (user.role !== "trainer") {

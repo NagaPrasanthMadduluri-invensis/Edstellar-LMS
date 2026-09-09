@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,34 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { AuthProvider } from "@/providers/auth-provider";
+
+/**
+ * Why the user is looking at this form.
+ *
+ * `?session=expired` is set by every server-side redirect here when a cookie
+ * was present but the API would not resolve it (see `middleware.js`). Saying
+ * so matters: they did not click "sign out", they were bounced, and with no
+ * reason given the form looks like it simply lost their password.
+ *
+ * Its own component, wrapped in Suspense by the caller, because
+ * `useSearchParams()` opts a route out of static prerendering unless it sits
+ * behind a boundary — and `/login` is SSG (TASTE §2.2). Reading the param
+ * inside `LoginForm` failed the production build outright:
+ * "useSearchParams() should be wrapped in a suspense boundary at page /login".
+ */
+function SessionExpiredNotice() {
+  const expired = useSearchParams().get("session") === "expired";
+  if (!expired) return null;
+
+  return (
+    <Box className="mb-4 rounded-lg border border-navy/20 bg-paper-cream px-3 py-2.5">
+      <Text as="p" className="text-xs text-ink">
+        Your session has ended — please sign in again. This also happens after
+        your organization&rsquo;s roles or permissions change.
+      </Text>
+    </Box>
+  );
+}
 
 function LoginForm() {
   const { login } = useAuth();
@@ -47,6 +76,9 @@ function LoginForm() {
         </Text>
       </CardHeader>
       <CardContent>
+        <Suspense fallback={null}>
+          <SessionExpiredNotice />
+        </Suspense>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Box className="space-y-2">
             <Label htmlFor="email">Email</Label>
