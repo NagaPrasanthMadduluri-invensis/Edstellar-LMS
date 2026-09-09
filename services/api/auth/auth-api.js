@@ -49,8 +49,19 @@ export function normalizeUser(apiUser) {
     name: `${firstName} ${lastName}`.trim(),
     email: apiUser.email,
     role: apiUser.role || "learner",
-    roleLabel: apiUser.role === "admin" ? "LMS Admin" : "Learner",
+    // Three portals since `specs/rbac.md` decision 6. Kept in step with
+    // `lib/session.js`, which computes the same label for the server-rendered
+    // shell — if these two disagree the header and the sidebar disagree.
+    roleLabel:
+      apiUser.role === "admin"
+        ? "LMS Admin"
+        : apiUser.role === "trainer"
+          ? "Trainer"
+          : "Learner",
     initials: `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase(),
     isActive: apiUser.is_active,
+    isPlatformAdmin: apiUser.is_platform_admin === true,
+    /** What this role may do. Cosmetic gating only — the API enforces. */
+    permissions: Array.isArray(apiUser.permissions) ? apiUser.permissions : [],
   };
 }

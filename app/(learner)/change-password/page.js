@@ -1,6 +1,6 @@
 import Box from "@/components/ui/box";
 import { PageHeader } from "@/components/shared/page-header";
-import { ChangePasswordContent } from "@/components/learner/change-password-content";
+import { ChangePasswordContent } from "@/components/shared/change-password-content";
 
 export default function ChangePasswordPage() {
   return (

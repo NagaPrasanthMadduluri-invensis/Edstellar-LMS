@@ -432,6 +432,33 @@ export async function assignUser({ courseId, userId, dueDate }) {
   });
 }
 
+/**
+ * Bulk assign a course to several learners.
+ *
+ * This was imported by `admin-assign-learning-content.jsx` and never existed
+ * here, so "Assign all" in a department threw at runtime — the build has been
+ * warning about it. The endpoint was always there; only the client wrapper was
+ * missing. Field names are the API's snake_case (`user_ids`, `due_date`).
+ */
+export async function assignUsersBulk({ courseId, userIds, dueDate }) {
+  return apiClient(`/api/admin/courses/${courseId}/assignments/bulk`, {
+    method: "POST",
+    body: { user_ids: userIds, due_date: dueDate || null },
+  });
+}
+
+/**
+ * Issue a certificate by hand. Same story as `assignUsersBulk`: imported by
+ * `certificates-table.jsx`, never exported, so the Issue action threw. This
+ * endpoint takes camelCase (`userId`, `courseId`) — see IssueCertificateDto.
+ */
+export async function issueCertificate({ userId, courseId }) {
+  return apiClient("/api/admin/certificates", {
+    method: "POST",
+    body: { userId, courseId },
+  });
+}
+
 export async function removeAssignment({ assignmentId }) {
   return apiClient(`/api/admin/assignments/${assignmentId}`, { method: "DELETE" });
 }

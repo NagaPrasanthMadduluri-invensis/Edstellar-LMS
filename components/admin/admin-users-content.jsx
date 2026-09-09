@@ -26,6 +26,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { apiClient } from "@/lib/api-client";
 import {
   fetchUsers, createUser, updateUser, bulkCreateUsers, exportReport,
   downloadUserTemplate, toggleUserStatus, deleteUser,
@@ -108,6 +109,11 @@ export function AdminUsersContent() {
   // Create
   const [createOpen, setCreateOpen] = useState(false);
   const [form,      setForm]        = useState(EMPTY_FORM);
+  // The organization's roles, for the role picker. Assigning a non-learner
+  // role is what gives someone the manager module or the trainer portal
+  // (`specs/rbac.md` §5.1) — before this, only a script could do it.
+  const [roles,     setRoles]       = useState([]);
+  const [roleFor,   setRoleFor]     = useState("");
   const [saving,    setSaving]      = useState(false);
   const [formError, setFormError]   = useState(null);
 
@@ -135,8 +141,19 @@ export function AdminUsersContent() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    try   { const d = await fetchUsers(); setUsers(d.users || []); }
-    catch (e) { setError(e.message); }
+    try {
+      const [d, r] = await Promise.all([
+        fetchUsers(),
+        // Reading roles needs only `admin`; assigning one needs manage_users,
+        // so the picker renders for any admin and the API refuses the write if
+        // their role may not do it.
+        apiClient("/api/admin/roles").catch(() => ({ roles: [] })),
+      ]);
+      setUsers(d.users || []);
+      setRoles(r.roles || []);
+    } catch (e) {
+      setError(e.message);
+    }
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
@@ -148,8 +165,28 @@ export function AdminUsersContent() {
     if (!form.email.trim())      { setFormError("Email is required");      return; }
     if (form.password.length < 6){ setFormError("Password must be at least 6 characters"); return; }
     setSaving(true); setFormError(null);
-    try   { await createUser({ data: form }); setCreateOpen(false); setForm(EMPTY_FORM); load(); }
-    catch (e) { setFormError(e.message); }
+    try {
+      const created = await createUser({ data: form });
+      /**
+       * Two steps, because `POST /admin/users` always creates a learner
+       * (`createLearner` in the repository hardcodes the role). Rather than
+       * widen that endpoint — every existing caller depends on its shape — the
+       * role is applied straight after, which is also the same call the Edit
+       * dialog makes, so there is one code path for "put this person in a
+       * role" instead of two.
+       */
+      const newId = created?.user?.id;
+      if (roleFor && newId) {
+        await apiClient(`/api/admin/users/${newId}/role`, {
+          method: "PATCH",
+          body: { roleId: Number(roleFor) },
+        });
+      }
+      setCreateOpen(false);
+      setForm(EMPTY_FORM);
+      setRoleFor("");
+      load();
+    } catch (e) { setFormError(e.message); }
     finally   { setSaving(false); }
   };
 
@@ -718,6 +755,38 @@ export function AdminUsersContent() {
               <Label className="text-sm font-medium text-ink/80">Department</Label>
               <Input placeholder="e.g. Engineering" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
                 className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
+            </Box>
+            {/* Role — what this person may do, and which portal they land in.
+                Reads the organization's real roles; assigning one is a second
+                call after create, because POST /admin/users always makes a
+                learner (`specs/rbac.md` §5.1). */}
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-ink/80">Role</Label>
+              <Select value={roleFor || "default"} onValueChange={(v) => setRoleFor(v === "default" ? "" : v)}>
+                <SelectTrigger className="h-10 w-full bg-paper-warm text-sm">
+                  <SelectValue>
+                    {roleFor
+                      ? roles.find((r) => String(r.id) === String(roleFor))?.label ?? "Role"
+                      : "Learner (default)"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Learner (default)</SelectItem>
+                  {roles
+                    .filter((r) => r.key !== "learner")
+                    .map((r) => (
+                      <SelectItem key={r.id} value={String(r.id)}>
+                        {r.label} — {r.portal} portal
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {roleFor && (
+                <Text as="p" className="text-[11px] text-muted-foreground">
+                  They will land in the{" "}
+                  {roles.find((r) => String(r.id) === String(roleFor))?.portal} portal.
+                </Text>
+              )}
             </Box>
             {/* Location + Job Role */}
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">

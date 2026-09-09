@@ -46,16 +46,36 @@ function useCloseOnNavigate() {
   };
 }
 
+/**
+ * Hides items whose permission this user's role does not hold
+ * (`specs/rbac.md` §5.2).
+ *
+ * Cosmetic only. The API refuses the request regardless — this just stops the
+ * sidebar advertising a page that would 403. An item with no `permission` is
+ * always shown, so every existing nav entry behaves exactly as before.
+ */
+function useVisibleItems(items) {
+  const { user } = useAuth();
+  const held = new Set(user?.permissions ?? []);
+  return (items ?? []).filter(
+    (item) => !item.permission || held.has(item.permission),
+  );
+}
+
 export function SidebarNavGroup({ label, items }) {
   const pathname = usePathname();
   const closeOnNavigate = useCloseOnNavigate();
+  const visible = useVisibleItems(items);
+
+  // A group whose every item is hidden must not leave its heading behind.
+  if (visible.length === 0) return null;
 
   return (
     <SidebarGroup>
       {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
       <SidebarGroupContent>
         <SidebarMenu>
-          {items?.map((item) => (
+          {visible.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 isActive={isActiveHref(pathname, item.href)}

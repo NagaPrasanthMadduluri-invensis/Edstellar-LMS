@@ -1,347 +1,209 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  TrendingUp,
+  Users2,
+} from "lucide-react";
+
+import { apiClient } from "@/lib/api-client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Users2, CheckCircle2, TrendingUp, Clock, Trophy,
-  Hourglass, AlertTriangle, Download, Timer,
-} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 
-/* ── Static data ── */
-const TEAM_MEMBERS = [
-  {
-    id: 1,
-    name: "Kartik Reddy",
-    initials: "KR",
-    color: "bg-navy",
-    department: "Sales",
-    status: "active",
-    progress: 100,
-    score: 88,
-    passed: true,
-    hours: 10.5,
-    goal: 10,
-    lastActive: "27 Apr 2025",
-  },
-  {
-    id: 2,
-    name: "Meena Joshi",
-    initials: "MJ",
-    color: "bg-navy",
-    department: "Sales",
-    status: "inactive",
-    progress: 0,
-    score: null,
-    passed: null,
-    hours: 0,
-    goal: 10,
-    lastActive: "14 Apr 2025",
-  },
-];
+/**
+ * Team Learning — the manager's extra module (`specs/rbac.md` decision 2).
+ *
+ * This screen used to render a hardcoded `TEAM_MEMBERS` array with invented
+ * names and progress, made no API call at all, and was shown to every learner.
+ * It now reads `GET /api/learner/team`, which is gated on
+ * `view_team_learning` and scoped server-side to the caller's own department —
+ * the scope is never a parameter this component could widen.
+ *
+ * A plain learner never reaches it: the nav item is hidden and the endpoint
+ * returns 403.
+ */
 
-const MONTHLY_GOAL = 10;
-
-function Avatar({ initials, color, size = "md" }) {
-  const sz = size === "sm" ? "w-8 h-8 text-xs" : "w-9 h-9 text-sm";
+function LoadingState() {
   return (
-    <Box className={cn("rounded-full flex items-center justify-center font-bold text-white shrink-0", sz, color)}>
-      {initials}
+    <Box className="space-y-5">
+      <Box className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-20 rounded-xl" />
+        ))}
+      </Box>
+      <Skeleton className="h-64 rounded-xl" />
     </Box>
   );
 }
 
-function StatCard({ icon: Icon, iconBg, value, label }) {
-  return (
-    <Card className="p-4 flex flex-col gap-2">
-      <Box className={cn("w-9 h-9 rounded-xl flex items-center justify-center", iconBg)}>
-        <Icon className="h-4 w-4" />
-      </Box>
-      <Box>
-        <Text as="p" className="text-2xl font-bold leading-none">{value}</Text>
-        <Text as="p" className="text-xs text-muted-foreground mt-1">{label}</Text>
-      </Box>
-    </Card>
-  );
+function formatLastActive(iso) {
+  if (!iso) return "No activity yet";
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "No activity yet";
+  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 30) return `${days} days ago`;
+  return then.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function TeamLearningContent() {
-  const [nudged, setNudged] = useState({});
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
 
-  const totalSize       = TEAM_MEMBERS.length;
-  const completed       = TEAM_MEMBERS.filter((m) => m.progress === 100).length;
-  const inProgress      = TEAM_MEMBERS.filter((m) => m.progress > 0 && m.progress < 100).length;
-  const notStarted      = TEAM_MEMBERS.filter((m) => m.progress === 0).length;
-  const failed          = 0;
-  const scoredMembers   = TEAM_MEMBERS.filter((m) => m.score !== null);
-  const avgScore        = scoredMembers.length
-    ? Math.round(scoredMembers.reduce((s, m) => s + m.score, 0) / scoredMembers.length)
-    : 0;
-  const totalHours      = TEAM_MEMBERS.reduce((s, m) => s + m.hours, 0);
-  const avgHrs          = +(totalHours / totalSize).toFixed(1);
-  const onTrack         = TEAM_MEMBERS.filter((m) => m.hours >= m.goal).length;
-  const completionPct   = totalSize ? Math.round((completed / totalSize) * 100) : 0;
-  const attention       = TEAM_MEMBERS.filter((m) => m.hours < m.goal);
+  useEffect(() => {
+    apiClient("/api/learner/team")
+      .then(setData)
+      .catch((e) => setError(e.message));
+  }, []);
 
-  const STATUS_CFG = {
-    active:   "bg-paper-cream text-navy",
-    inactive: "bg-paper-cream text-ink/60",
-  };
+  if (error) {
+    return (
+      <Card className="gap-0 p-6">
+        <Text as="p" className="text-sm text-error">
+          {error}
+        </Text>
+      </Card>
+    );
+  }
+
+  if (!data) return <LoadingState />;
+
+  const { team, summary } = data;
+
+  // The server says so explicitly rather than leaving an empty list ambiguous:
+  // a manager with no department set sees nothing, and needs to know why.
+  if (summary.note) {
+    return (
+      <Card className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+        <AlertTriangle className="h-9 w-9 text-muted-foreground/30" />
+        <Text as="p" className="max-w-md px-6 text-sm text-muted-foreground">
+          {summary.note}
+        </Text>
+      </Card>
+    );
+  }
+
+  const stats = [
+    { icon: Users2, value: summary.size, label: "Team members", sub: summary.department },
+    {
+      icon: CheckCircle2,
+      value: `${summary.coursesCompleted}/${summary.coursesAssigned}`,
+      label: "Courses completed",
+      sub: "Across the team",
+    },
+    {
+      icon: TrendingUp,
+      value: `${summary.completionPct}%`,
+      label: "Completion",
+      sub: "Team average",
+    },
+    { icon: Clock, value: `${summary.hours}h`, label: "Learning hours", sub: "All time" },
+  ];
 
   return (
     <Box className="space-y-5">
-
-      {/* ── Banner ── */}
-      <Card className="p-5">
-        <Box className="flex items-start justify-between gap-4 flex-wrap">
-          <Box>
-            <Text as="h2" className="text-lg font-bold">Your Team — {totalSize} direct reports</Text>
-            <Box className="flex items-center gap-1.5 mt-1 flex-wrap text-sm text-muted-foreground">
-              <Text as="span">
-                <Text as="span" className={cn("font-semibold", completionPct > 0 ? "text-navy" : "text-ink/70")}>
-                  {completionPct}%
-                </Text>{" "}completion rate
-              </Text>
-              <Text as="span" className="text-muted-foreground/40">·</Text>
-              <Text as="span">
-                Avg score:{" "}
-                <Text as="span" className="font-semibold text-foreground">{avgScore}%</Text>
-              </Text>
-              <Text as="span" className="text-muted-foreground/40">·</Text>
-              <Text as="span">
-                <Text as="span" className="font-semibold text-foreground">{onTrack}/{totalSize}</Text> on track for hours
-              </Text>
+      <Box className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label} className="gap-0 relative overflow-hidden p-4">
+            <Box className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-paper-cream">
+              <s.icon className="h-4 w-4 text-navy" />
             </Box>
-          </Box>
-          <Box className="flex items-center gap-2 flex-wrap">
-            {attention.length > 0 && (
-              <Badge className="bg-paper-cream text-ink/70 border border-border gap-1.5 px-3 py-1.5 text-xs font-medium">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {attention.length} needs attention
-              </Badge>
-            )}
-            <Button variant="outline" size="sm" className="gap-1.5 h-9">
-              <Download className="h-3.5 w-3.5" />
-              Export Team Report
-            </Button>
-          </Box>
-        </Box>
-      </Card>
-
-      {/* ── Stat cards ── */}
-      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard icon={Users2}    iconBg="bg-paper-cream text-navy"    value={totalSize}           label="Team Size"      />
-        <StatCard icon={CheckCircle2} iconBg="bg-paper-cream text-navy" value={completed}     label="Completed"      />
-        <StatCard icon={TrendingUp} iconBg="bg-paper-cream text-navy" value={inProgress}        label="In Progress"    />
-        <StatCard icon={Clock}     iconBg="bg-paper-cream text-ink/70"   value={notStarted}         label="Not Started"    />
-        <StatCard icon={Trophy}    iconBg="bg-paper-cream text-navy" value={`${avgScore}%`}     label="Avg Score"      />
-        <StatCard icon={Timer}     iconBg="bg-paper-cream text-navy"     value={`${avgHrs}h`}       label="Avg Hrs/Month"  />
+            <Text as="h2" className="text-2xl font-extrabold leading-none tracking-tight">
+              {s.value}
+            </Text>
+            <Text as="p" className="mt-0.5 text-xs text-muted-foreground">
+              {s.label}
+            </Text>
+            <Text as="p" className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-muted-foreground/70">
+              {s.sub}
+            </Text>
+          </Card>
+        ))}
       </Box>
 
-      {/* ── Team Completion + Action Required ── */}
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Team Completion */}
-        <Card className="gap-0 p-5">
-          <Box className="flex items-center justify-between mb-4">
-            <Text as="h3" className="text-base font-semibold">Team Completion</Text>
-            <Text as="span" className="text-xs text-muted-foreground">Status distribution</Text>
+      <Card className="gap-0 overflow-hidden p-0">
+        <Box className="flex flex-col gap-1 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5">
+          <Box className="min-w-0">
+            <Text as="h3" className="text-base font-bold">
+              {summary.department} team
+            </Text>
+            <Text as="p" className="text-xs text-muted-foreground">
+              Everyone in your department, and how their learning is going
+            </Text>
           </Box>
-          <Box className="flex items-center gap-8">
-            <Box className="text-center shrink-0">
-              <Text as="p" className={cn("text-4xl font-extrabold", completionPct > 0 ? "text-navy" : "text-ink/70")}>
-                {completionPct}%
-              </Text>
-              <Text as="p" className="text-xs text-muted-foreground mt-1">done</Text>
-            </Box>
-            <Box className="space-y-2.5 flex-1">
-              {[
-                { dot: "bg-navy", label: "Completed",   count: completed   },
-                { dot: "bg-navy",    label: "In Progress",  count: inProgress  },
-                { dot: "bg-paper-cream",    label: "Not Started",  count: notStarted  },
-                { dot: "bg-error",     label: "Failed",       count: failed      },
-              ].map(({ dot, label, count }) => (
-                <Box key={label} className="flex items-center justify-between">
-                  <Box className="flex items-center gap-2">
-                    <Box className={cn("w-2.5 h-2.5 rounded-full", dot)} />
-                    <Text as="span" className="text-sm text-muted-foreground">{label}</Text>
-                  </Box>
-                  <Text as="span" className={cn("text-sm font-semibold", count > 0 ? "text-foreground" : "text-muted-foreground/50")}>
-                    {count}
-                  </Text>
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        </Card>
-
-        {/* Action Required */}
-        <Card className="p-5">
-          <Box className="flex items-center justify-between mb-4">
-            <Text as="h3" className="text-base font-semibold">Action Required</Text>
-            <Text as="span" className="text-xs text-muted-foreground">{attention.length} item{attention.length !== 1 ? "s" : ""}</Text>
-          </Box>
-          {attention.length === 0 ? (
-            <Box className="flex flex-col items-center justify-center py-6 gap-2">
-              <CheckCircle2 className="h-8 w-8 text-navy" />
-              <Text as="p" className="text-sm text-muted-foreground">All members are on track!</Text>
-            </Box>
-          ) : (
-            <Box className="space-y-3">
-              {attention.map((m) => (
-                <Box key={m.id} className="flex items-center justify-between gap-3">
-                  <Box className="flex items-center gap-2.5">
-                    <Box className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      <Hourglass className="h-3.5 w-3.5 text-muted-foreground" />
-                    </Box>
-                    <Text as="span" className="text-sm font-medium">
-                      {m.name.split(" ")[0]} at {m.hours}h of {m.goal}h goal
-                    </Text>
-                  </Box>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3 text-xs shrink-0"
-                    disabled={nudged[m.id]}
-                    onClick={() => setNudged((prev) => ({ ...prev, [m.id]: true }))}
-                  >
-                    {nudged[m.id] ? "Sent!" : "Nudge"}
-                  </Button>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </Card>
-      </Box>
-
-      {/* ── Individual Progress table ── */}
-      <Card className="gap-0 p-5">
-        <Box className="mb-4">
-          <Text as="h3" className="text-base font-semibold">Individual Progress</Text>
-          <Text as="p" className="text-xs text-muted-foreground mt-0.5">All courses · click name to view full profile</Text>
-        </Box>
-
-        {/* Table header */}
-        <Box className="hidden md:grid grid-cols-[1fr_100px_160px_70px_80px_120px_110px] gap-3 px-2 pb-2 border-b">
-          {["MEMBER","STATUS","COURSE PROGRESS","SCORE","PASS?","HOURS","LAST ACTIVE"].map((h) => (
-            <Text key={h} as="span" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</Text>
-          ))}
-        </Box>
-
-        {/* Rows */}
-        <Box className="divide-y">
-          {TEAM_MEMBERS.map((m) => (
-            <Box
-              key={m.id}
-              className="grid grid-cols-1 md:grid-cols-[1fr_100px_160px_70px_80px_120px_110px] gap-3 py-4 px-2 items-center hover:bg-muted/30 transition-colors rounded-lg"
-            >
-              {/* Member */}
-              <Box className="flex items-center gap-3">
-                <Avatar initials={m.initials} color={m.color} />
-                <Box>
-                  <Text as="p" className="text-sm font-semibold text-navy cursor-pointer hover:underline">{m.name}</Text>
-                  <Text as="p" className="text-xs text-muted-foreground">{m.department}</Text>
-                </Box>
-              </Box>
-
-              {/* Status */}
-              <Box>
-                <Badge className={cn("text-[11px] border-0 font-medium", STATUS_CFG[m.status])}>
-                  {m.status}
-                </Badge>
-              </Box>
-
-              {/* Progress bar */}
-              <Box className="flex items-center gap-2">
-                <Box className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                  <Box
-                    className={cn("h-full rounded-full transition-all", m.progress === 100 ? "bg-navy" : "bg-navy")}
-                    style={{ width: `${m.progress}%` }}
-                  />
-                </Box>
-                <Text as="span" className="text-xs font-semibold w-8 text-right">{m.progress}%</Text>
-              </Box>
-
-              {/* Score */}
-              <Text as="span" className={cn("text-sm font-semibold", m.score !== null ? "text-foreground" : "text-muted-foreground/40")}>
-                {m.score !== null ? `${m.score}%` : "—"}
-              </Text>
-
-              {/* Pass? */}
-              <Box>
-                {m.passed === true && (
-                  <Box className="flex items-center gap-1 text-navy">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    <Text as="span" className="text-xs font-semibold">Pass</Text>
-                  </Box>
-                )}
-                {m.passed === null && (
-                  <Text as="span" className="text-muted-foreground/40 text-sm">—</Text>
-                )}
-              </Box>
-
-              {/* Hours */}
-              <Box className="flex items-center gap-1.5">
-                <Box className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-                  <Box
-                    className={cn(
-                      "h-full rounded-full",
-                      m.hours >= m.goal ? "bg-navy" : m.hours > 0 ? "bg-navy" : "bg-error/15"
-                    )}
-                    style={{ width: `${Math.min(100, (m.hours / m.goal) * 100)}%` }}
-                  />
-                </Box>
-                <Text as="span" className={cn("text-xs font-semibold", m.hours >= m.goal ? "text-navy" : "text-error")}>
-                  {m.hours}h
-                </Text>
-                <Text as="span" className="text-xs text-muted-foreground">/{m.goal}h</Text>
-              </Box>
-
-              {/* Last active */}
-              <Text as="span" className="text-xs text-muted-foreground">{m.lastActive}</Text>
-            </Box>
-          ))}
-        </Box>
-      </Card>
-
-      {/* ── Learning Hours ── */}
-      <Card className="p-5">
-        <Box className="flex items-center justify-between mb-5">
-          <Text as="h3" className="text-base font-semibold">Learning Hours</Text>
-          <Text as="span" className="text-xs text-navy font-medium">
-            Monthly goal — {totalHours}h total this month
+          <Text as="span" className="shrink-0 text-xs text-muted-foreground">
+            {team.length} member{team.length === 1 ? "" : "s"}
           </Text>
         </Box>
-        <Box className="space-y-4">
-          {TEAM_MEMBERS.map((m) => {
-            const pct = Math.min(100, Math.round((m.hours / m.goal) * 100));
-            return (
-              <Box key={m.id} className="flex items-center gap-3">
-                <Avatar initials={m.initials} color={m.color} size="sm" />
-                <Text as="span" className="w-20 text-sm font-medium shrink-0">{m.name.split(" ")[0]}</Text>
-                <Box className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                  <Box
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      pct >= 100 ? "bg-navy" : pct > 0 ? "bg-navy" : "bg-muted-foreground/20"
-                    )}
-                    style={{ width: `${pct}%` }}
-                  />
-                </Box>
-                <Text as="span" className="text-xs font-semibold w-8 text-right">{pct}%</Text>
-                <Text as="span" className={cn("text-xs font-semibold w-14 text-right", m.hours >= m.goal ? "text-navy" : "text-error")}>
-                  {m.hours}h/{m.goal}h
+
+        {team.length === 0 ? (
+          <Box className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+            <Users2 className="h-9 w-9 text-muted-foreground/25" />
+            <Text as="p" className="px-6 text-sm text-muted-foreground">
+              Nobody else is in {summary.department} yet.
+            </Text>
+          </Box>
+        ) : (
+          team.map((m, idx) => (
+            <Box
+              key={m.id}
+              className={cn(
+                "flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5",
+                idx !== team.length - 1 && "border-b",
+              )}
+            >
+              <Box className="min-w-0 flex-1 basis-[10rem]">
+                <Text as="p" className="text-sm font-semibold leading-tight">
+                  {m.name}
+                </Text>
+                <Text as="p" className="mt-0.5 text-[11px] text-muted-foreground">
+                  {m.jobRole || m.department} · {formatLastActive(m.lastActiveAt)}
                 </Text>
               </Box>
-            );
-          })}
-        </Box>
-      </Card>
 
+              <Box className="flex shrink-0 items-center gap-4">
+                <Box className="text-right">
+                  <Text as="p" className="text-sm font-semibold">
+                    {m.coursesCompleted}/{m.coursesAssigned}
+                  </Text>
+                  <Text as="p" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Courses
+                  </Text>
+                </Box>
+                <Box className="text-right">
+                  <Text as="p" className="text-sm font-semibold">
+                    {m.hours}h
+                  </Text>
+                  <Text as="p" className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Hours
+                  </Text>
+                </Box>
+                {/* Fill weight carries the state, per TASTE §10.3 — no new hues. */}
+                <Badge
+                  className={cn(
+                    "w-[4.5rem] justify-center text-[11px] font-medium",
+                    m.progressPct === 100
+                      ? "border-0 bg-navy text-paper"
+                      : m.progressPct > 0
+                        ? "border border-navy/20 bg-paper-cream text-ink"
+                        : "border border-border bg-paper-warm text-ink/60",
+                  )}
+                >
+                  {m.progressPct}%
+                </Badge>
+              </Box>
+            </Box>
+          ))
+        )}
+      </Card>
     </Box>
   );
 }

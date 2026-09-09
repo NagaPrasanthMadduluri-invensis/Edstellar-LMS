@@ -78,7 +78,7 @@ export function ChangePasswordContent() {
 
     setLoading(true);
     try {
-      await apiClient("/api/learner/change-password", {
+      await apiClient("/api/auth/change-password", {
         method: "POST",
 
         body: { currentPassword: current, newPassword: next },
