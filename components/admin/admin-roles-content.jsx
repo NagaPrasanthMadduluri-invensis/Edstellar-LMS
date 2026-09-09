@@ -4,28 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, RotateCcw, Save, Trash2, TriangleAlert } from "lucide-react";
 
 import { apiClient } from "@/lib/api-client";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +20,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
-import { cn } from "@/lib/utils";
+import {
+  AddRoleDialog,
+  EMPTY_ROLE,
+  RoleMatrix,
+  dirtyRoles as computeDirtyRoles,
+  draftFromRoles,
+  portalLabel,
+  scopeLabel,
+} from "@/components/shared/role-editor";
 
 /**
  * Roles & Permissions — `specs/rbac.md` §5.1.
@@ -56,27 +46,13 @@ import { cn } from "@/lib/utils";
  * Saving signs the whole organization out (decision 5), which is why the
  * confirmation below spells that out before writing rather than letting the
  * admin discover it as a surprise redirect to /login.
+ *
+ * The matrix and the add-role dialog now come from
+ * `components/shared/role-editor.jsx`, because a super-admin edits the same
+ * roles from `/platform/organizations/[id]` (§3.9). What stays here is what is
+ * genuinely this screen's: the endpoints it writes to, and the fact that the
+ * organization being signed out is the reader's own.
  */
-
-const PORTALS = [
-  { value: "admin", label: "Admin portal" },
-  { value: "learner", label: "Learner portal" },
-  { value: "trainer", label: "Trainer portal" },
-];
-
-const SCOPES = [
-  { value: "org", label: "Whole organization" },
-  { value: "department", label: "Own department" },
-  { value: "self", label: "Only themselves" },
-];
-
-const EMPTY_ROLE = {
-  key: "",
-  label: "",
-  portal: "learner",
-  scope: "self",
-  permissions: [],
-};
 
 function LoadingState() {
   return (
@@ -111,11 +87,7 @@ export function AdminRolesContent() {
       ]);
       setCatalogue(c.permissions || []);
       setRoles(r.roles || []);
-      setDraft(
-        Object.fromEntries(
-          (r.roles || []).map((role) => [role.id, new Set(role.permissions)]),
-        ),
-      );
+      setDraft(draftFromRoles(r.roles));
     } catch (e) {
       setError(e.message);
     }
@@ -136,19 +108,11 @@ export function AdminRolesContent() {
 
   const reset = () => {
     if (!roles) return;
-    setDraft(
-      Object.fromEntries(roles.map((r) => [r.id, new Set(r.permissions)])),
-    );
+    setDraft(draftFromRoles(roles));
     setError(null);
   };
 
-  const dirtyRoles = (roles ?? []).filter((role) => {
-    const before = new Set(role.permissions);
-    const after = draft[role.id] ?? new Set();
-    if (before.size !== after.size) return true;
-    for (const p of after) if (!before.has(p)) return true;
-    return false;
-  });
+  const dirtyRoles = computeDirtyRoles(roles, draft);
 
   /**
    * Saves only the roles whose ticks actually changed.
@@ -299,7 +263,7 @@ export function AdminRolesContent() {
                   {role.label}
                 </Text>
                 <Text as="p" className="text-[11px] text-muted-foreground">
-                  {role.key} · {PORTALS.find((p) => p.value === role.portal)?.label ?? role.portal}
+                  {role.key} · {portalLabel(role.portal)}
                 </Text>
               </Box>
               <Box className="flex shrink-0 items-center gap-1.5">
@@ -333,7 +297,7 @@ export function AdminRolesContent() {
               </Text>
             </Box>
             <Text as="p" className="mt-1 text-[11px] text-muted-foreground">
-              Sees {SCOPES.find((s) => s.value === role.scope)?.label.toLowerCase() ?? role.scope}
+              Sees {scopeLabel(role.scope).toLowerCase()}
               {" · "}
               {(draft[role.id] ?? new Set()).size} of {catalogue.length} permissions
             </Text>
@@ -341,66 +305,13 @@ export function AdminRolesContent() {
         ))}
       </Box>
 
-      {/* ── Permission matrix ── */}
-      <Card className="gap-0">
-        <CardContent className="p-0">
-          <Box className="flex flex-col gap-1 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
-            <Text as="h3" className="text-base font-bold">
-              Permission Matrix
-            </Text>
-            <Text as="p" className="text-xs text-muted-foreground">
-              Tick what each role may do. The list is what this build enforces.
-            </Text>
-          </Box>
-
-          <Box className="overflow-x-auto">
-            <Box
-              className="grid min-w-[40rem] border-b bg-muted/30 px-6 py-3"
-              style={{ gridTemplateColumns: `1fr repeat(${roles.length}, 7rem)` }}
-            >
-              <Text as="span" className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Permission
-              </Text>
-              {roles.map((role) => (
-                <Text
-                  key={role.id}
-                  as="span"
-                  className="text-center text-[11px] font-bold uppercase tracking-widest text-navy"
-                >
-                  {role.label}
-                </Text>
-              ))}
-            </Box>
-
-            {catalogue.map((permission, idx) => (
-              <Box
-                key={permission.id}
-                className={cn(
-                  "grid min-w-[40rem] items-center px-6 py-3 transition-colors hover:bg-muted/20",
-                  idx !== catalogue.length - 1 && "border-b",
-                )}
-                style={{ gridTemplateColumns: `1fr repeat(${roles.length}, 7rem)` }}
-              >
-                <Text as="span" className="text-sm font-medium">
-                  {permission.label}
-                </Text>
-                {roles.map((role) => {
-                  const held = (draft[role.id] ?? new Set()).has(permission.id);
-                  return (
-                    <Box key={role.id} className="flex items-center justify-center">
-                      <Checkbox
-                        checked={held}
-                        onCheckedChange={() => toggle(role.id, permission.id)}
-                        className="h-5 w-5 rounded data-[state=checked]:border-navy/20 data-[state=checked]:bg-navy"
-                      />
-                    </Box>
-                  );
-                })}
-              </Box>
-            ))}
-          </Box>
-        </CardContent>
-      </Card>
+      <RoleMatrix
+        roles={roles}
+        catalogue={catalogue}
+        draft={draft}
+        onToggle={toggle}
+        title="Permission Matrix"
+      />
 
       {/* ── Save confirmation: the sign-out is the surprise worth warning about ── */}
       <AlertDialog open={confirmSave} onOpenChange={setConfirmSave}>
@@ -449,97 +360,14 @@ export function AdminRolesContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Add role ── */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add a role</DialogTitle>
-          </DialogHeader>
-          <Box className="space-y-4 py-2">
-            <Box className="space-y-1.5">
-              <Label className="text-sm font-medium">
-                Name <Text as="span" className="text-error">*</Text>
-              </Label>
-              <Input
-                placeholder="e.g. Trainer"
-                value={newRole.label}
-                onChange={(e) =>
-                  setNewRole((r) => ({
-                    ...r,
-                    label: e.target.value,
-                    // The key is derived from the name so an admin never has to
-                    // think about it; the server normalises it again anyway.
-                    key: e.target.value.trim().toLowerCase().replace(/\s+/g, "_"),
-                  }))
-                }
-                className="h-10"
-              />
-              {newRole.key && (
-                <Text as="p" className="text-[11px] text-muted-foreground">
-                  Identifier: {newRole.key}
-                </Text>
-              )}
-            </Box>
-
-            <Box className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Box className="space-y-1.5">
-                <Label className="text-sm font-medium">Lands in</Label>
-                <Select
-                  value={newRole.portal}
-                  onValueChange={(v) => setNewRole((r) => ({ ...r, portal: v }))}
-                >
-                  <SelectTrigger className="h-10 w-full text-sm">
-                    <SelectValue>
-                      {PORTALS.find((p) => p.value === newRole.portal)?.label}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PORTALS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Box>
-              <Box className="space-y-1.5">
-                <Label className="text-sm font-medium">Can see</Label>
-                <Select
-                  value={newRole.scope}
-                  onValueChange={(v) => setNewRole((r) => ({ ...r, scope: v }))}
-                >
-                  <SelectTrigger className="h-10 w-full text-sm">
-                    <SelectValue>
-                      {SCOPES.find((s) => s.value === newRole.scope)?.label}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCOPES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Box>
-            </Box>
-
-            <Text as="p" className="text-[11px] text-muted-foreground">
-              Add the role first, then tick its permissions in the matrix.
-            </Text>
-          </Box>
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline">Cancel</Button>} />
-            <Button
-              className="bg-navy text-paper hover:bg-navy-soft"
-              disabled={!newRole.label.trim() || saving}
-              onClick={create}
-            >
-              {saving ? "Adding…" : "Add role"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddRoleDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        value={newRole}
+        onChange={setNewRole}
+        onSubmit={create}
+        busy={saving}
+      />
     </Box>
   );
 }

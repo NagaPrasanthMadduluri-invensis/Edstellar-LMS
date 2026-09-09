@@ -20,6 +20,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { CourseArt } from "@/components/shared/course-art";
+import { CourseRewardStrip } from "@/components/learner/course-reward";
 
 /* ── Light thumbnail palettes (hash-based) ── */
 /* Thumbnail surfaces. The brand allows variety only across the paper family
@@ -229,6 +230,15 @@ function CourseCard({ c }) {
             </Box>
           </Box>
         )}
+
+        {/* What finishing this pays. Sits under the progress bar and above the
+            meta row so the incentive reads as part of "where you are", not as
+            another fact about the course. */}
+        <CourseRewardStrip
+          reward={c.reward}
+          isComplete={c.status === "completed"}
+          isSession={Boolean(c.session)}
+        />
 
         {/* Meta row */}
         <Box className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">

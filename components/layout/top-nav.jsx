@@ -62,25 +62,37 @@ export function TopNav() {
         </Button>
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="flex items-center gap-2 rounded-full bg-background p-1 pr-1 transition-colors hover:bg-muted sm:pr-3"
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.avatar || ""} alt={user?.name || "User"} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {user?.initials || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <Text
-                as="span"
-                className="hidden max-w-[10rem] truncate text-sm font-medium sm:inline-block"
+          {/* `render`, not `asChild`. Our menu primitive is Base UI, which
+              composes through a `render` prop — every other trigger in
+              `components/ui` already does this. `asChild` is the Radix API:
+              Base UI passed it straight to the DOM (hence "React does not
+              recognize the asChild prop") and still rendered its OWN button
+              around this one. A <button> inside a <button> is invalid HTML, so
+              the browser hoisted it out, the client tree no longer matched the
+              server's, and EVERY authenticated page threw a hydration error
+              and re-rendered its whole tree on the client — this component is
+              in all four portal shells. */}
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 rounded-full bg-background p-1 pr-1 transition-colors hover:bg-muted sm:pr-3"
               >
-                {user?.name || "User"}
-              </Text>
-            </Button>
-          </DropdownMenuTrigger>
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.avatar || ""} alt={user?.name || "User"} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {user?.initials || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <Text
+                  as="span"
+                  className="hidden max-w-[10rem] truncate text-sm font-medium sm:inline-block"
+                >
+                  {user?.name || "User"}
+                </Text>
+              </Button>
+            }
+          />
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuGroup>
               <DropdownMenuLabel>My Account</DropdownMenuLabel>

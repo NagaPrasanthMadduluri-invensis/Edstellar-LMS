@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchCourseDetail } from "@/services/api/learner/learner-api";
 import { CourseArt } from "@/components/shared/course-art";
+import { CourseRewardHeroLine } from "@/components/learner/course-reward";
 
 
 /**
@@ -83,7 +84,7 @@ export function CourseDetailContent({ courseId }) {
 
   if (!data) return <DetailSkeleton />;
 
-  const { course, enrollment, modules = [], assessments = [], assessmentsUnlocked = false } = data;
+  const { course, enrollment, modules = [], assessments = [], assessmentsUnlocked = false, reward = null } = data;
   const totalLessons     = modules.reduce((s, m) => s + (m.total_count || 0), 0);
   const completedLessons = modules.reduce((s, m) => s + (m.completed_count || 0), 0);
   const progress         = enrollment?.progress_percentage ?? 0;
@@ -146,6 +147,15 @@ export function CourseDetailContent({ courseId }) {
             {assessments.length > 0 && `  ·  ${assessments.length} assessment${assessments.length !== 1 ? "s" : ""}`}
             {completedLessons > 0 && !isComplete && `  ·  ${completedLessons} done`}
           </Text>
+
+          {/* What the course pays, on the same dark surface as the rest of the
+              hero — the learner should know before pressing Start, not find
+              out when the leaderboard moves. */}
+          <CourseRewardHeroLine
+            reward={reward}
+            isComplete={isComplete}
+            isSession={course.session_id != null}
+          />
 
           <Box className="mt-6 flex items-end justify-between gap-6 flex-wrap">
             <Box>

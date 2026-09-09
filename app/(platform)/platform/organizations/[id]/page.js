@@ -11,7 +11,7 @@ export default async function PlatformOrganizationDetailPage({ params }) {
         eyebrow="Platform · Tenants"
         title="Organisation"
         emphasis="detail"
-        summary="Activity, status and admin access for this tenant."
+        summary="Activity and status for this tenant, the roles it has defined, and adding a user on any of them."
       />
       <OrganizationDetailContent organizationId={id} />
     </Box>

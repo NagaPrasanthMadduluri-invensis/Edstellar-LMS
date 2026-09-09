@@ -17,6 +17,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchDashboard } from "@/services/api/learner/learner-api";
+import { CourseRewardStrip } from "@/components/learner/course-reward";
 
 /* ── helpers ── */
 function greeting() {
@@ -239,6 +240,12 @@ export function DashboardContent() {
                     <Text as="span" className="text-xs font-semibold text-navy shrink-0">{continue_learning.progress_percentage}%</Text>
                   </Box>
                 </Box>
+                {/* The reason to press Continue, stated rather than left to be
+                    discovered when the leaderboard moves. */}
+                <CourseRewardStrip
+                  reward={continue_learning.reward}
+                  isSession={Boolean(continue_learning.session)}
+                />
                 <Link href={`/my-courses/${continue_learning.course.id}`}>
                   <Button size="sm" className="h-9 bg-navy hover:bg-navy-soft text-paper gap-1.5 w-full mt-1">
                     Continue <ArrowRight className="h-3.5 w-3.5" />
