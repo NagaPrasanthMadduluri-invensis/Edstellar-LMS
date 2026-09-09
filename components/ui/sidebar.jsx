@@ -333,7 +333,17 @@ function SidebarSeparator({
     <Separator
       data-slot="sidebar-separator"
       data-sidebar="separator"
-      className={cn("mx-2 w-auto bg-sidebar-border", className)}
+      // The `!` is load-bearing. The Separator primitive sizes itself with
+      // `data-horizontal:w-full`, which compiles to an attribute selector and
+      // therefore OUT-SPECIFIES any plain width utility — and tailwind-merge
+      // cannot see a variant as conflicting with a bare `w-auto`, so the old
+      // `w-auto` here was dropped from the cascade entirely. The result was
+      // full parent width plus `mx-2`: an 8px overflow on every page with a
+      // sidebar, invisible only because the sidebar clips it. Tailwind v4's
+      // `!` suffix wins on importance rather than specificity, which is the
+      // only thing that reliably beats a variant from a primitive. The calc
+      // matches `mx-2` — 0.5rem a side.
+      className={cn("mx-2 w-[calc(100%-1rem)]! bg-sidebar-border", className)}
       {...props} />
   );
 }
