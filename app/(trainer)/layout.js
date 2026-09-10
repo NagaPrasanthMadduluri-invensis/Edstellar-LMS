@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, loginPath } from "@/lib/session";
 import { TrainerShell } from "@/components/layout/trainer-shell";
 
 /**
@@ -18,9 +18,7 @@ export default async function TrainerLayout({ children }) {
   const user = await getSessionUser();
 
   if (!user) {
-    // `session=expired` lets middleware.js render the form instead of
-    // bouncing back here — see the comment there.
-    redirect("/login?session=expired");
+    redirect(await loginPath());
   }
 
   if (user.role !== "trainer") {
