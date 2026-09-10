@@ -38,9 +38,11 @@ export function middleware(request) {
      * ERR_TOO_MANY_REDIRECTS a browser reports, and exactly why it advises
      * deleting cookies.
      *
-     * Every server-side redirect to /login now carries this marker, so the
-     * one place that DOES know the token is bad can say so, and the form
-     * renders. Signing in replaces the dead cookie via the API's Set-Cookie.
+     * `requireSession()` attaches one of two markers so the one place that
+     * knows WHY can say so, and the form renders either way:
+     * `session=expired` (the API refused the token) or `error=unavailable`
+     * (the API could not be reached at all — our fault, not the user's).
+     * Signing in replaces the dead cookie via the API's Set-Cookie.
      *
      * The cookie is deliberately NOT deleted here: the API may have set it
      * with a `Domain` attribute (COOKIE_DOMAIN in production), and a
@@ -49,7 +51,12 @@ export function middleware(request) {
      * is read becomes a coin toss. Letting the login succeed overwrites it
      * with the correct attributes.
      */
-    if (searchParams.get("session") === "expired") return NextResponse.next();
+    if (
+      searchParams.get("session") === "expired" ||
+      searchParams.get("error") === "unavailable"
+    ) {
+      return NextResponse.next();
+    }
 
     // Role-based landing is decided by `/` and the layouts, which know the role.
     if (hasToken) return NextResponse.redirect(new URL("/", request.url));

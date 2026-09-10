@@ -1,13 +1,9 @@
 import { redirect } from "next/navigation";
-import { getSessionUser, loginPath } from "@/lib/session";
+import { requireSession } from "@/lib/session";
 import { LearnerShell } from "@/components/layout/learner-shell";
 
 export default async function LearnerLayout({ children }) {
-  const user = await getSessionUser();
-
-  if (!user) {
-    redirect(await loginPath());
-  }
+  const user = await requireSession();
 
   if (user.role === "admin") {
     redirect(user.isPlatformAdmin ? "/platform/dashboard" : "/admin/dashboard");

@@ -26,17 +26,34 @@ import { AuthProvider } from "@/providers/auth-provider";
  * "useSearchParams() should be wrapped in a suspense boundary at page /login".
  */
 function SessionExpiredNotice() {
-  const expired = useSearchParams().get("session") === "expired";
-  if (!expired) return null;
+  const params = useSearchParams();
 
-  return (
-    <Box className="mb-4 rounded-lg border border-navy/20 bg-paper-cream px-3 py-2.5">
-      <Text as="p" className="text-xs text-ink">
-        Your session has ended — please sign in again. This also happens after
-        your organization&rsquo;s roles or permissions change.
-      </Text>
-    </Box>
-  );
+  // Two different faults, and they must not wear the same message. Telling
+  // someone their session ended when the server simply could not reach the
+  // API points every subsequent minute of debugging at the wrong layer.
+  if (params.get("error") === "unavailable") {
+    return (
+      <Box className="mb-4 rounded-lg border border-error/30 bg-error/10 px-3 py-2.5">
+        <Text as="p" className="text-xs font-medium text-error">
+          We couldn&rsquo;t reach the server to check your sign-in. Your account
+          is fine — this is a problem on our side. Try again in a moment.
+        </Text>
+      </Box>
+    );
+  }
+
+  if (params.get("session") === "expired") {
+    return (
+      <Box className="mb-4 rounded-lg border border-navy/20 bg-paper-cream px-3 py-2.5">
+        <Text as="p" className="text-xs text-ink">
+          Your session has ended — please sign in again. This also happens after
+          your organization&rsquo;s roles or permissions change.
+        </Text>
+      </Box>
+    );
+  }
+
+  return null;
 }
 
 function LoginForm() {

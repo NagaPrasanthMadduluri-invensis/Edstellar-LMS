@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   loginUser,
   registerUser,
@@ -15,7 +14,6 @@ export const AuthContext = createContext(null);
 export function AuthProvider({ children, initialUser }) {
   const [user, setUser] = useState(initialUser || null);
   const [loading, setLoading] = useState(!initialUser);
-  const router = useRouter();
 
   /**
    * With an HttpOnly cookie there is nothing to hydrate from client storage —
@@ -65,14 +63,32 @@ export function AuthProvider({ children, initialUser }) {
             ? "/trainer/sessions"
             : "/dashboard";
 
-      // refresh() re-runs the Server Component layouts so the shell picks up
-      // the new cookie; without it the redirect can render the signed-out tree.
-      router.replace(destination);
-      router.refresh();
+      /**
+       * A FULL document navigation, not `router.replace()`.
+       *
+       * The App Router keeps a client-side Router Cache of RSC payloads. If
+       * this browser touched a protected route before signing in — which is
+       * the normal way to arrive at the login page — the cached payload for
+       * that route is a REDIRECT BACK TO /login, produced while there was no
+       * session. `router.replace(destination)` can serve that stale payload,
+       * so a successful login bounces straight back to the login page even
+       * though the cookie is now valid and `/api/auth/me` answers 200.
+       *
+       * `router.refresh()` was meant to cover it, but it races: `replace()`
+       * has already begun navigating from the cache by the time the refresh
+       * invalidates it. That is the "logged in, waited a few seconds, ended up
+       * back on /login" shape, and it is indistinguishable in the browser from
+       * a genuine session failure.
+       *
+       * A hard navigation has no cache to replay and re-runs every Server
+       * Component layout against the new cookie. It costs one page load, once,
+       * at the only moment in the app where that is unarguably fine.
+       */
+      window.location.assign(destination);
 
       return { user: normalizedUser };
     },
-    [router],
+    [],
   );
 
   const register = useCallback(
@@ -93,12 +109,14 @@ export function AuthProvider({ children, initialUser }) {
       }
       setUser(normalizedUser);
 
-      router.replace("/dashboard");
-      router.refresh();
+      // Same hard navigation as login. (Self-service registration is retired
+      // — the API answers 422 — but leaving the stale pattern here is how it
+      // gets copied back into something live.)
+      window.location.assign("/dashboard");
 
       return { user: normalizedUser };
     },
-    [router],
+    [],
   );
 
   /** Logout now reaches the server, which clears the cookie. */
@@ -110,9 +128,12 @@ export function AuthProvider({ children, initialUser }) {
       // middleware will bounce them back if the cookie somehow survived.
     }
     setUser(null);
-    router.replace("/login");
-    router.refresh();
-  }, [router]);
+    // Hard navigation, for the same reason as login (see above) but in the
+    // other direction: the Router Cache still holds SIGNED-IN payloads for
+    // every route this session visited, so a soft replace can render the app
+    // shell to someone who has just signed out.
+    window.location.assign("/login");
+  }, []);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -122,10 +143,10 @@ export function AuthProvider({ children, initialUser }) {
       return normalizedUser;
     } catch {
       setUser(null);
-      router.replace("/login");
+      window.location.assign("/login");
       return null;
     }
-  }, [router]);
+  }, []);
 
   const value = useMemo(
     () => ({

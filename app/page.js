@@ -1,12 +1,8 @@
 import { redirect } from "next/navigation";
-import { getSessionUser, loginPath } from "@/lib/session";
+import { requireSession } from "@/lib/session";
 
 export default async function Home() {
-  const user = await getSessionUser();
-
-  if (!user) {
-    redirect(await loginPath());
-  }
+  const user = await requireSession();
 
   if (user.isPlatformAdmin) {
     redirect("/platform/dashboard");

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser, loginPath } from "@/lib/session";
+import { requireSession } from "@/lib/session";
 import { TrainerShell } from "@/components/layout/trainer-shell";
 
 /**
@@ -15,11 +15,7 @@ import { TrainerShell } from "@/components/layout/trainer-shell";
  * `trainer_user_id = me`. This layout only decides which shell renders.
  */
 export default async function TrainerLayout({ children }) {
-  const user = await getSessionUser();
-
-  if (!user) {
-    redirect(await loginPath());
-  }
+  const user = await requireSession();
 
   if (user.role !== "trainer") {
     redirect(
