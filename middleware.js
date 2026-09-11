@@ -75,7 +75,10 @@ export const config = {
     // `scorm` is excluded because /scorm/* is a rewrite to the API serving
     // package content. Gating it here would bounce the player's iframe
     // requests to /login instead of returning the course files.
-    "/((?!api|scorm|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    //
+    // `uploads` likewise: it is the rewrite serving course thumbnails, and
+    // `next/image` fetches those server-side with no cookie of its own.
+    "/((?!api|scorm|uploads|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
 

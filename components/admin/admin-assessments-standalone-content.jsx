@@ -44,6 +44,7 @@ import {
   updateQuestion,
   deleteQuestion,
 } from "@/services/api/admin/admin-api";
+import { DescriptionField } from "@/components/shared/description-field";
 
 export function AdminAssessmentsStandaloneContent() {
   const { user } = useAuth();
@@ -183,14 +184,13 @@ export function AdminAssessmentsStandaloneContent() {
             />
           </Box>
 
-          <Box className="space-y-1.5">
-            <Label className="text-sm font-medium text-ink/80">Description</Label>
-            <Input
-              value={createForm.description}
-              onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
-              className="h-10 bg-white"
-            />
-          </Box>
+          <DescriptionField
+            placeholder="Brief description of this assessment…"
+            rows={2}
+            value={createForm.description}
+            onChange={(v) => setCreateForm((f) => ({ ...f, description: v }))}
+            className="bg-white"
+          />
 
           <Box className="space-y-1.5">
             <Label className="text-sm font-medium text-ink/80">Pass mark (%)</Label>
@@ -474,10 +474,11 @@ export function AdminAssessmentsStandaloneContent() {
               <Label>Title <Text as="span" className="text-error">*</Text></Label>
               <Input value={metaForm.title || ""} onChange={(e) => setMetaForm((p) => ({ ...p, title: e.target.value }))} />
             </Box>
-            <Box className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea rows={2} value={metaForm.description || ""} onChange={(e) => setMetaForm((p) => ({ ...p, description: e.target.value }))} />
-            </Box>
+            <DescriptionField
+              rows={2}
+              value={metaForm.description || ""}
+              onChange={(v) => setMetaForm((p) => ({ ...p, description: v }))}
+            />
             <Box className="space-y-1.5">
               <Label>Passing Score (%)</Label>
               <Input type="number" min={0} max={100} value={metaForm.passing_score || 60} onChange={(e) => setMetaForm((p) => ({ ...p, passing_score: parseInt(e.target.value) || 60 }))} />

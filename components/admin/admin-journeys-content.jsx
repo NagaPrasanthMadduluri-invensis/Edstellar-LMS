@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
+import { DESCRIPTION_MAX_LENGTH } from "@/lib/content-limits";
 
 /* ── Static seed data ── */
 const SEED_JOURNEYS = [
@@ -266,6 +267,7 @@ export function AdminJourneysContent() {
               <Textarea
                 rows={3}
                 value={form.description}
+                maxLength={DESCRIPTION_MAX_LENGTH}
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               />
             </Box>

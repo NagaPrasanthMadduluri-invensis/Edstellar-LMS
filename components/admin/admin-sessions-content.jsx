@@ -31,6 +31,12 @@ import { cn } from "@/lib/utils";
 import { SESSION_TYPE_LABEL, sessionTypeLabel } from "@/lib/session-types";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import {
+  uploadCourseThumbnail, discardCourseThumbnail,
+} from "@/services/api/admin/admin-api";
+import { ThumbnailField } from "@/components/admin/thumbnail-field";
+import { DescriptionField } from "@/components/shared/description-field";
+import { CourseArt } from "@/components/shared/course-art";
 
 /* ── constants ── */
 
@@ -479,14 +485,28 @@ function SessionsTab({
               <Card
                 key={s.id}
                 ref={String(s.id) === String(focusSessionId) ? focusRef : null}
+                // py-0: CardContent below supplies the padding.
                 className={cn(
-                  "overflow-hidden hover:shadow-md transition-shadow",
+                  "py-0 overflow-hidden hover:shadow-md transition-shadow",
                   String(s.id) === String(highlighted) &&
                     "ring-2 ring-navy/40 shadow-md",
                 )}
               >
                 <CardContent className="p-4 sm:p-5">
                   <Box className="flex flex-wrap items-start gap-4">
+
+                    {/* Cover picture, when the session has one. Absent by
+                        default, so a session without one looks exactly as it
+                        did — no placeholder tile taking the space. */}
+                    {s.thumbnail_url && (
+                      <CourseArt
+                        thumbnailUrl={s.thumbnail_url}
+                        alt={s.title}
+                        scrim="light"
+                        sizes="64px"
+                        className="h-16 w-16 rounded-xl border border-navy/20 shrink-0"
+                      />
+                    )}
 
                     {/* Left */}
                     <Box className="min-w-0 flex-1 basis-[14rem] space-y-2">
@@ -533,7 +553,7 @@ function SessionsTab({
 
                       {/* Row 4: description */}
                       {s.description && (
-                        <Text as="p" className="text-sm text-muted-foreground line-clamp-1 leading-relaxed">
+                        <Text as="p" className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                           {s.description}
                         </Text>
                       )}
@@ -1105,6 +1125,15 @@ export function AdminSessionsContent() {
   const [formError,   setFormError]   = useState(null);
   const [deleteTarget,setDeleteTarget]= useState(null);
   const [deleting,    setDeleting]    = useState(false);
+  /**
+   * The cover picture, kept OUT of `form` on purpose: `handleSave` spreads
+   * `form` straight into the request body, and a `thumbnail_url` key present
+   * on every save is exactly what would overwrite the picture on an edit that
+   * never touched it. These two say what the admin actually did — picked a new
+   * file, or asked to remove the existing one.
+   */
+  const [thumbnailFile,    setThumbnailFile]    = useState(null);
+  const [thumbnailCleared, setThumbnailCleared] = useState(false);
 
   const load = useCallback(() => {
     if (!user) return;
@@ -1138,6 +1167,8 @@ export function AdminSessionsContent() {
   const openCreate = () => {
     setEditTarget(null);
     setForm(EMPTY_FORM);
+    setThumbnailFile(null);
+    setThumbnailCleared(false);
     setFormError(null);
     setDialogOpen(true);
   };
@@ -1159,6 +1190,8 @@ export function AdminSessionsContent() {
       description:  s.description  || "",
       status:       s.status       || "upcoming",
     });
+    setThumbnailFile(null);
+    setThumbnailCleared(false);
     setFormError(null);
     setDialogOpen(true);
   };
@@ -1172,8 +1205,23 @@ export function AdminSessionsContent() {
     if (!form.end_time?.trim())   { setFormError("End time is required");              return; }
 
     setSaving(true); setFormError(null);
+
+    /**
+     * The image is uploaded first because the session has to be able to
+     * reference it, and rolled back if the save then fails — the same ordering
+     * the course dialog uses. `thumbnail_url` is sent ONLY when the admin
+     * changed it, so editing a venue leaves the picture where it was.
+     */
+    let uploadedUrl = null;
     try {
+      if (thumbnailFile) {
+        const uploaded = await uploadCourseThumbnail({ file: thumbnailFile });
+        uploadedUrl = uploaded.url;
+      }
       const body = { ...form, trainer_user_id: form.trainer_user_id ? Number(form.trainer_user_id) : null, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
+      if (uploadedUrl) body.thumbnail_url = uploadedUrl;
+      else if (thumbnailCleared) body.thumbnail_url = null;
+
       if (editTarget) {
         await apiClient(`/api/admin/sessions/${editTarget.id}`, { method: "PUT", body });
       } else {
@@ -1184,7 +1232,10 @@ export function AdminSessionsContent() {
       // left them undefined, which the stat cards and percentages read.
       load();
       setDialogOpen(false);
-    } catch (e) { setFormError(e.message); } finally { setSaving(false); }
+    } catch (e) {
+      if (uploadedUrl) await discardCourseThumbnail({ url: uploadedUrl });
+      setFormError(e.message);
+    } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -1424,10 +1475,24 @@ export function AdminSessionsContent() {
               </Box>
             </Box>
 
-            <Box className="space-y-2">
-              <Label className="text-sm font-medium">Description</Label>
-              <Textarea rows={3} placeholder="Brief summary of what this session covers..." value={form.description} onChange={set("description")} />
-            </Box>
+            <ThumbnailField
+              value={thumbnailCleared ? null : editTarget?.thumbnail_url || null}
+              file={thumbnailFile}
+              onSelect={(f) => { setThumbnailFile(f); setThumbnailCleared(false); }}
+              onClear={() => {
+                // Clearing a pending file goes back to the stored picture;
+                // clearing again removes that too.
+                if (thumbnailFile) setThumbnailFile(null);
+                else setThumbnailCleared(true);
+              }}
+              disabled={saving}
+            />
+
+            <DescriptionField
+              placeholder="Brief summary of what this session covers..."
+              value={form.description}
+              onChange={set("description")}
+            />
 
             {formError && (
               <Box className="bg-error/10 border border-error/30 rounded-lg px-3 py-2">

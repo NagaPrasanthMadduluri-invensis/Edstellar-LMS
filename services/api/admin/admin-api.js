@@ -24,6 +24,62 @@ export async function deleteCourse({ courseId }) {
   return apiClient(`/api/admin/courses/${courseId}`, { method: "DELETE" });
 }
 
+/* ── Course thumbnail ──
+   The picture shown on a course card and at the top of the course page. It is
+   optional: a course without one gets the generated artwork in
+   `components/shared/course-art.jsx`, which is also what "leave it as it is"
+   falls back to on an edit. */
+
+/**
+ * Mirrors COURSE_THUMBNAIL_MAX_BYTES in `server/src/modules/media/dto/media.dto.ts`.
+ * Checked here so the admin is told before a 5 MB file crosses the network,
+ * and again by the API, which is what actually enforces it.
+ */
+export const THUMBNAIL_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Same list the API will accept. SVG is excluded — it can carry script. */
+export const THUMBNAIL_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+
+const THUMBNAIL_TYPES = THUMBNAIL_ACCEPT.split(",");
+
+/** The reason this file cannot be a thumbnail, or null if it can. */
+export function thumbnailError(file) {
+  if (!file) return null;
+  if (!THUMBNAIL_TYPES.includes(file.type)) {
+    return `${file.name} is not a supported image. Use JPG, PNG, WebP or GIF.`;
+  }
+  if (file.size > THUMBNAIL_MAX_BYTES) {
+    return (
+      `${file.name} is ${formatBytes(file.size)}, over the ` +
+      `${formatBytes(THUMBNAIL_MAX_BYTES)} limit for a course thumbnail.`
+    );
+  }
+  return null;
+}
+
+/** Uploads the image and returns `{ url }` to send as the course's thumbnail_url. */
+export async function uploadCourseThumbnail({ file }) {
+  const fd = new FormData();
+  fd.append("image", file);
+  return apiClient("/api/admin/media/course-thumbnail", { method: "POST", body: fd });
+}
+
+/**
+ * Rollback for an upload whose course then failed to save — the browser is the
+ * only party that knows the image is now pointing at nothing. Best-effort:
+ * never let the cleanup's failure replace the real error.
+ */
+export async function discardCourseThumbnail({ url }) {
+  try {
+    await apiClient("/api/admin/media/course-thumbnail", {
+      method: "DELETE",
+      body: { url },
+    });
+  } catch {
+    /* an orphaned file is not worth a second error message */
+  }
+}
+
 /* ── Modules ── */
 
 export async function fetchModules({ courseId }) {

@@ -24,7 +24,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { CourseModulesContent } from "@/components/admin/course-modules-content";
 import { CourseAssessmentsContent } from "@/components/admin/course-assessments-content";
 import { CourseAssignmentsContent } from "@/components/admin/course-assignments-content";
-import { updateCourse } from "@/services/api/admin/admin-api";
+import {
+  updateCourse, uploadCourseThumbnail, discardCourseThumbnail,
+} from "@/services/api/admin/admin-api";
+import { ThumbnailField } from "@/components/admin/thumbnail-field";
+import { DescriptionField } from "@/components/shared/description-field";
+import { CourseArt } from "@/components/shared/course-art";
 import { apiClient } from "@/lib/api-client";
 
 export function AdminCourseTabsContent({ courseId }) {
@@ -35,6 +40,10 @@ export function AdminCourseTabsContent({ courseId }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  // A newly picked file, and whether the admin asked to drop the existing
+  // picture. Both are needed: "no new file" is not the same as "no picture".
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailCleared, setThumbnailCleared] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -45,6 +54,8 @@ export function AdminCourseTabsContent({ courseId }) {
 
   const openEdit = () => {
     setForm({ name: course.name, description: course.description || "", is_active: !!course.is_active });
+    setThumbnailFile(null);
+    setThumbnailCleared(false);
     setFormError(null);
     setEditOpen(true);
   };
@@ -52,11 +63,30 @@ export function AdminCourseTabsContent({ courseId }) {
   const handleSave = async () => {
     if (!form.name?.trim()) { setFormError("Course name is required"); return; }
     setSaving(true); setFormError(null);
+
+    /**
+     * `thumbnail_url` is sent only when the admin actually changed the
+     * picture: a new file becomes its URL, an explicit removal becomes null,
+     * and leaving it alone omits the field entirely so the API keeps what the
+     * course already has.
+     */
+    let uploadedUrl = null;
     try {
-      const d = await updateCourse({ courseId, data: form });
+      if (thumbnailFile) {
+        const uploaded = await uploadCourseThumbnail({ file: thumbnailFile });
+        uploadedUrl = uploaded.url;
+      }
+      const data = { ...form };
+      if (uploadedUrl) data.thumbnail_url = uploadedUrl;
+      else if (thumbnailCleared) data.thumbnail_url = null;
+
+      const d = await updateCourse({ courseId, data });
       setCourse(d.course);
       setEditOpen(false);
-    } catch (e) { setFormError(e.message); } finally { setSaving(false); }
+    } catch (e) {
+      if (uploadedUrl) await discardCourseThumbnail({ url: uploadedUrl });
+      setFormError(e.message);
+    } finally { setSaving(false); }
   };
 
   return (
@@ -66,15 +96,29 @@ export function AdminCourseTabsContent({ courseId }) {
       {!course ? (
         <Skeleton className="h-36 w-full rounded-xl" />
       ) : (
-        <Card className="overflow-hidden border-l-4 border-l-blue-500">
+        // py-0 — CardContent below supplies the padding; the Card's own py-4
+        // sat on top of it.
+        <Card className="py-0 overflow-hidden border-l-4 border-l-blue-500">
           <CardContent className="p-4 sm:p-5">
             <Box className="flex items-start justify-between gap-4 flex-wrap">
 
               {/* Icon + title */}
               <Box className="flex min-w-0 flex-1 basis-[16rem] items-start gap-4">
-                <Box className="w-14 h-14 rounded-xl bg-paper-cream border border-navy/20 flex items-center justify-center shrink-0">
-                  <BookOpen className="h-6 w-6 text-navy" />
-                </Box>
+                {/* The uploaded picture when there is one — the admin should
+                    see what a learner sees without leaving the page. */}
+                {course.thumbnail_url ? (
+                  <CourseArt
+                    thumbnailUrl={course.thumbnail_url}
+                    alt={course.name}
+                    scrim="light"
+                    sizes="56px"
+                    className="w-14 h-14 rounded-xl border border-navy/20 shrink-0"
+                  />
+                ) : (
+                  <Box className="w-14 h-14 rounded-xl bg-paper-cream border border-navy/20 flex items-center justify-center shrink-0">
+                    <BookOpen className="h-6 w-6 text-navy" />
+                  </Box>
+                )}
                 <Box className="flex-1 min-w-0">
                   <Box className="flex items-center gap-2.5 flex-wrap">
                     <Text as="h2" className="text-lg font-bold">{course.name}</Text>
@@ -209,15 +253,23 @@ export function AdminCourseTabsContent({ courseId }) {
                 className="h-10"
               />
             </Box>
-            <Box className="space-y-2">
-              <Label className="text-sm font-medium">Description</Label>
-              <Textarea
-                rows={3}
-                placeholder="Brief course description..."
-                value={form.description || ""}
-                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-              />
-            </Box>
+            <DescriptionField
+              placeholder="Brief course description..."
+              value={form.description || ""}
+              onChange={(v) => setForm((p) => ({ ...p, description: v }))}
+            />
+            <ThumbnailField
+              value={thumbnailCleared ? null : course?.thumbnail_url || null}
+              file={thumbnailFile}
+              onSelect={(f) => { setThumbnailFile(f); setThumbnailCleared(false); }}
+              onClear={() => {
+                // Clearing a pending file goes back to the stored picture;
+                // clearing again removes that too.
+                if (thumbnailFile) setThumbnailFile(null);
+                else setThumbnailCleared(true);
+              }}
+              disabled={saving}
+            />
             <Box className="flex items-center justify-between rounded-lg border p-4">
               <Box>
                 <Text as="p" className="text-sm font-medium">Published</Text>

@@ -31,7 +31,11 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
 import {
   fetchAdminCourses, createCourse, deleteCourse, updateCourse,
+  uploadCourseThumbnail, discardCourseThumbnail,
 } from "@/services/api/admin/admin-api";
+import { ThumbnailField } from "@/components/admin/thumbnail-field";
+import { DescriptionField } from "@/components/shared/description-field";
+import { CourseArt } from "@/components/shared/course-art";
 
 function formatDuration(minutes) {
   if (!minutes) return null;
@@ -58,6 +62,9 @@ export function CourseSelector() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", is_active: false });
+  // Held as a File until the admin saves, so a dialog that is opened and
+  // abandoned never leaves an uploaded image behind.
+  const [thumbnailFile, setThumbnailFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -77,12 +84,36 @@ export function CourseSelector() {
   const handleCreate = async () => {
     if (!form.name.trim()) { setFormError("Course name is required"); return; }
     setSaving(true); setFormError(null);
+
+    /**
+     * The image has to exist before the course can reference it, so it is
+     * uploaded first and rolled back if the create then fails — the same
+     * ordering, and the same client-side rollback, the lesson editor uses for
+     * a SCORM package. Without a thumbnail the field is simply omitted, and
+     * the course gets the generated artwork.
+     */
+    let thumbnailUrl = null;
     try {
-      await createCourse({ data: { name: form.name.trim(), description: form.description.trim() || null, is_active: form.is_active } });
+      if (thumbnailFile) {
+        const uploaded = await uploadCourseThumbnail({ file: thumbnailFile });
+        thumbnailUrl = uploaded.url;
+      }
+      await createCourse({
+        data: {
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          is_active: form.is_active,
+          ...(thumbnailUrl ? { thumbnail_url: thumbnailUrl } : {}),
+        },
+      });
       setDialogOpen(false);
       setForm({ name: "", description: "", is_active: false });
+      setThumbnailFile(null);
       load();
-    } catch (e) { setFormError(e.message); } finally { setSaving(false); }
+    } catch (e) {
+      if (thumbnailUrl) await discardCourseThumbnail({ url: thumbnailUrl });
+      setFormError(e.message);
+    } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -210,7 +241,12 @@ export function CourseSelector() {
         </Select>
         <Button
           className="h-11 bg-navy hover:bg-navy-soft text-paper gap-1.5 shrink-0 px-5 text-sm font-medium"
-          onClick={() => { setForm({ name: "", description: "", is_active: false }); setFormError(null); setDialogOpen(true); }}
+          onClick={() => {
+            setForm({ name: "", description: "", is_active: false });
+            setThumbnailFile(null);
+            setFormError(null);
+            setDialogOpen(true);
+          }}
         >
           <Plus className="h-4 w-4" />
           Add Course
@@ -250,16 +286,31 @@ export function CourseSelector() {
             return (
               <Card
                 key={course.id}
-                className="cursor-pointer hover:shadow-md transition-shadow group overflow-hidden border-l-4 border-l-blue-500"
+                // py-0: the Box below pads the card; the primitive's own
+                // py-4 stacked on top of it, top and bottom.
+                className="py-0 cursor-pointer hover:shadow-md transition-shadow group overflow-hidden border-l-4 border-l-blue-500"
                 onClick={() => router.push(href)}
               >
                 <Box className="p-4 space-y-4 sm:p-6">
 
                   {/* ── Top row: icon + title + action buttons ── */}
                   <Box className="flex flex-wrap items-start gap-3">
-                    <Box className="w-12 h-12 rounded-xl bg-paper-cream border border-navy/20 flex items-center justify-center shrink-0">
-                      <Settings2 className="h-5.5 w-5.5 text-navy" />
-                    </Box>
+                    {/* The course's own picture when it has one, so an
+                        uploaded thumbnail is visible where the admin works,
+                        not only to the learner. */}
+                    {course.thumbnail_url ? (
+                      <CourseArt
+                        thumbnailUrl={course.thumbnail_url}
+                        alt={course.name}
+                        scrim="light"
+                        sizes="48px"
+                        className="w-12 h-12 rounded-xl border border-navy/20 shrink-0"
+                      />
+                    ) : (
+                      <Box className="w-12 h-12 rounded-xl bg-paper-cream border border-navy/20 flex items-center justify-center shrink-0">
+                        <Settings2 className="h-5.5 w-5.5 text-navy" />
+                      </Box>
+                    )}
 
                     <Box className="min-w-0 flex-1 basis-[12rem]">
                       {/* Badges row */}
@@ -355,12 +406,19 @@ export function CourseSelector() {
                     )}
                   </Box>
 
-                  {/* Description */}
-                  {course.description && (
-                    <Text as="p" className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                      {course.description}
-                    </Text>
-                  )}
+                  {/* Description — always rendered, and always two lines tall.
+                      These cards sit in a two-column grid, so a card with no
+                      description used to pull its divider and stat row up
+                      while its neighbour's stayed down. Reserving the height
+                      is what makes the rows line up across the grid; the clamp
+                      is what stops a long one pushing them apart the other
+                      way. */}
+                  <Text
+                    as="p"
+                    className="text-sm text-muted-foreground line-clamp-2 leading-relaxed min-h-[2.75rem]"
+                  >
+                    {course.description}
+                  </Text>
 
                   {/* Divider */}
                   <Box className="h-px bg-border" />
@@ -433,17 +491,19 @@ export function CourseSelector() {
                 className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors"
               />
             </Box>
-            <Box className="space-y-1.5">
-              <Label htmlFor="course-desc" className="text-sm font-medium text-ink/80">Description</Label>
-              <Textarea
-                id="course-desc"
-                placeholder="Brief description of what learners will achieve..."
-                rows={3}
-                value={form.description}
-                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                className="bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 resize-none transition-colors"
-              />
-            </Box>
+            <DescriptionField
+              id="course-desc"
+              placeholder="Brief description of what learners will achieve..."
+              value={form.description}
+              onChange={(v) => setForm((p) => ({ ...p, description: v }))}
+            />
+            <ThumbnailField
+              value={null}
+              file={thumbnailFile}
+              onSelect={setThumbnailFile}
+              onClear={() => setThumbnailFile(null)}
+              disabled={saving}
+            />
             <Box className="flex items-center justify-between rounded-xl border border-border bg-paper-warm px-4 py-3.5">
               <Box>
                 <Text as="p" className="text-sm font-medium text-ink">Publish immediately</Text>

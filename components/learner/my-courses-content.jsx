@@ -121,8 +121,12 @@ function CourseCard({ c }) {
     ? `${Math.floor(c.totalMinutes / 60)}h${c.totalMinutes % 60 > 0 ? ` ${c.totalMinutes % 60}m` : ""}`
     : c.totalMinutes > 0 ? `${c.totalMinutes}m` : null;
 
+  // `py-0 gap-0` on the Card: the primitive adds py-4 and gap-4 of its own,
+  // and the art and body below already carry their own spacing. Without it the
+  // padding is paid twice — a white band above the artwork instead of the
+  // picture meeting the card's edge, and the same strip again underneath.
   return (
-    <Card className="overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200 border border-border">
+    <Card className="py-0 gap-0 overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200 border border-border">
       {/* Course art. Replaces a flat paper panel with two decorative blobs and
           a generic category icon — three things competing to fill a slot that
           now carries a real picture. Light scrim so the title stays readable

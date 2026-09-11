@@ -39,6 +39,7 @@ import {
   LessonResourcesFields, DOCUMENT_ACCEPT, documentMimeFor, formatBytes,
 } from "@/components/admin/lesson-resources-fields";
 import { useRef } from "react";
+import { DescriptionField } from "@/components/shared/description-field";
 
 const CONTENT_TYPE_CONFIG = {
   video:    { label: "Video",    icon: PlayCircle,   color: "bg-paper-cream text-navy"      },
@@ -653,16 +654,13 @@ export function ModuleLessons({ moduleId }) {
                 />
                 {formErrors.title && <Text as="p" className="text-xs text-error mt-1">{formErrors.title[0]}</Text>}
               </Box>
-              <Box className="space-y-1.5">
-                <Label className="text-sm font-medium text-ink/80">Description</Label>
-                <Textarea
-                  placeholder="What this lesson covers…"
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  rows={2}
-                  className="bg-white border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 resize-none transition-colors"
-                />
-              </Box>
+              <DescriptionField
+                placeholder="What this lesson covers…"
+                value={form.description}
+                onChange={(v) => setForm((f) => ({ ...f, description: v }))}
+                rows={2}
+                className="bg-white"
+              />
             </Box>
 
             {/* ── Section: Content ── */}

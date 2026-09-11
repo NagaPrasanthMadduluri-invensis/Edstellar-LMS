@@ -28,6 +28,7 @@ import {
   attachAssessment, detachAssessment,
 } from "@/services/api/admin/admin-api";
 import { Switch } from "@/components/ui/switch";
+import { DescriptionField } from "@/components/shared/description-field";
 
 const EMPTY_ASSESSMENT = { title: "", description: "", passing_score: 60 };
 const EMPTY_QUESTION = {
@@ -326,15 +327,12 @@ export function CourseAssessmentsContent({ courseId }) {
                 className="h-10"
               />
             </Box>
-            <Box className="space-y-2">
-              <Label className="text-sm font-medium">Description</Label>
-              <Textarea
-                placeholder="Brief description of this assessment..."
-                rows={2}
-                value={aForm.description}
-                onChange={(e) => setAForm((p) => ({ ...p, description: e.target.value }))}
-              />
-            </Box>
+            <DescriptionField
+              placeholder="Brief description of this assessment..."
+              rows={2}
+              value={aForm.description}
+              onChange={(v) => setAForm((p) => ({ ...p, description: v }))}
+            />
             <Box className="space-y-2">
               <Label className="text-sm font-medium">Passing Score (%)</Label>
               <Input

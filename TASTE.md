@@ -421,8 +421,39 @@ Supporting resources render under the primary content, never mixed into it, and
 are labelled as reference material — they carry no duration and do not count
 toward learning hours, and the learner should not have to guess that.
 
+### 10.3.2 Descriptions
+
+Every description — course, module, lesson, assessment, session — is capped at
+**450 characters** and rendered as **at most two lines** wherever it is listed.
+
+- Edit it through `components/shared/description-field.jsx`. Never a bare
+  `<Textarea>`: the component carries the `maxLength`, the character counter and
+  the same label, so the limit cannot differ between one dialog and the next.
+  `DESCRIPTION_MAX_LENGTH` lives in `lib/content-limits.js`, mirroring
+  `server/src/common/content-limits.ts`, which is what actually enforces it.
+- The counter is weight, not colour. Reaching the cap is a constraint working,
+  not a failure, and `error` is reserved for failures (§10.1).
+- **Cards and lists clamp to two lines** (`line-clamp-2`). **Detail pages do
+  not** — the lesson page, the assessment header, the learner's course hero and
+  the calendar panels show the whole text, because that is the page the reader
+  opened to read it. Clamping there would hide content with no way to reach it.
+- **In a card grid, reserve the two lines** (`min-h-[2.75rem]`) and render the
+  paragraph even when it is empty. Otherwise a card with no description pulls
+  its divider and stats up while the card beside it keeps them down, and the
+  grid stops lining up.
+- Inside a button or an accordion trigger, add `text-left` — the button reset
+  centres text, so a description put there without it is centred.
+
 ### 10.4 Surfaces & data visualisation
 
+- **A card that pads itself must cancel the primitive's padding.**
+  `components/ui/card.jsx` carries `py-4` and `gap-4` of its own. A card whose
+  body is a `CardContent` or a padded `Box` therefore pays twice — and a card
+  whose first child is a full-bleed banner gets a white band above the picture
+  instead of the art meeting the card's edge. Put `py-0` (and `gap-0` when the
+  card has more than one child) on those cards. The primitive's own
+  `has-[>img:first-child]:pt-0` only fires for a bare `<img>`, and `next/image`
+  with `fill` always needs a positioned wrapper, so it never fires here.
 - Alternate between `paper`, `paper-warm`, `navy` and `white`. Use white cards
   sparingly for elevation. Dark sections use the navy family and should feel
   immersive — helpers: `.surface-dark`, `.surface-dark-soft`, `.surface-dark-deep`.

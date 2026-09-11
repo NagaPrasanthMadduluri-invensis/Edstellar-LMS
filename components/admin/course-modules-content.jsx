@@ -29,6 +29,7 @@ import {
   fetchModules, createModule, updateModule, deleteModule,
 } from "@/services/api/admin/admin-api";
 import { ModuleLessons } from "@/components/admin/module-lessons";
+import { DescriptionField } from "@/components/shared/description-field";
 
 const EMPTY_FORM = { title: "", description: "", sort_order: 0, is_active: true };
 
@@ -162,9 +163,6 @@ export function CourseModulesContent({ courseId }) {
                         </Badge>
                       </Box>
                       <Box className="flex items-center gap-4 mt-0.5">
-                        {mod.description && (
-                          <Text as="span" className="text-xs text-muted-foreground truncate max-w-xs">{mod.description}</Text>
-                        )}
                         <Box className="flex items-center gap-1 shrink-0">
                           <FileText className="h-3 w-3 text-muted-foreground/60" />
                           <Text as="span" className="text-xs text-muted-foreground">
@@ -172,6 +170,16 @@ export function CourseModulesContent({ courseId }) {
                           </Text>
                         </Box>
                       </Box>
+                      {/* Its own line, below the meta rather than beside it:
+                          on one truncated line it stole the room the lesson
+                          count needed, and two lines of it in a centred flex
+                          row pushed that count off the baseline. `text-left`
+                          because this sits inside the accordion's button. */}
+                      {mod.description && (
+                        <Text as="p" className="mt-1 text-left text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                          {mod.description}
+                        </Text>
+                      )}
                     </Box>
                   </Box>
                   <Box className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -221,16 +229,11 @@ export function CourseModulesContent({ courseId }) {
               />
               {formErrors.title && <Text as="p" className="text-xs text-error mt-1">{formErrors.title[0]}</Text>}
             </Box>
-            <Box className="space-y-1.5">
-              <Label className="text-sm font-medium text-ink/80">Description</Label>
-              <Textarea
-                placeholder="What this module covers…"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                rows={3}
-                className="bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 resize-none transition-colors"
-              />
-            </Box>
+            <DescriptionField
+              placeholder="What this module covers…"
+              value={form.description}
+              onChange={(v) => setForm((f) => ({ ...f, description: v }))}
+            />
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-1.5">
                 <Label className="text-sm font-medium text-ink/80">Sort Order</Label>

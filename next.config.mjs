@@ -42,6 +42,18 @@ const nextConfig = {
         source: "/scorm/:path*",
         destination: `${SERVER_URL}/scorm/:path*`,
       },
+      /**
+       * Course thumbnails, uploaded by an admin and stored by the API.
+       *
+       * Rewritten rather than linked at the API origin so `thumbnail_url` is a
+       * same-origin path. `next/image` then needs no `remotePatterns` entry for
+       * the API host — which matters in development, where that host is plain
+       * http and would be rejected by the https-only pattern above.
+       */
+      {
+        source: "/uploads/:path*",
+        destination: `${SERVER_URL}/uploads/:path*`,
+      },
     ];
   },
 };

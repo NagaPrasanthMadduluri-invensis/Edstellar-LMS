@@ -91,8 +91,10 @@ function CertificateCard({ cert, onView }) {
   const grad = getGradient(cert.courseName);
   const revoked = !!cert.isRevoked;
 
+  // py-0 gap-0 — see the course card: the emblem banner is full-bleed and
+  // the body pads itself, so the Card's own py-4 is dead space.
   return (
-    <Card className={cn("overflow-hidden flex flex-col border border-border shadow-sm transition-shadow duration-200", !revoked && "hover:shadow-md")}>
+    <Card className={cn("py-0 gap-0 overflow-hidden flex flex-col border border-border shadow-sm transition-shadow duration-200", !revoked && "hover:shadow-md")}>
       {/* Emblem banner */}
       <Box
         style={{ background: grad.bg }}
