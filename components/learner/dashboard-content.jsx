@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchDashboard } from "@/services/api/learner/learner-api";
 import { CourseRewardStrip } from "@/components/learner/course-reward";
+import { BRAND } from "@/lib/brand";
 
 /* ── helpers ── */
 function greeting() {
@@ -282,7 +283,7 @@ export function DashboardContent() {
                         className="h-full rounded-full"
                         style={{
                           width: `${Math.round((journey.completed / journey.total) * 100)}%`,
-                          background: journey.completed / journey.total < 0.5 ? "#B3261E" : "#0A1628",
+                          background: journey.completed / journey.total < 0.5 ? BRAND.danger : BRAND.accent,
                         }}
                       />
                     </Box>
@@ -397,7 +398,7 @@ export function DashboardContent() {
                   className="h-full rounded-full transition-all"
                   style={{
                     width: `${hoursGoalPct}%`,
-                    background: hoursGoalPct >= 100 ? "#0A1628" : hoursGoalPct >= 60 ? "#14233D" : "#B3261E",
+                    background: hoursGoalPct >= 100 ? BRAND.success : hoursGoalPct >= 60 ? BRAND.accent : BRAND.danger,
                   }}
                 />
               </Box>

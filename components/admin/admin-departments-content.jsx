@@ -25,9 +25,9 @@ const DEPT_PALETTE = [
 
 const LEGEND_ITEMS = [
   { label: "Completed",   color: BRAND.navy },
-  { label: "In Progress", color: BRAND.lime },
-  { label: "Not Started", color: BRAND.limeSoft },
-  { label: "Failed",      color: BRAND.error },
+  { label: "In Progress", color: BRAND.accent },
+  { label: "Not Started", color: BRAND.text3 },
+  { label: "Failed",      color: BRAND.danger },
 ];
 
 export function AdminDepartmentsContent() {

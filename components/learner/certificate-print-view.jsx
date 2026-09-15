@@ -14,6 +14,7 @@ import { Award, Download, Hash } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { apiClient } from "@/lib/api-client";
+import { BRAND } from "@/lib/brand";
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -46,22 +47,22 @@ function printCertificate(cert) {
   <title>Certificate — ${escapeHtml(cert.certificateCode || "")}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Georgia, "Times New Roman", serif; background: #F2F0E8; color: #0A1628; padding: 40px; }
-    .cert { position: relative; max-width: 820px; margin: 0 auto; background: #ffffff; border: 2px solid #0A1628; padding: 56px 64px; }
-    .cert::before { content: ""; position: absolute; inset: 12px; border: 1px solid rgba(10,22,40,0.15); pointer-events: none; }
-    .eyebrow { text-align: center; letter-spacing: 6px; font-size: 12px; text-transform: uppercase; color: rgba(10,22,40,0.60); }
-    .title { text-align: center; font-size: 40px; color: #0A1628; margin: 12px 0 4px; }
-    .subtitle { text-align: center; font-size: 14px; color: rgba(10,22,40,0.60); margin-bottom: 32px; }
-    .presented { text-align: center; font-size: 13px; color: rgba(10,22,40,0.60); }
-    .name { text-align: center; font-size: 30px; color: #0A1628; margin: 8px 0 6px; border-bottom: 2px solid #0A1628; display: inline-block; padding: 0 24px 6px; }
+    body { font-family: Georgia, "Times New Roman", serif; background: ${BRAND.canvas}; color: ${BRAND.navy}; padding: 40px; }
+    .cert { position: relative; max-width: 820px; margin: 0 auto; background: #ffffff; border: 2px solid ${BRAND.navy}; padding: 56px 64px; }
+    .cert::before { content: ""; position: absolute; inset: 12px; border: 1px solid rgba(15,25,35,0.15); pointer-events: none; }
+    .eyebrow { text-align: center; letter-spacing: 6px; font-size: 12px; text-transform: uppercase; color: rgba(15,25,35,0.60); }
+    .title { text-align: center; font-size: 40px; color: ${BRAND.navy}; margin: 12px 0 4px; }
+    .subtitle { text-align: center; font-size: 14px; color: rgba(15,25,35,0.60); margin-bottom: 32px; }
+    .presented { text-align: center; font-size: 13px; color: rgba(15,25,35,0.60); }
+    .name { text-align: center; font-size: 30px; color: ${BRAND.navy}; margin: 8px 0 6px; border-bottom: 2px solid ${BRAND.navy}; display: inline-block; padding: 0 24px 6px; }
     .name-wrap { text-align: center; margin-bottom: 28px; }
-    .body { text-align: center; font-size: 15px; line-height: 1.7; color: rgba(10,22,40,0.75); max-width: 560px; margin: 0 auto 36px; }
-    .course { font-weight: bold; color: #0A1628; }
-    .meta { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; font-size: 12px; color: rgba(10,22,40,0.60); }
+    .body { text-align: center; font-size: 15px; line-height: 1.7; color: rgba(15,25,35,0.75); max-width: 560px; margin: 0 auto 36px; }
+    .course { font-weight: bold; color: ${BRAND.navy}; }
+    .meta { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; font-size: 12px; color: rgba(15,25,35,0.60); }
     .meta .label { text-transform: uppercase; letter-spacing: 1px; font-size: 10px; }
-    .meta .value { font-size: 14px; color: #0A1628; font-weight: bold; margin-top: 4px; }
+    .meta .value { font-size: 14px; color: ${BRAND.navy}; font-weight: bold; margin-top: 4px; }
     .code { font-family: "Courier New", monospace; }
-    @media print { body { background: #ffffff; padding: 0; } .cert { border-color: #0A1628; } }
+    @media print { body { background: #ffffff; padding: 0; } .cert { border-color: ${BRAND.navy}; } }
   </style>
 </head>
 <body>

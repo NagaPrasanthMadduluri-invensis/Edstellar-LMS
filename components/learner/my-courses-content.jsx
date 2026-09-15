@@ -21,15 +21,16 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { CourseArt } from "@/components/shared/course-art";
 import { CourseRewardStrip } from "@/components/learner/course-reward";
+import { BRAND } from "@/lib/brand";
 
 /* ── Light thumbnail palettes (hash-based) ── */
 /* Thumbnail surfaces. The brand allows variety only across the paper family
    and navy, so the name hash picks a surface rather than inventing a hue. */
 const GRADIENTS = [
-  { bg: "#EDE9DD", iconColor: "#0A1628" },
-  { bg: "#F2F0E8", iconColor: "#0A1628" },
-  { bg: "#0A1628", iconColor: "#C8F135" },
-  { bg: "#FAFAF7", iconColor: "#14233D" },
+  { bg: BRAND.accentTint, iconColor: BRAND.accent },
+  { bg: BRAND.surface3, iconColor: BRAND.navy },
+  { bg: BRAND.navy, iconColor: BRAND.accentSoft },
+  { bg: BRAND.surface2, iconColor: BRAND.accent },
 ];
 
 function getThumbnailGradient(name) {
@@ -313,10 +314,10 @@ function JourneyView({ courses }) {
               <Box
                 style={{
                   background: isDone
-                    ? "#0A1628"
+                    ? BRAND.navy
                     : isCurrent
                     ? grad.bg
-                    : "#F2F0E8",
+                    : BRAND.surface3,
                   width: 36,
                   height: 36,
                   border: isCurrent ? `2px solid ${grad.iconColor}` : undefined,
@@ -325,7 +326,7 @@ function JourneyView({ courses }) {
               >
                 {isDone
                   ? <CheckCircle2 className="h-5 w-5 text-white" />
-                  : <Text as="span" style={{ color: isCurrent ? grad.iconColor : "rgba(10,22,40,0.45)", fontWeight: 700, fontSize: 13 }}>{i + 1}</Text>
+                  : <Text as="span" style={{ color: isCurrent ? grad.iconColor : BRAND.text3, fontWeight: 700, fontSize: 13 }}>{i + 1}</Text>
                 }
               </Box>
               <Box className="flex-1 min-w-0">

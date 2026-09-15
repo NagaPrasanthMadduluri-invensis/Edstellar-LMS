@@ -25,20 +25,20 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchAdminDashboard } from "@/services/api/admin/admin-api";
 import { apiClient } from "@/lib/api-client";
-import { BRAND, seriesColor } from "@/lib/brand";
+import { BRAND, seriesColor, HAIRLINE } from "@/lib/brand";
 
 const STATUS_COLORS = {
   "Completed":   BRAND.navy,
-  "In Progress": BRAND.lime,
-  "Not Started": BRAND.limeSoft,
-  "Failed":      BRAND.error,
+  "In Progress": BRAND.accent,
+  "Not Started": BRAND.text3,
+  "Failed":      BRAND.danger,
 };
 
 const pieConfig = {
   Completed:    { label: "Completed",   color: BRAND.navy },
-  "In Progress":{ label: "In Progress", color: BRAND.lime },
-  "Not Started":{ label: "Not Started", color: BRAND.limeSoft},
-  Failed:       { label: "Failed",      color: BRAND.error},
+  "In Progress":{ label: "In Progress", color: BRAND.accent },
+  "Not Started":{ label: "Not Started", color: BRAND.text3},
+  Failed:       { label: "Failed",      color: BRAND.danger},
 };
 
 const barConfig = {
@@ -237,13 +237,13 @@ export function AdminDashboardContent() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={weeklyActivity} margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(10,22,40,0.12)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={HAIRLINE} />
                   <XAxis dataKey="week" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10 }} allowDecimals={false} tickCount={5} tickLine={false} axisLine={false} />
                   <Tooltip formatter={(v, name) => [`${v} learners`, name]} />
                   <Legend iconType="plainline" iconSize={16} wrapperStyle={{ fontSize: 10 }} />
                   <Line type="monotone" dataKey="Enrollments" stroke={BRAND.navy} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="Completions" stroke={BRAND.lime} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="Completions" stroke={BRAND.accent} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -312,7 +312,7 @@ export function AdminDashboardContent() {
               <ChartContainer
                 config={{
                   pct:             { label: "Completed %",   color: BRAND.navy },
-                  in_progress_pct: { label: "In Progress %", color: BRAND.lime },
+                  in_progress_pct: { label: "In Progress %", color: BRAND.accent },
                 }}
                 className="h-[220px] w-full"
               >
@@ -322,7 +322,7 @@ export function AdminDashboardContent() {
                   <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar dataKey="pct"             name="Completed %"   fill={BRAND.navy} radius={[3, 3, 0, 0]} maxBarSize={40} />
-                  <Bar dataKey="in_progress_pct" name="In Progress %" fill={BRAND.lime} radius={[3, 3, 0, 0]} maxBarSize={40} />
+                  <Bar dataKey="in_progress_pct" name="In Progress %" fill={BRAND.accent} radius={[3, 3, 0, 0]} maxBarSize={40} />
                 </BarChart>
               </ChartContainer>
             </>

@@ -15,7 +15,7 @@ const componentMap = {
  * Base classes per element.
  *
  * Headings deliberately set no font-family — `globals.css` gives every h1–h6
- * Sora with the display tracking, so it stays in one place.
+ * Inter with the display tracking, so it stays in one place.
  *
  * `break-words` only: the previous `break-all` broke words at arbitrary
  * characters, which reads as broken typography rather than wrapping.

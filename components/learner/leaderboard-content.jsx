@@ -11,6 +11,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { BRAND } from "@/lib/brand";
 
 /* ── helpers ── */
 function Initials({ name, color, size = "md" }) {
@@ -42,9 +43,9 @@ function PodiumMedal({ pos }) {
 }
 
 const PODIUM_CFG = {
-  1: { border: "border-border", bg: "bg-paper-cream", pointsColor: "text-ink/70", ribbonColor: "#14233D", height: "h-36" },
-  2: { border: "border-border",  bg: "bg-paper-warm",  pointsColor: "text-ink/60",  ribbonColor: "rgba(10,22,40,0.45)", height: "h-28" },
-  3: { border: "border-border", bg: "bg-paper-cream",pointsColor: "text-ink/70",ribbonColor: "#14233D", height: "h-24" },
+  1: { border: "border-border", bg: "bg-paper-cream", pointsColor: "text-ink/70", ribbonColor: BRAND.navy, height: "h-36" },
+  2: { border: "border-border",  bg: "bg-paper-warm",  pointsColor: "text-ink/60",  ribbonColor: BRAND.accent, height: "h-28" },
+  3: { border: "border-border", bg: "bg-paper-cream",pointsColor: "text-ink/70",ribbonColor: BRAND.navy, height: "h-24" },
 };
 
 const RECOGNITION_CFG = {

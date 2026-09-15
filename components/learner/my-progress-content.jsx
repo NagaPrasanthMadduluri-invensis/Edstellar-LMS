@@ -14,6 +14,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { BRAND } from "@/lib/brand";
 
 /* ── Status config ── */
 const STATUS_CFG = {
@@ -327,7 +328,7 @@ export function MyProgressContent() {
                 className="h-full rounded-full transition-all"
                 style={{
                   width: `${learningHours.goalPct}%`,
-                  background: learningHours.goalPct >= 100 ? "#0A1628" : "#14233D",
+                  background: learningHours.goalPct >= 100 ? BRAND.success : BRAND.accent,
                 }}
               />
             </Box>

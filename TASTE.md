@@ -337,57 +337,94 @@ Never introduce a hue that is not listed here.
 
 ### 10.1 Palette
 
+The **Spectra** palette. Flat, square, hairline-ruled: no shadows, no
+gradients, `--radius: 0`. Panels read as lifted because the canvas behind them
+is the *darkest* of the light surfaces, not because anything casts a shadow.
+
 | Token | Hex | Use |
 |---|---|---|
-| `navy` | `#0A1628` | Primary brand, dark surfaces, primary text |
-| `navy-soft` | `#14233D` | Secondary dark surfaces, hover on navy |
-| `navy-deep` | `#050D1A` | Deepest backgrounds (sidebar) |
-| `lime` | `#C8F135` | The single accent — **dark surfaces only** |
-| `lime-soft` | `#E4F89A` | Subtle highlights, data visuals |
-| `paper` | `#FAFAF7` | Primary light background |
-| `paper-warm` | `#F2F0E8` | Alternate light sections |
-| `paper-cream` | `#EDE9DD` | Small highlighted areas |
-| `white` | `#FFFFFF` | Cards and elevated surfaces |
-| `ink` | `#0A1628` | Primary text |
-| `error` | `#B3261E` | **Errors and destructive states only** |
+| `canvas` | `#EDECE9` | The page background — warm grey, darkest light surface |
+| `surface` | `#FFFFFF` | Cards and panels |
+| `surface-2` | `#F8F8F6` | Inputs, table headers, row hover |
+| `surface-3` | `#EFEEEB` | Progress tracks, code, small highlighted areas |
+| `line` | `#D8D8D4` | Every border — this is what replaced shadows |
+| `line-strong` | `#C8C8C4` | Border on hover, dashed empty states |
+| `navy` | `#0F1923` | Chrome: sidebar, topbar, primary buttons. Also primary text |
+| `navy-soft` | `#162030` | Active nav item, hover on navy |
+| `navy-deep` | `#0A1219` | Deepest navy, when a third step is needed |
+| `accent-blue` | `#3B6FD4` | **The one interactive accent** — links, focus rings, active markers, first chart series |
+| `accent-soft` | `#BDD0F0` | Accent ON navy: emphasis text and button labels on the dark chrome |
+| `accent-tint` | `#F0F5FC` | Accent on light: tinted tiles and thumbnails |
+| `success` | `#1A5E3A` | Complete / passed / present |
+| `warning` | `#8A6200` | Late / partial / at risk |
+| `rust` | `#B04A00` | Fourth categorical slot in charts |
+| `danger` (`error`) | `#C94040` | **Errors and destructive states only** |
+| `ink` | `#0F1923` | Primary text |
+| `text-2` | `#555555` | Secondary text |
+| `text-3` | `#888888` | Tertiary text, placeholders, "not started" |
 
 **Rules**
-- No gold, blue, red, green, amber, gradients or bright accents. There is no
-  success green or warning amber — see §10.3.
-- `error` is never used for emphasis, only for genuine failure or destruction.
-- **Lime never appears as text or emphasis on a light background.** On dark
-  surfaces it carries key emphasis and primary CTAs (lime field, navy text).
-- Greys are expressed as ink at opacity (`text-ink/60`), never a grey ramp.
+- Those are all the hues. No purple, teal, pink or gradient fills.
+- `danger` is never used for emphasis, only for genuine failure or destruction.
+- **`accent-blue` means interactive.** On a light surface it belongs to links,
+  focus, the active marker and data. The one sanctioned exception is the
+  emphasis phrase in `page-header.jsx` (§10.2).
+- **On navy, the accent becomes `accent-soft`.** `accent-blue` on `navy` is too
+  dark to read; the soft tint is what the chrome uses for emphasis and for the
+  label on a navy button.
+- Greys are the real ramp above (`text-2`, `text-3`), not ink at opacity.
+  `text-ink/60` still works and lands close to `text-2` — prefer the token.
+
+**Legacy aliases.** The previous navy/lime system's token names are kept in
+`globals.css` and `lib/brand.js` so existing markup keeps rendering, and they
+now resolve to Spectra values: `lime` → `accent-blue`, `lime-soft` →
+`accent-soft`, `paper` → `canvas`, `paper-warm` → `surface-2`, `paper-cream` →
+`surface-3`. **Write new code against the Spectra names.** Note the reversal
+that follows: `paper-warm` and `paper-cream` are now *lighter* than the page
+background, not darker.
 
 ### 10.2 Typography
 
 | Face | Class | Use |
 |---|---|---|
-| Sora | `font-display` | Headlines and display text |
-| Cormorant Garamond *italic* | `font-editorial` | ONE emphasis phrase per headline |
-| DM Sans | `font-sans` (default) | Body copy, UI, supporting text |
-| DM Mono | `font-mono` | Labels, eyebrows, section markers, technical text |
+| Inter | `font-display` | Headlines and display text |
+| Inter, heavier | `font-editorial` | ONE emphasis phrase per headline |
+| Inter | `font-sans` (default) | Body copy, UI, supporting text |
+| IBM Plex Mono | `font-mono` | Labels, eyebrows, section markers, technical text |
 
-`h1`–`h6` get Sora automatically from the base layer — do not set a font on them.
+One face carries the interface. **Spectra has no serif**, so the emphasis
+phrase inside a headline is upright Inter at a heavier weight and in
+`accent-blue` — never an italic. An Inter italic there reads as a typo rather
+than as emphasis, which is why `font-editorial` survives as a token but no
+longer means a different family.
+
+`h1`–`h6` get Inter with the display tracking automatically from the base
+layer — do not set a font on them. Base body size is **13px**: this is a dense,
+data-forward interface, and a page that sets its own larger base is fighting it.
 
 Headlines are **sentence case**. Use `components/shared/page-header.jsx` for every
-page: it encodes eyebrow → title → italic emphasis → summary so the rule is not
+page: it encodes eyebrow → title → emphasis → summary so the rule is not
 re-decided per page. Avoid excessive bolding, underlining or decorative type.
 
-### 10.3 Status without extra hues
+### 10.3 Status
 
-Colour is not available to distinguish states, so status is carried by **fill
-weight**. The four states, defined once as `.chip-*` in `globals.css` and
-mirrored by `statusChip()` in `lib/brand.js`:
+Unlike the previous system, Spectra **does** carry hue in status. Each state is
+a tinted pill — the hue at 12% as the field, the hue itself as the text —
+defined once as `.chip-*` in `globals.css` and mirrored by `statusChip()` in
+`lib/brand.js`:
 
 | State | Treatment |
 |---|---|
-| Complete / passed / present | Filled `navy`, `paper` text — the heaviest |
-| In progress / partial / late | `paper-cream` fill, `ink` text, navy hairline |
-| Not started / idle / behind | `paper-warm` fill, muted ink, hairline border |
-| Failed / absent / revoked | `error` at 10%, `error` text |
+| Complete / passed / present | `success` green at 12%, green text |
+| In progress / active | `accent-blue` at 12%, accent text |
+| Late / partial / at risk | `warning` ochre at 12%, ochre text |
+| Not started / idle / behind | grey at 12%, `text-3` text |
+| Failed / absent / revoked | `danger` at 12%, danger text |
 
-When adding a state, pick one of these four. Do not invent a fifth colour.
+Those five are the vocabulary. When adding a state, pick one of them — do not
+invent a sixth hue. `statusChip()` currently routes late/partial to the
+in-progress chip; `.chip-warning` exists for the cases that genuinely need the
+ochre.
 
 **Sessions carry four states too** — upcoming, in progress, completed,
 cancelled — mapped onto the same weights (idle, partial, complete, error).
@@ -398,9 +435,9 @@ place of a progress bar: the learner cannot move that progress themselves — th
 trainer marks the session complete — and a 0% bar would read as their own
 inaction.
 
-**These chips invert on a dark surface.** The light weights (paper-warm →
-paper-cream → navy) collapse to nothing on navy. There, the heaviest state is
-lime on navy and the lighter ones are paper at decreasing opacity. Note also
+**These chips need care on a dark surface.** The 12% tints are mixed against a
+light field and go muddy on navy. On the dark chrome, carry state with
+`accent-soft` for the active one and the on-navy text ramp for the rest. Note also
 that `.surface-dark` is a component-layer class, so a shadcn `Card`'s own
 `bg-card` utility beats it — put `surface-dark` on a `Box` inside the card, not
 on the card.
@@ -454,13 +491,21 @@ Every description — course, module, lesson, assessment, session — is capped 
   card has more than one child) on those cards. The primitive's own
   `has-[>img:first-child]:pt-0` only fires for a bare `<img>`, and `next/image`
   with `fill` always needs a positioned wrapper, so it never fires here.
-- Alternate between `paper`, `paper-warm`, `navy` and `white`. Use white cards
-  sparingly for elevation. Dark sections use the navy family and should feel
-  immersive — helpers: `.surface-dark`, `.surface-dark-soft`, `.surface-dark-deep`.
-- Avoid clutter, heavy shadows, glassmorphism and noisy backgrounds.
-- Charts use the brand ramp in order: **lime-soft → lime → navy**. Import
-  `seriesColor(i)`, `SEQUENTIAL` or `STATUS_RAMP` from `lib/brand.js` rather than
-  writing a colour. Keep charts minimal and legible.
+- **Nothing casts a shadow and nothing is rounded.** `--radius` is `0` and
+  every edge is a 1px `line` border. A `shadow-*` or `rounded-*` utility added
+  by hand is the one thing that will make a component look foreign here.
+  `.panel` is the Spectra card if a shadcn `Card` is not already in play.
+- Stack `canvas` (the page) → `surface` (cards) → `surface-2` (inputs, table
+  headers, hover) → `surface-3` (tracks). Dark sections use the navy family and
+  should feel immersive — helpers: `.surface-dark`, `.surface-dark-soft`,
+  `.surface-dark-deep`. The chrome — sidebar and topbar — is always `navy`.
+- Tinted icon tiles beside a stat use `.tile-accent`, `.tile-success`,
+  `.tile-warning`, `.tile-rust`.
+- Avoid clutter, glassmorphism and noisy backgrounds.
+- Charts use the Spectra ramp in order: **accent-blue → navy → success → warning
+  → rust**. Import `seriesColor(i)`, `SEQUENTIAL` or `STATUS_RAMP` from
+  `lib/brand.js` rather than writing a colour, and `HAIRLINE` for axis rules.
+  Keep charts minimal and legible.
 - Motion is smooth and deliberate: slow reveals, gentle scaling, clean
   transitions. No particles, glows or neon. `prefers-reduced-motion` is
   respected globally in `globals.css`.

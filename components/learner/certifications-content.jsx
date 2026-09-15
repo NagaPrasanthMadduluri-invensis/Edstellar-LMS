@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import { CertificatePrintView } from "@/components/learner/certificate-print-view";
+import { BRAND } from "@/lib/brand";
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -31,10 +32,10 @@ function formatDate(iso) {
 /* Thumbnail surfaces. The brand allows variety only across the paper family
    and navy, so the name hash picks a surface rather than inventing a hue. */
 const GRADIENTS = [
-  { bg: "#EDE9DD", iconColor: "#0A1628" },
-  { bg: "#F2F0E8", iconColor: "#0A1628" },
-  { bg: "#0A1628", iconColor: "#C8F135" },
-  { bg: "#FAFAF7", iconColor: "#14233D" },
+  { bg: BRAND.accentTint, iconColor: BRAND.accent },
+  { bg: BRAND.surface3, iconColor: BRAND.navy },
+  { bg: BRAND.navy, iconColor: BRAND.accentSoft },
+  { bg: BRAND.surface2, iconColor: BRAND.accent },
 ];
 
 function getGradient(name) {

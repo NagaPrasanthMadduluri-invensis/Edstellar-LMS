@@ -20,7 +20,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { seriesColor, BRAND } from "@/lib/brand";
+import { seriesColor, BRAND, HAIRLINE } from "@/lib/brand";
 
 /* Department series colours follow the brand ramp: lime-soft → lime → navy.
    Assigned by position so any set of departments stays distinguishable. */
@@ -125,7 +125,7 @@ export function LearningHoursContent() {
   const sessionsNeeded = s.remaining > 0 ? Math.ceil(s.remaining / 0.4) : 0;
 
   /* ── goal bar status class ── */
-  const barColor = s.goalPct >= 100 ? "#0A1628" : s.goalPct >= 80 ? "#14233D" : s.goalPct >= 50 ? "#0A1628" : "#B3261E";
+  const barColor = s.goalPct >= 100 ? BRAND.success : s.goalPct >= 50 ? BRAND.accent : BRAND.danger;
 
   return (
     <Box className="space-y-4">
@@ -214,7 +214,7 @@ export function LearningHoursContent() {
           </Box>
           <ResponsiveContainer width="100%" height={190}>
             <LineChart data={weeklyTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(10,22,40,0.12)" />
+              <CartesianGrid strokeDasharray="3 3" stroke={HAIRLINE} />
               <XAxis dataKey="week" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} unit="h" />
               <Tooltip formatter={(v) => `${v}h`} />
@@ -350,7 +350,7 @@ export function LearningHoursContent() {
             <tbody>
               {deptPeers.map((peer, i) => {
                 const scfg = STATUS_CFG[peer.status] || {};
-                const barCol = peer.goalPct >= 100 ? "#0A1628" : peer.goalPct >= 60 ? "#14233D" : "#B3261E";
+                const barCol = peer.goalPct >= 100 ? BRAND.success : peer.goalPct >= 60 ? BRAND.accent : BRAND.danger;
                 return (
                   <tr key={peer.id} className={cn("border-b last:border-0", peer.isYou && "bg-paper-cream")}>
                     <td className="py-3 pl-5 pr-3 w-8">

@@ -19,7 +19,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { seriesColor } from "@/lib/brand";
+import { seriesColor, HAIRLINE } from "@/lib/brand";
 
 /* Department styling: one shared shape, colour by series position. */
 const DEPT_STYLE = { bar: "bg-navy", text: "text-navy", border: "border-navy/20" };
@@ -159,7 +159,7 @@ export function AdminLearningHoursContent() {
           <Text as="p" className="text-xs text-muted-foreground mb-4">Learning hours by department</Text>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={weeklyTrend} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(10,22,40,0.12)" />
+              <CartesianGrid strokeDasharray="3 3" stroke={HAIRLINE} />
               <XAxis dataKey="week" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}h`} />
               <Tooltip formatter={(v) => `${v}h`} />
@@ -178,7 +178,7 @@ export function AdminLearningHoursContent() {
           <Text as="p" className="text-xs text-muted-foreground mb-4">Cumulative hours this month</Text>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={deptBarData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(10,22,40,0.12)" />
+              <CartesianGrid strokeDasharray="3 3" stroke={HAIRLINE} />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}h`} />
               <Tooltip formatter={(v) => `${v}h`} />

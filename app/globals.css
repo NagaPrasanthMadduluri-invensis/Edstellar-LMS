@@ -3,21 +3,50 @@
 @import "shadcn/tailwind.css";
 
 /* ═══════════════════════════════════════════════════════════════════
-   EDSTELLAR DESIGN SYSTEM
-   The palette is deliberately small and closed. Do not add hues.
+   SPECTRA DESIGN SYSTEM
+   Ported from the Spectra LMS reference. Flat, square, hairline-ruled.
 
-   Navy family   — dark surfaces, primary text
-   Lime family   — the single accent; on DARK surfaces only (charts excepted)
-   Paper family  — light surfaces
-   Error         — #B3261E, destructive states ONLY
+   Canvas      — #EDECE9 warm grey, panels float on it in white
+   Navy        — #0F1923 chrome (sidebar, topbar, primary buttons)
+   Accent      — #3B6FD4 the one interactive blue
+   Status      — green #1A5E3A · ochre #8A6200 · rust #B04A00 · red #C94040
+   Geometry    — radius 0, no shadows, 1px borders carry every edge
+   Type        — Inter everywhere, IBM Plex Mono for labels and data
 
-   There is no success green, warning amber or info blue. Status is
-   carried by the navy/paper scale, weight and typography instead. See
-   the status tokens below.
+   Unlike the previous (Edstellar navy/lime) system, status DOES carry
+   hue here. The four Spectra status pills are the vocabulary — use them
+   rather than inventing a fifth.
+
+   Legacy token names (navy / lime / paper / ink) are kept as aliases so
+   every existing utility class keeps working; they now resolve to the
+   Spectra values below.
    ═══════════════════════════════════════════════════════════════════ */
 
 @theme inline {
-  /* ── Brand palette ── */
+  /* ── Spectra palette (canonical) ── */
+  --color-canvas: var(--spectra-bg);
+  --color-surface: var(--spectra-surface);
+  --color-surface-2: var(--spectra-surface-2);
+  --color-surface-3: var(--spectra-surface-3);
+  --color-line: var(--spectra-border);
+  --color-line-strong: var(--spectra-border-2);
+
+  --color-accent-blue: var(--spectra-accent);
+  --color-accent-soft: var(--spectra-accent-soft);
+  --color-accent-tint: var(--spectra-accent-tint);
+  --color-success: var(--spectra-success);
+  --color-warning: var(--spectra-warning);
+  --color-rust: var(--spectra-rust);
+  --color-danger: var(--spectra-danger);
+
+  --color-text-2: var(--spectra-text-2);
+  --color-text-3: var(--spectra-text-3);
+
+  /* ── Legacy brand aliases — same names, Spectra values ──
+     navy*  → the Spectra navy scale (chrome)
+     lime*  → the Spectra accent blue  (`lime` = accent, `lime-soft` = #BDD0F0)
+     paper* → the Spectra light surfaces
+     ink    → Spectra text                                        */
   --color-navy: var(--brand-navy);
   --color-navy-soft: var(--brand-navy-soft);
   --color-navy-deep: var(--brand-navy-deep);
@@ -30,17 +59,19 @@
   --color-error: var(--brand-error);
 
   /* ── Typography ──
-     Sora      display / headlines
-     Cormorant editorial italic emphasis, used sparingly
-     DM Sans   body, UI, supporting text
-     DM Mono   labels, eyebrows, section markers, technical text */
-  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
-  --font-editorial: var(--font-cormorant), ui-serif, Georgia, serif;
-  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-dm-mono), ui-monospace, SFMono-Regular, monospace;
-  --font-heading: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+     Inter          display, headlines, body, UI — one face does the lot
+     IBM Plex Mono  labels, eyebrows, section markers, technical text
 
-  /* ── shadcn semantic tokens, mapped onto the brand palette ── */
+     `font-editorial` survives as a token so existing markup keeps
+     rendering, but Spectra has no serif: emphasis inside a headline is
+     upright Inter at a heavier weight, not an italic. */
+  --font-display: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-editorial: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-heading: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* ── shadcn semantic tokens, mapped onto the Spectra palette ── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -73,6 +104,8 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  /* Spectra is square. Every step of the scale resolves to 0 while
+     --radius is 0 — the scale is kept so a future softening is one edit. */
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -83,75 +116,129 @@
 }
 
 :root {
-  /* ── The palette. These nine values are the whole system. ── */
-  --brand-navy: #0a1628;
-  --brand-navy-soft: #14233d;
-  --brand-navy-deep: #050d1a;
-  --brand-lime: #c8f135;
-  --brand-lime-soft: #e4f89a;
-  --brand-paper: #fafaf7;
-  --brand-paper-warm: #f2f0e8;
-  --brand-paper-cream: #ede9dd;
-  --brand-ink: #0a1628;
-  /* Reserved strictly for errors and destructive actions. */
-  --brand-error: #b3261e;
+  /* ══ The Spectra palette. These values are the whole system. ══ */
 
-  /* Ink tints replace the grey ramp — same hue, never a new colour. */
-  --ink-70: color-mix(in oklab, var(--brand-ink) 70%, transparent);
-  --ink-60: color-mix(in oklab, var(--brand-ink) 60%, transparent);
-  --ink-45: color-mix(in oklab, var(--brand-ink) 45%, transparent);
-  --ink-12: color-mix(in oklab, var(--brand-ink) 12%, transparent);
+  /* Light surfaces — the canvas is the DARKEST of the four, so panels
+     read as lifted without a shadow. Do not swap bg and surface-2. */
+  --spectra-bg: #edece9;
+  --spectra-surface: #ffffff;
+  --spectra-surface-2: #f8f8f6;
+  --spectra-surface-3: #efeeeb;
 
-  --radius: 0.625rem;
+  /* Hairlines do all the work shadows used to. */
+  --spectra-border: #d8d8d4;
+  --spectra-border-2: #c8c8c4;
+
+  /* Navy chrome — sidebar, topbar, primary buttons. */
+  --spectra-navy: #0f1923;
+  --spectra-navy-mid: #162030;
+  --spectra-navy-deep: #0a1219;
+  --spectra-navy-border: #1e3050;
+  --spectra-navy-hover: #131e2a;
+
+  /* The one interactive accent, plus its on-dark and on-light tints. */
+  --spectra-accent: #3b6fd4;
+  --spectra-accent-soft: #bdd0f0;
+  --spectra-accent-tint: #f0f5fc;
+
+  /* Status hues. Four, and only four. */
+  --spectra-success: #1a5e3a;
+  --spectra-warning: #8a6200;
+  --spectra-rust: #b04a00;
+  --spectra-danger: #c94040;
+
+  /* Text ramp — real greys, not ink at opacity. */
+  --spectra-text: #0f1923;
+  --spectra-text-2: #555555;
+  --spectra-text-3: #888888;
+
+  /* On-navy text ramp, for the sidebar and topbar. */
+  --on-navy: #e4e4e0;
+  --on-navy-2: #c0cce0;
+  --on-navy-3: #8fa4c0;
+  --on-navy-4: #6b7a8d;
+  --on-navy-5: #4a6080;
+
+  /* ── Legacy brand aliases ── */
+  --brand-navy: var(--spectra-navy);
+  --brand-navy-soft: var(--spectra-navy-mid);
+  --brand-navy-deep: var(--spectra-navy-deep);
+  --brand-lime: var(--spectra-accent);
+  --brand-lime-soft: var(--spectra-accent-soft);
+  --brand-paper: var(--spectra-bg);
+  --brand-paper-warm: var(--spectra-surface-2);
+  --brand-paper-cream: var(--spectra-surface-3);
+  --brand-ink: var(--spectra-text);
+  --brand-error: var(--spectra-danger);
+
+  /* Ink tints keep their names but resolve to the Spectra grey ramp, so
+     a flat colour meets a flat background instead of compositing. */
+  --ink-70: #3f474f;
+  --ink-60: var(--spectra-text-2);
+  --ink-45: var(--spectra-text-3);
+  --ink-12: var(--spectra-border);
+
+  /* Geometry. Spectra is square and unshadowed. */
+  --radius: 0px;
+  --radius-pill: 999px;
+  --shadow: none;
+
+  /* Shell metrics from the reference. */
+  --header-h: 50px;
+  --sidebar-w: 232px;
 
   /* ── Light surfaces (the default) ── */
-  --background: var(--brand-paper);
-  --foreground: var(--brand-ink);
-  --card: #ffffff;
-  --card-foreground: var(--brand-ink);
-  --popover: #ffffff;
-  --popover-foreground: var(--brand-ink);
-  --primary: var(--brand-navy);
-  --primary-foreground: var(--brand-paper);
-  --secondary: var(--brand-paper-warm);
-  --secondary-foreground: var(--brand-ink);
-  --muted: var(--brand-paper-warm);
-  --muted-foreground: var(--ink-60);
-  --accent: var(--brand-paper-cream);
-  --accent-foreground: var(--brand-ink);
-  --destructive: var(--brand-error);
-  --border: var(--ink-12);
-  --input: var(--ink-12);
-  --ring: var(--brand-navy);
+  --background: var(--spectra-bg);
+  --foreground: var(--spectra-text);
+  --card: var(--spectra-surface);
+  --card-foreground: var(--spectra-text);
+  --popover: var(--spectra-surface);
+  --popover-foreground: var(--spectra-text);
+  --primary: var(--spectra-navy);
+  --primary-foreground: var(--spectra-accent-soft);
+  --secondary: var(--spectra-surface-2);
+  --secondary-foreground: var(--spectra-text);
+  --muted: var(--spectra-surface-2);
+  --muted-foreground: var(--spectra-text-2);
+  --accent: var(--spectra-surface-3);
+  --accent-foreground: var(--spectra-text);
+  --destructive: var(--spectra-danger);
+  --border: var(--spectra-border);
+  --input: var(--spectra-border);
+  --ring: var(--spectra-accent);
 
-  /* Data visualisation, in the prescribed order: lime-soft → lime → navy. */
-  --chart-1: var(--brand-lime-soft);
-  --chart-2: var(--brand-lime);
-  --chart-3: var(--brand-navy);
-  --chart-4: var(--brand-navy-soft);
-  --chart-5: color-mix(in oklab, var(--brand-navy) 55%, var(--brand-paper));
+  /* Data visualisation: accent → navy → green → ochre → rust.
+     Ordered so a two-series chart is blue against navy, which is what
+     every chart in the reference does. */
+  --chart-1: var(--spectra-accent);
+  --chart-2: var(--spectra-navy);
+  --chart-3: var(--spectra-success);
+  --chart-4: var(--spectra-warning);
+  --chart-5: var(--spectra-rust);
 
-  /* ── Sidebar is an immersive dark surface — lime is allowed here ── */
-  --sidebar: var(--brand-navy-deep);
-  --sidebar-foreground: var(--brand-paper);
-  --sidebar-primary: var(--brand-lime);
-  --sidebar-primary-foreground: var(--brand-navy);
-  --sidebar-accent: var(--brand-navy-soft);
-  --sidebar-accent-foreground: var(--brand-lime);
-  --sidebar-border: color-mix(in oklab, var(--brand-paper) 12%, transparent);
-  --sidebar-ring: var(--brand-lime);
+  /* ── Sidebar and topbar are the navy chrome ── */
+  --sidebar: var(--spectra-navy);
+  --sidebar-foreground: var(--on-navy-2);
+  --sidebar-primary: var(--spectra-accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--spectra-navy-mid);
+  --sidebar-accent-foreground: var(--spectra-accent-soft);
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: var(--spectra-accent);
 
-  /* ── Status, without inventing hues ──
-     complete → filled navy    · progress → cream fill, ink text
-     idle     → warm paper     · error    → the one reserved red */
-  --status-complete-bg: var(--brand-navy);
-  --status-complete-fg: var(--brand-paper);
-  --status-progress-bg: var(--brand-paper-cream);
-  --status-progress-fg: var(--brand-ink);
-  --status-idle-bg: var(--brand-paper-warm);
-  --status-idle-fg: var(--ink-60);
-  --status-error-bg: color-mix(in oklab, var(--brand-error) 10%, transparent);
-  --status-error-fg: var(--brand-error);
+  /* ── Status, as tinted pills ──
+     complete → green · progress → accent blue
+     idle     → grey  · error    → red      · late/partial → ochre */
+  --status-complete-bg: rgba(26, 94, 58, 0.12);
+  --status-complete-fg: var(--spectra-success);
+  --status-progress-bg: rgba(59, 111, 212, 0.12);
+  --status-progress-fg: var(--spectra-accent);
+  --status-idle-bg: rgba(100, 116, 139, 0.12);
+  --status-idle-fg: var(--spectra-text-3);
+  --status-error-bg: rgba(201, 64, 64, 0.12);
+  --status-error-fg: var(--spectra-danger);
+  --status-warning-bg: rgba(138, 98, 0, 0.12);
+  --status-warning-fg: var(--spectra-warning);
 }
 
 @layer base {
@@ -162,10 +249,11 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    font-size: 13px;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Sora carries every headline. Sentence case, tight tracking, no shouting. */
+  /* Inter carries every headline. Sentence case, tight tracking, no shouting. */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
@@ -174,7 +262,15 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: var(--ink-45);
+    color: var(--spectra-text-3);
+  }
+
+  /* Inputs sit on surface-2 with a hairline that turns accent on focus —
+     this is the single most repeated pattern in the reference. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    border-color: var(--spectra-accent);
   }
 
   /* Respect reduced-motion: transitions become instant, nothing animates. */
@@ -190,73 +286,106 @@
 
 @layer components {
   /* ── Editorial emphasis ──
-     One meaningful phrase per headline, never a whole line.
-     On dark surfaces it may take the lime. */
+     Spectra has no serif. The emphasis phrase inside a headline stays
+     upright Inter and gains weight instead of italics. */
   .editorial {
     font-family: var(--font-editorial);
-    font-style: italic;
-    font-weight: 400;
-    letter-spacing: 0;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
-  /* ── Eyebrow / section marker ── DM Mono, small, wide, quiet. */
+  /* ── Eyebrow / section marker ── small, wide, quiet. */
   .eyebrow {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.14em;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--ink-60);
+    color: var(--spectra-text-3);
   }
 
   /* ── Dark section ──
-     Immersive navy surface. Text becomes paper, emphasis becomes lime,
-     dividers become paper hairlines. */
+     Navy chrome. Text becomes the on-navy ramp, emphasis becomes the
+     soft accent, dividers become white hairlines. */
   .surface-dark {
-    background-color: var(--brand-navy);
-    color: var(--brand-paper);
+    background-color: var(--spectra-navy);
+    color: var(--on-navy);
   }
-  .surface-dark-deep { background-color: var(--brand-navy-deep); color: var(--brand-paper); }
-  .surface-dark-soft { background-color: var(--brand-navy-soft); color: var(--brand-paper); }
+  .surface-dark-deep { background-color: var(--spectra-navy-deep); color: var(--on-navy); }
+  .surface-dark-soft { background-color: var(--spectra-navy-mid); color: var(--on-navy); }
 
   .surface-dark .eyebrow,
   .surface-dark-deep .eyebrow,
   .surface-dark-soft .eyebrow {
-    color: color-mix(in oklab, var(--brand-paper) 60%, transparent);
+    color: var(--on-navy-3);
   }
   .surface-dark .editorial,
   .surface-dark-deep .editorial,
   .surface-dark-soft .editorial {
-    color: var(--brand-lime);
+    color: var(--spectra-accent-soft);
   }
   .surface-dark hr,
   .surface-dark-deep hr,
   .surface-dark-soft hr {
-    border-color: color-mix(in oklab, var(--brand-paper) 15%, transparent);
+    border-color: rgba(255, 255, 255, 0.07);
   }
 
-  /* ── Status chips ── one shape, four states, no new hues. */
+  /* ── Status chips ── one shape, five states, all from the Spectra hues. */
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.1875rem 0.5rem;
-    border-radius: 0.375rem;
-    font-family: var(--font-mono);
+    gap: 0.3125rem;
+    padding: 0.1875rem 0.625rem;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-sans);
     font-size: 0.6875rem;
-    letter-spacing: 0.04em;
+    font-weight: 600;
+    letter-spacing: 0;
     white-space: nowrap;
   }
   .chip-complete { background: var(--status-complete-bg); color: var(--status-complete-fg); }
   .chip-progress { background: var(--status-progress-bg); color: var(--status-progress-fg); }
   .chip-idle     { background: var(--status-idle-bg);     color: var(--status-idle-fg); }
   .chip-error    { background: var(--status-error-bg);    color: var(--status-error-fg); }
+  .chip-warning  { background: var(--status-warning-bg);  color: var(--status-warning-fg); }
 
-  /* Lime is the CTA on dark surfaces: lime field, navy text. */
-  .cta-lime {
-    background-color: var(--brand-lime);
-    color: var(--brand-navy);
+  /* ── Primary CTA ──
+     Navy field, soft-accent text. `.cta-lime` keeps its name so existing
+     markup is untouched; `.cta-navy` is the name to use from now on. */
+  .cta-lime,
+  .cta-navy {
+    background-color: var(--spectra-navy);
+    color: var(--spectra-accent-soft);
   }
-  .cta-lime:hover {
-    background-color: color-mix(in oklab, var(--brand-lime) 88%, var(--brand-navy));
+  .cta-lime:hover,
+  .cta-navy:hover {
+    background-color: var(--spectra-accent);
+    color: #ffffff;
   }
+
+  /* Secondary CTA — the accent as a field, for in-content actions. */
+  .cta-accent {
+    background-color: var(--spectra-accent);
+    color: #ffffff;
+  }
+  .cta-accent:hover {
+    background-color: #2f5cb8;
+  }
+
+  /* ── Panel ──
+     The Spectra card: white, hairline, square, no shadow. Use it when a
+     shadcn Card is not already in play. */
+  .panel {
+    background: var(--spectra-surface);
+    border: 1px solid var(--spectra-border);
+    border-radius: var(--radius);
+  }
+  .panel:hover { border-color: var(--spectra-border-2); }
+
+  /* Tinted icon tiles beside a stat — the reference's four accents. */
+  .tile-accent  { background: rgba(59, 111, 212, 0.12); color: var(--spectra-accent); }
+  .tile-success { background: rgba(26, 94, 58, 0.10);   color: var(--spectra-success); }
+  .tile-warning { background: rgba(138, 98, 0, 0.12);   color: var(--spectra-warning); }
+  .tile-rust    { background: rgba(176, 74, 0, 0.12);   color: var(--spectra-rust); }
 }

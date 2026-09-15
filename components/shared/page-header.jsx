@@ -5,10 +5,13 @@ import Box from "@/components/ui/box";
  * The one page header for both portals.
  *
  * It encodes the editorial rule so no page has to remember it:
- *   eyebrow   → DM Mono, uppercase, wide tracking — the section marker
- *   title     → Sora, sentence case, large and confident
- *   emphasis  → ONE phrase in Cormorant italic, the only decorative moment
- *   summary   → DM Sans, quiet supporting line
+ *   eyebrow   → IBM Plex Mono, uppercase, wide tracking — the section marker
+ *   title     → Inter, sentence case, large and confident
+ *   emphasis  → ONE phrase carried by weight, the only decorative moment
+ *   summary   → Inter, quiet supporting line
+ *
+ * Spectra has no serif, so the emphasis phrase is upright and heavier rather
+ * than italic — an Inter italic here reads as a typo, not as emphasis.
  *
  * Type classes are spelled out rather than leaning on the .eyebrow/.editorial
  * component classes: Tailwind's utilities layer outranks the components layer,
@@ -38,7 +41,7 @@ export function PageHeader({ eyebrow, title, emphasis, summary }) {
             {" "}
             <Text
               as="span"
-              className="font-editorial text-3xl font-normal italic tracking-normal text-ink sm:text-4xl"
+              className="font-editorial text-3xl font-bold tracking-tight text-accent-blue sm:text-4xl"
             >
               {emphasis}
             </Text>
