@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * ⚠ DEAD CODE — nothing imports this file.
+ *
+ * `/admin/users` renders `admin-employees-content.jsx`. Both are a full user
+ * management screen and they have drifted; this one was edited by mistake
+ * while adding the job-level and location dropdowns, which is exactly the cost
+ * of keeping two. Delete it, or make it the live one — but not both.
+ */
+
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +36,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { JOB_LEVELS, LOCATIONS } from "@/lib/workforce";
 import {
   fetchUsers, createUser, updateUser, bulkCreateUsers, exportReport,
   downloadUserTemplate, toggleUserStatus, deleteUser,
@@ -41,7 +51,7 @@ const AVATAR_COLORS = [
   "bg-paper-cream text-navy",
 ];
 
-const EMPTY_FORM = { first_name: "", last_name: "", email: "", password: "", department: "", location: "", job_role: "" };
+const EMPTY_FORM = { first_name: "", last_name: "", email: "", password: "", department: "", location: "", job_role: "", job_level: "" };
 
 const HEADER_MAP = {
   "employee id": "employee_id", "employeeid": "employee_id", "employee_id": "employee_id",
@@ -51,6 +61,7 @@ const HEADER_MAP = {
   "department": "department", "dept": "department",
   "location": "location", "city": "location",
   "job role": "job_role", "job_role": "job_role", "jobrole": "job_role", "title": "job_role", "position": "job_role",
+  "job level": "job_level", "job_level": "job_level", "joblevel": "job_level", "level": "job_level", "seniority": "job_level",
   "password": "password",
 };
 
@@ -119,7 +130,7 @@ export function AdminUsersContent() {
 
   // Edit modal
   const [editUser,   setEditUser]   = useState(null);
-  const [editForm,   setEditForm]   = useState({ first_name: "", last_name: "", email: "", location: "", job_role: "" });
+  const [editForm,   setEditForm]   = useState({ first_name: "", last_name: "", email: "", department: "", location: "", job_role: "", job_level: "" });
   const [editError,  setEditError]  = useState(null);
   const [editSaving, setEditSaving] = useState(false);
 
@@ -193,7 +204,7 @@ export function AdminUsersContent() {
   // ── Edit ──
   const openEdit = (u) => {
     setEditUser(u);
-    setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, location: u.location || "", job_role: u.job_role || "" });
+    setEditForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, department: u.department || "", location: u.location || "", job_role: u.job_role || "", job_level: u.job_level || "" });
     setEditError(null);
   };
 
@@ -269,8 +280,8 @@ export function AdminUsersContent() {
     if (!valid.length) return;
     setBulkUploading(true);
     try {
-      const payload = valid.map(({ employee_id, first_name, last_name, email, password, department, location, job_role }) =>
-        ({ employee_id, first_name, last_name, email, password, department, location, job_role }));
+      const payload = valid.map(({ employee_id, first_name, last_name, email, password, department, location, job_role, job_level }) =>
+        ({ employee_id, first_name, last_name, email, password, department, location, job_role, job_level }));
       const result = await bulkCreateUsers({ users: payload });
       setBulkResult(result);
       if (result.created > 0) load();
@@ -481,16 +492,38 @@ export function AdminUsersContent() {
                   <Input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
                     className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
                 </Box>
+                {/* Location and Job level are SELECTS, not free text: both are
+                    Reports filter and comparison dimensions, and a dimension is
+                    only useful if its values repeat. Typing produced two
+                    spellings of one office and made three learners invisible to
+                    every location-filtered report. Job role stays free text —
+                    it is a job title, not a reporting axis. */}
                 <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Box className="space-y-1.5">
-                    <Label className="text-sm font-medium text-ink/80">Location</Label>
-                    <Input placeholder="e.g. Bangalore" value={editForm.location} onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))}
+                    <Label className="text-sm font-medium text-ink/80">Department</Label>
+                    <Input placeholder="e.g. Engineering" value={editForm.department} onChange={(e) => setEditForm((p) => ({ ...p, department: e.target.value }))}
                       className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
+                  </Box>
+                  <Box className="space-y-1.5">
+                    <Label className="text-sm font-medium text-ink/80">Location</Label>
+                    <select value={editForm.location} onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))}
+                      className="h-10 w-full bg-paper-warm border border-border px-3 text-sm text-ink outline-none focus:border-navy/40 transition-colors">
+                      <option value="">Not set</option>
+                      {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
                   </Box>
                   <Box className="space-y-1.5">
                     <Label className="text-sm font-medium text-ink/80">Job Role</Label>
                     <Input placeholder="e.g. Software Engineer" value={editForm.job_role} onChange={(e) => setEditForm((p) => ({ ...p, job_role: e.target.value }))}
                       className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
+                  </Box>
+                  <Box className="space-y-1.5">
+                    <Label className="text-sm font-medium text-ink/80">Job Level</Label>
+                    <select value={editForm.job_level} onChange={(e) => setEditForm((p) => ({ ...p, job_level: e.target.value }))}
+                      className="h-10 w-full bg-paper-warm border border-border px-3 text-sm text-ink outline-none focus:border-navy/40 transition-colors">
+                      <option value="">Not set</option>
+                      {JOB_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
                   </Box>
                 </Box>
 
@@ -788,17 +821,28 @@ export function AdminUsersContent() {
                 </Text>
               )}
             </Box>
-            {/* Location + Job Role */}
+            {/* Location + Job Level are selects — see the edit dialog above. */}
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Box className="space-y-1.5">
                 <Label className="text-sm font-medium text-ink/80">Location</Label>
-                <Input placeholder="e.g. Bangalore" value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
-                  className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
+                <select value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                  className="h-10 w-full bg-paper-warm border border-border px-3 text-sm text-ink outline-none focus:border-navy/40 transition-colors">
+                  <option value="">Not set</option>
+                  {LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
               </Box>
               <Box className="space-y-1.5">
                 <Label className="text-sm font-medium text-ink/80">Job Role</Label>
                 <Input placeholder="e.g. Software Engineer" value={form.job_role} onChange={(e) => setForm((p) => ({ ...p, job_role: e.target.value }))}
                   className="h-10 bg-paper-warm border-border placeholder:text-ink/35 focus-visible:ring-2 focus-visible:ring-navy/20 focus-visible:border-navy/20 transition-colors" />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label className="text-sm font-medium text-ink/80">Job Level</Label>
+                <select value={form.job_level} onChange={(e) => setForm((p) => ({ ...p, job_level: e.target.value }))}
+                  className="h-10 w-full bg-paper-warm border border-border px-3 text-sm text-ink outline-none focus:border-navy/40 transition-colors">
+                  <option value="">Not set</option>
+                  {JOB_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
               </Box>
             </Box>
             {/* Password */}

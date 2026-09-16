@@ -1,4 +1,5 @@
 import { apiClient, SERVER_URL } from "@/lib/api-client";
+import { downloadFile } from "@/lib/download";
 
 /* ── Dashboard ── */
 
@@ -6,10 +7,99 @@ export async function fetchAdminDashboard() {
   return apiClient("/api/admin/dashboard");
 }
 
+/** The dashboard's two below-the-fold panels, fetched separately so the KPI
+ *  strip is not held up by the slowest query on the page. */
+export async function fetchActionRequired() {
+  return apiClient("/api/admin/dashboard/action-required");
+}
+
+export async function fetchRecentActivity({ limit = 8 } = {}) {
+  return apiClient(`/api/admin/dashboard/activity?limit=${limit}`);
+}
+
+/* ── Analytics ── */
+
+/** Every series for one granularity, in one call — see the controller docblock. */
+export async function fetchAnalytics({ granularity = "monthly" } = {}) {
+  return apiClient(`/api/admin/analytics?granularity=${encodeURIComponent(granularity)}`);
+}
+
+/* ── Reports builder ── */
+
+export async function fetchReportOptions() {
+  return apiClient("/api/admin/reports/options");
+}
+
+/** POST, not GET: the payload carries arrays. See the controller docblock. */
+export async function buildGroupReport({ types, window, filters }) {
+  return apiClient("/api/admin/reports/group", {
+    method: "POST",
+    body: { types, window, ...filters },
+  });
+}
+
+export async function buildIndividualReport({ userId, window }) {
+  return apiClient("/api/admin/reports/individual", {
+    method: "POST",
+    body: { user_id: userId, window },
+  });
+}
+
+export async function buildComparisonReport({ dimension, items, metrics, window }) {
+  return apiClient("/api/admin/reports/comparison", {
+    method: "POST",
+    body: { dimension, items, metrics, window },
+  });
+}
+
+/**
+ * The same three reports as .xlsx.
+ *
+ * Each posts the SAME spec its build counterpart above posted, so the server
+ * regenerates the report rather than serialising whatever the page happens to
+ * be holding — which is what lets the file carry every row while the table on
+ * screen stays capped.
+ */
+export async function exportGroupReport({ types, window, filters }) {
+  return downloadFile("/api/admin/reports/group/export", {
+    method: "POST",
+    body: { types, window, ...filters },
+    filename: "Edstellar_Group-report.xlsx",
+  });
+}
+
+export async function exportIndividualReport({ userId, window }) {
+  return downloadFile("/api/admin/reports/individual/export", {
+    method: "POST",
+    body: { user_id: userId, window },
+    filename: "Edstellar_Individual-report.xlsx",
+  });
+}
+
+export async function exportComparisonReport({ dimension, items, metrics, window }) {
+  return downloadFile("/api/admin/reports/comparison/export", {
+    method: "POST",
+    body: { dimension, items, metrics, window },
+    filename: "Edstellar_Comparison.xlsx",
+  });
+}
+
 /* ── Courses ── */
 
-export async function fetchAdminCourses() {
-  return apiClient("/api/admin/courses");
+/**
+ * The Course Library. `archived: true` swaps to the archive — the two are
+ * never mixed, so an archived course cannot turn up in a picker.
+ */
+export async function fetchAdminCourses({ archived = false } = {}) {
+  return apiClient(`/api/admin/courses${archived ? "?archived=true" : ""}`);
+}
+
+/** Archive / restore / publish / unpublish, over a selection. */
+export async function bulkCourseAction({ action, courseIds }) {
+  return apiClient("/api/admin/courses/bulk", {
+    method: "POST",
+    body: { action, course_ids: courseIds },
+  });
 }
 
 export async function createCourse({ data }) {
@@ -99,6 +189,28 @@ export async function deleteModule({ moduleId }) {
 }
 
 /* ── Lessons ── */
+
+/**
+ * Every lesson on a course — placed and staged. The authoring page shows both
+ * lists at once, so it reads them together rather than per module.
+ */
+export async function fetchCourseLessons({ courseId }) {
+  return apiClient(`/api/admin/courses/${courseId}/lessons`);
+}
+
+/** Create a lesson at course level. Omit `module_id` to leave it staged. */
+export async function createCourseLesson({ courseId, data }) {
+  return apiClient(`/api/admin/courses/${courseId}/lessons`, {
+    method: "POST", body: data,
+  });
+}
+
+/** Move a lesson into a module, or back to staged with `moduleId: null`. */
+export async function setLessonModule({ lessonId, moduleId }) {
+  return apiClient(`/api/admin/lessons/${lessonId}/module`, {
+    method: "PATCH", body: { module_id: moduleId },
+  });
+}
 
 export async function fetchLessons({ moduleId }) {
   return apiClient(`/api/admin/modules/${moduleId}/lessons`);
@@ -517,4 +629,23 @@ export async function issueCertificate({ userId, courseId }) {
 
 export async function removeAssignment({ assignmentId }) {
   return apiClient(`/api/admin/assignments/${assignmentId}`, { method: "DELETE" });
+}
+
+/* ── Edstellar Services ── */
+
+/**
+ * The service CATALOGUE is not fetched — it is code the browser already holds
+ * (`lib/edstellar-services.js`). These two calls are for the part that is
+ * genuinely per-tenant: what this organization has asked for.
+ */
+export async function fetchServiceRequests({ limit, offset } = {}) {
+  const query = new URLSearchParams();
+  if (limit !== undefined) query.set("limit", String(limit));
+  if (offset !== undefined) query.set("offset", String(offset));
+  const qs = query.toString();
+  return apiClient(`/api/admin/services/requests${qs ? `?${qs}` : ""}`);
+}
+
+export async function createServiceRequest(data) {
+  return apiClient("/api/admin/services/requests", { method: "POST", body: data });
 }

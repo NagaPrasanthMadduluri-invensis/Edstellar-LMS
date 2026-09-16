@@ -16,8 +16,9 @@ export function AdminSidebar() {
         <SidebarNavGroup items={adminNav.main} />
         <SidebarNavGroup label="User Management" items={adminNav.userManagement} />
         <SidebarNavGroup label="Course Management" items={adminNav.courseManagement} />
-        <SidebarNavGroup label="Assignments" items={adminNav.assignments} />
-        <SidebarNavGroup label="Analytics" items={adminNav.analytics} />
+        <SidebarNavGroup label="Training Delivery" items={adminNav.trainingDelivery} />
+        <SidebarNavGroup label="Recognition" items={adminNav.recognition} />
+        <SidebarNavGroup label="Edstellar" items={adminNav.edstellar} />
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>

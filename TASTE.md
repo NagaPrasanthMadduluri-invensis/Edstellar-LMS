@@ -458,6 +458,191 @@ Supporting resources render under the primary content, never mixed into it, and
 are labelled as reference material — they carry no duration and do not count
 toward learning hours, and the learner should not have to guess that.
 
+### 10.3.1.1 Closed lists
+
+`job_level` and `location` on a user are **dropdowns, not text fields**
+(`lib/workforce.js`, mirroring `server/src/common/workforce.ts`, which is what
+enforces them).
+
+Both are filter and comparison dimensions in the Reports builder, and a
+dimension is only useful if its values repeat across people. `job_role` beside
+them is deliberately free text — it is a job title, not a reporting axis — and
+the live database is the argument: 18 distinct job roles across 20 learners, so
+filtering by one returns one person and comparing by it compares nothing.
+Typing a location produced two spellings of one office and left three learners
+matching no filter value at all, which is a silent omission rather than an
+empty cell.
+
+Adding a value means editing BOTH files. If they drift the dropdown offers
+something the API rejects with a 422 naming the valid set — loud, not silent.
+
+### 10.3.1.2 Row actions are icons
+
+A table row's actions are square icon buttons, not text buttons: **eye** to
+view, **pencil** to edit, **power** to activate/deactivate, **trash** to
+delete. Four words per row across twenty rows is eighty words of chrome, and
+they pushed the actions column off the right edge of a ten-column table.
+
+Two rules come with that trade, because an icon is a glyph with no name:
+
+- **Every icon button carries `title` AND `aria-label`.** The title is what a
+  sighted admin hovers for; the label is the button's only name to a screen
+  reader. A bare `<Trash2 />` in a button is an unlabelled control.
+- **An action the API will refuse renders DISABLED, and its label says why.**
+  The Manage Users table shows admins and trainers, and the API refuses to
+  edit, deactivate or delete them — so those three icons are disabled on those
+  rows and their title reads "Admin accounts are not editable here". An enabled
+  button that always 403s is the screen-that-lies failure in miniature.
+
+`IconAction` in `components/admin/admin-employees-content.jsx` is the shape;
+lift it into `components/shared/` when a second table needs it.
+
+**Hover on an icon action FILLS it** — solid `accent-blue` with white text,
+solid `danger` for a destructive one — rather than tinting the background.
+Five of them sit in a row on a course card, and a 10% wash on one was hard to
+tell from the one beside it. `cursor-pointer` is explicit on every enabled
+action: a `<button>` does not get it from the browser, and a control that does
+not change the cursor reads as decoration.
+
+**A figure that is clickable says so.** The Enrolled count on a course card
+opens the roster, so it takes `accent-blue`, underlines on hover and gets a
+pointer — while Complete and Avg score next to it stay plain ink. Styling all
+three alike would make two of them look like buttons that do nothing.
+
+### 10.3.1.3 Course category is the one coloured axis
+
+Seven course categories, seven colours (`lib/course-taxonomy.js`, mirroring
+`server/src/common/course-taxonomy.ts`). That is a deliberate, bounded
+exception to "no new hues" in §10.1 — five of the seven are already palette
+colours, and slate and violet exist only here.
+
+The exception is earned by the job: a reader scans a grid of course cards and
+needs to tell groups apart at a glance, and fill weight cannot separate seven
+values the way it separates four states. The colour appears in exactly three
+places on a card — the top stripe, the category chip, nothing else — so it
+never competes with the status chip beside it.
+
+**Importance is not a colour.** Mandatory and Compliance share one `danger`
+ribbon, because they are the same instruction to the reader ("this is not
+optional") and a second hue would imply a distinction that does not exist. The
+ribbon's WORD says which.
+
+### 10.3.1.4 The course page owns authoring
+
+`/admin/courses/[courseId]` is the one place a course is built: four tabs —
+Modules, Lessons, Assessments, Outline — over one fetch. All four read the same
+course, modules, lessons and assessments, and refetch together, so the Outline
+can never disagree with the list the admin just edited.
+
+**Staged is a state the UI has to show, not hide.** A lesson with no module is
+authored but not delivered — invisible to learners, worth no hours. The Lessons
+tab puts staged lessons in their own section *above* the course, labelled with
+what that means, because a lesson silently absent from the learner's view is
+the worst possible outcome of this feature. The header count says
+"15 lessons · 1 staged" for the same reason.
+
+**Placement is a select, not drag-and-drop.** It is keyboard reachable, it
+names the modules, and "Not placed (staged)" is one option in the same list
+rather than a separate unlink button — so putting a lesson back is the same
+gesture as moving it.
+
+**Deleting a module is not deleting its lessons**, and the confirm dialog says
+so with the count. The API unlinks them (`ON DELETE SET NULL`); the dialog has
+to promise that, or an admin reorganising a course will not dare press the
+button.
+
+**Which fields a lesson form shows, and which are required, come from
+`lib/lesson-content.js`** — the mirror of the catalogue the API validates
+against. Seven content types, and the duration field states *why* it is
+required for this one and optional for that one (§10.3.1). Same for the five
+question types in the assessment editor: two storage shapes, and the editor
+switches on the catalogue's `optionBacked`, not on a chain of `if (type ===)`.
+
+**A control that the API ignores must not be rendered.** A new assessment is
+created hidden — the API hardcodes it, so a half-built quiz cannot reach a
+learner — so the create dialog shows a sentence saying that, and only the edit
+dialog carries the Live switch.
+
+**`SelectValue` needs children.** This Select renders the raw *value* unless
+given them, so every dropdown whose value is an id or a key spells out its
+label — a bare `<SelectValue />` over modules showed `1`, `2`, `3`.
+
+There is no separate Assessment Builder page and no sidebar entry for one. An
+assessment only means something beside what it tests.
+
+### 10.3.1.5 Downloads report their own failures
+
+Every file download goes through `downloadFile()` in `lib/download.js`, never a
+bare `fetch().then(r => r.blob())`.
+
+The two that predated it each repeated the same blob/object-URL/anchor dance
+and each swallowed its errors in an empty `catch`, so a failed download was
+indistinguishable from a slow one: nothing appeared, nothing was said, and the
+admin clicked again. The helper throws instead, and the button renders the
+message.
+
+Three things it does that a hand-rolled version keeps forgetting:
+
+- **Reads the filename from `Content-Disposition`**, falling back to the name
+  the caller passed. The server names the file; the caller should not have to
+  guess it. (This only works because the API sets
+  `Access-Control-Expose-Headers` — see BACKEND_STRUCTURE §10.12.)
+- **Parses the error body.** A route whose success path is binary still returns
+  JSON on failure, so the real message is there to be read.
+- **Refuses a 0-byte body.** Saving one produces a file Excel will not open,
+  with nothing on screen to say why.
+
+**A download button appears only once there is something to download**, and
+when the on-screen table is capped it says the file is not — otherwise an admin
+who can see "showing the first 500 of 3,214" has every reason to assume the
+export is truncated the same way.
+
+### 10.3.1.6 Icons are lucide components, always
+
+Every glyph in this app is a `lucide-react` component. No inline `<svg>`, no
+emoji, no icon font — a hand-pasted SVG ships unoptimised markup that nothing
+tree-shakes and that cannot take a Tailwind size or colour class the way a
+lucide component does.
+
+This matters when porting from the reference mock, which uses emoji freely.
+A catalogue that needs an icon stores the lucide component **NAME** as a string
+(`icon: "ShieldCheck"`) and the page maps it to a component. That keeps the
+catalogue plain data — it can be generated, serialised and diffed — while the
+mapping stays in the one file that renders it.
+
+### 10.3.1.7 Edstellar Services
+
+`/admin/services` is the one page in the admin portal that is about Edstellar's
+offering rather than the organization's own content, which is why it sits under
+its own sidebar heading rather than inside Course Management.
+
+**The catalogue is code, not a fetch.** `lib/edstellar-services.js` holds four
+groups, eleven sub-groups and 42 services. The page fetches only what is
+per-tenant: the requests this organization has filed. The server keeps its own
+list of the 42 NAMES and refuses anything else, so the two files are edited
+together (BACKEND_STRUCTURE §10.14).
+
+**Two levels of tabs, because 42 cards on one screen is not a menu.** Group
+first, sub-group second, and each carries its own one-line description — a
+reader choosing between "OD Consulting" and "Assessment" needs to know what
+those mean before clicking.
+
+**The group colours are the chart ramp, not new hues.** accent-blue, success,
+warning, rust (§10.4) — carried as a `tone` token in the catalogue and mapped
+to full class names in the page, because Tailwind cannot see a class built by
+string concatenation.
+
+**The request form is rendered from the service's question set, never written
+per service.** Fourteen sets cover the 42 services and anything without one
+falls back to a generic set — which is why every Request button opens a working
+form rather than 28 of them opening nothing. A conditional follow-up ("Other →
+tell us more") renders only when its trigger is actually chosen, so the form
+stays as short as the answers allow.
+
+**Who the request is signed by is shown, not edited.** The API signs it from
+the verified token regardless, so an editable contact field would be a control
+that does nothing — the same rule as the assessment Live switch (§10.3.1.4).
+
 ### 10.3.2 Descriptions
 
 Every description — course, module, lesson, assessment, session — is capped at

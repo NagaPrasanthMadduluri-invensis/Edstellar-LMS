@@ -2,412 +2,378 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import {
-  PieChart, Pie, Cell,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
-import {
-  Users, Award, CheckCircle2, Percent,
-  ChevronRight, Clock, BookOpen, BookMarked, AlertCircle,
+  Award, BookMarked, CheckCircle2, ChevronRight, Clock, FileText,
+  Percent, Send, TrendingUp, Users, UserCheck, UserPlus, AlertTriangle,
+  RotateCcw, XCircle, CalendarCheck,
 } from "lucide-react";
-import Text from "@/components/ui/text";
-import Box from "@/components/ui/box";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/use-auth";
-import { fetchAdminDashboard } from "@/services/api/admin/admin-api";
-import { apiClient } from "@/lib/api-client";
-import { BRAND, seriesColor, HAIRLINE } from "@/lib/brand";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
 
-const STATUS_COLORS = {
-  "Completed":   BRAND.navy,
+import Box from "@/components/ui/box";
+import Text from "@/components/ui/text";
+import { Skeleton } from "@/components/ui/skeleton";
+import { InsightPanel } from "@/components/admin/insights/insight-panel";
+import { KpiStrip, StatTile } from "@/components/admin/insights/kpi-strip";
+import {
+  fetchActionRequired,
+  fetchAdminDashboard,
+  fetchRecentActivity,
+} from "@/services/api/admin/admin-api";
+import { BRAND, HAIRLINE } from "@/lib/brand";
+import { cn } from "@/lib/utils";
+
+const STATUS_COLOR = {
+  Completed: BRAND.success,
   "In Progress": BRAND.accent,
   "Not Started": BRAND.text3,
-  "Failed":      BRAND.danger,
+  Failed: BRAND.danger,
 };
 
-const pieConfig = {
-  Completed:    { label: "Completed",   color: BRAND.navy },
-  "In Progress":{ label: "In Progress", color: BRAND.accent },
-  "Not Started":{ label: "Not Started", color: BRAND.text3},
-  Failed:       { label: "Failed",      color: BRAND.danger},
+/** Activity group → the icon and tint the feed marks a row with. */
+const ACTIVITY_LOOK = {
+  users: { icon: UserPlus, tone: "tile-accent" },
+  content: { icon: FileText, tone: "tile-success" },
+  assign: { icon: Send, tone: "tile-warning" },
+  sessions: { icon: CalendarCheck, tone: "tile-accent" },
+  recognition: { icon: Award, tone: "tile-rust" },
 };
 
-const barConfig = {
-  count: { label: "Learners", color: BRAND.navy },
+/** Action kind → the icon beside the row. The label already says the rest. */
+const ACTION_LOOK = {
+  "not-started": { icon: AlertTriangle, tone: "tile-warning" },
+  stalled: { icon: RotateCcw, tone: "tile-accent" },
+  failed: { icon: XCircle, tone: "chip-error" },
 };
 
-const DEPT_PALETTE = Array.from({ length: 8 }, (_, i) => ({
-  border: "border-navy/20",
-  text: "text-navy",
-  bar: "bg-navy",
-  hex: seriesColor(i),
-}));
+function Panel({ title, subtitle, action, children, className }) {
+  return (
+    <Box className={cn("border border-line bg-surface", className)}>
+      <Box className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+        <Box>
+          <Text as="h3" className="text-[13px] font-bold text-ink">{title}</Text>
+          {subtitle && (
+            <Text as="p" className="mt-0.5 text-[11px] text-text-3">{subtitle}</Text>
+          )}
+        </Box>
+        {action}
+      </Box>
+      {children}
+    </Box>
+  );
+}
 
 function DashboardSkeleton() {
   return (
-    <Box className="space-y-5">
-      <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+    <Box className="space-y-4">
+      <Skeleton className="h-[86px] w-full" />
+      <Skeleton className="h-[150px] w-full" />
+      <Box className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-[320px]" />
+        <Skeleton className="h-[320px]" />
       </Box>
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Skeleton className="h-72 rounded-xl" />
-        <Skeleton className="h-72 rounded-xl" />
-      </Box>
-      <Skeleton className="h-64 rounded-xl" />
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Skeleton className="h-64 rounded-xl" />
-        <Skeleton className="h-64 rounded-xl" />
-      </Box>
+      <Skeleton className="h-[260px] w-full" />
     </Box>
   );
 }
 
 export function AdminDashboardContent() {
-  const { user } = useAuth();
-  const [dash, setDash] = useState(null);
-  const [reports, setReports] = useState(null);
-  const [hours, setHours] = useState(null);
+  const [data, setData] = useState(null);
+  const [actions, setActions] = useState(null);
+  const [activity, setActivity] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!user) return;
-    Promise.all([
-      fetchAdminDashboard(),
-      apiClient("/api/admin/reports"),
-      apiClient("/api/admin/learning-hours"),
-    ])
-      .then(([d, r, h]) => { setDash(d); setReports(r); setHours(h); })
-      .catch((e) => setError(e.message));
-  }, [user]);
+    let alive = true;
+    fetchAdminDashboard()
+      .then((d) => alive && setData(d))
+      .catch((e) => alive && setError(e.message || "Failed to load the dashboard"));
 
-  if (error) return (
-    <Card className="p-8 text-center">
-      <Text as="p" className="text-error text-sm">{error}</Text>
-    </Card>
-  );
-  if (!dash || !reports || !hours) return <DashboardSkeleton />;
+    // The two panels below the fold load independently, so the KPI strip is
+    // never waiting on the slowest query on the page. Each fails to an empty
+    // array rather than taking the whole dashboard down with it.
+    fetchActionRequired()
+      .then((d) => alive && setActions(d.items ?? []))
+      .catch(() => alive && setActions([]));
+    fetchRecentActivity({ limit: 8 })
+      .then((d) => alive && setActivity(d.activity ?? []))
+      .catch(() => alive && setActivity([]));
 
-  const { recentUsers = [], recentAttempts = [] } = dash;
-  const { stats, statusBreakdown = [], scoreBins = [], deptCompletion = [] } = reports;
-  const { weeklyActivity = [] } = hours;
+    return () => { alive = false; };
+  }, []);
 
-  const statCards = [
-    { label: "Total Learners",  value: stats.total,                    icon: Users,        color: "bg-paper-cream text-navy"  },
-    { label: "Completion Rate", value: `${stats.compRate}%`,           icon: CheckCircle2, color: "bg-paper-cream text-navy" },
-    { label: "Active Courses",  value: stats.activeCourses ?? 0,       icon: BookMarked,   color: "bg-paper-cream text-navy"      },
-    { label: "Overdue Courses", value: stats.overdueCourses ?? 0,      icon: AlertCircle,  color: "bg-error/10 text-error"        },
-    { label: "Pass Rate",       value: `${stats.passRate  ?? 0}%`,     icon: Percent,      color: "bg-paper-cream text-ink/70"    },
+  if (error) {
+    return (
+      <Box className="border border-line bg-surface px-4 py-10 text-center">
+        <Text as="p" className="text-sm text-danger">{error}</Text>
+      </Box>
+    );
+  }
+  if (!data) return <DashboardSkeleton />;
+
+  const h = data.headline ?? {};
+  const e = data.engagement ?? {};
+  const statusData = (data.statusBreakdown ?? []).filter((s) => s.value > 0);
+  const depts = data.deptCompletion ?? [];
+
+  const kpis = [
+    { label: "Total learners", value: h.totalLearners ?? 0, icon: Users, tone: "tile-accent" },
+    { label: "Active", value: h.activeLearners ?? 0, icon: UserCheck, tone: "tile-success" },
+    { label: "Assigned", value: h.assigned ?? 0, icon: Send, tone: "tile-accent" },
+    { label: "Completion", value: `${h.completionRate ?? 0}%`, icon: Percent, tone: "tile-success" },
+    { label: "In progress", value: h.inProgress ?? 0, icon: TrendingUp, tone: "tile-accent" },
+    { label: "Overdue", value: h.overdue ?? 0, icon: Clock, tone: "tile-rust" },
   ];
 
-  const pieData = statusBreakdown.filter((d) => d.value > 0);
-
   return (
-    <Box className="space-y-5">
+    <Box className="space-y-4">
+      <KpiStrip items={kpis} />
 
-      {/* ── Stat Cards ── */}
-      <Box className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {statCards.map((s) => (
-          <Card key={s.label} className="p-4 hover:shadow-md transition-shadow">
-            <Box className="flex items-start gap-3">
-              <Box className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${s.color}`}>
-                <s.icon className="h-5 w-5" />
-              </Box>
-              <Box>
-                <Text as="h2" className="text-2xl font-bold leading-none">{s.value}</Text>
-                <Text as="span" className="text-[11px] text-muted-foreground">{s.label}</Text>
-              </Box>
-            </Box>
-          </Card>
-        ))}
-      </Box>
+      <InsightPanel
+        insights={data.insights}
+        subtitle="What the numbers are telling you right now"
+      />
 
-      {/* ── Charts Row ── */}
-      <Box className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* Completion Status PieChart */}
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold">Completion Status</CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5">
-            {pieData.length === 0 ? (
-              <Box className="flex items-center justify-center h-[200px]">
-                <Text as="p" className="text-sm text-muted-foreground">No learner data yet.</Text>
-              </Box>
-            ) : (() => {
-              const total = statusBreakdown.reduce((sum, d) => sum + d.value, 0) || 1;
-              return (
-                <Box className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4">
-                  {/* Left — donut */}
-                  <Box>
-                    <ChartContainer config={pieConfig} className="h-[170px] w-full">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          dataKey="value"
-                          nameKey="status"
-                          cx="50%" cy="50%"
-                          innerRadius={48} outerRadius={72}
-                          paddingAngle={2}
-                          strokeWidth={0}
-                        >
-                          {pieData.map((entry) => (
-                            <Cell key={entry.status} fill={STATUS_COLORS[entry.status]} />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent nameKey="status" hideLabel />} />
-                      </PieChart>
-                    </ChartContainer>
-                  </Box>
-
-                  {/* Right — bars */}
-                  <Box className="space-y-3.5">
-                    {statusBreakdown.map((s) => {
-                      const pct = Math.round((s.value / total) * 100);
-                      return (
-                        <Box key={s.status}>
-                          <Box className="flex items-center justify-between mb-1">
-                            <Box className="flex items-center gap-1.5">
-                              <Box className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: STATUS_COLORS[s.status] }} />
-                              <Text as="span" className="text-xs font-medium">{s.status}</Text>
-                            </Box>
-                            <Box className="flex items-center gap-2">
-                              <Text as="span" className="text-xs text-muted-foreground">{s.value}</Text>
-                              <Text as="span" className="text-xs font-bold w-8 text-right">{pct}%</Text>
-                            </Box>
-                          </Box>
-                          <Box className="h-2 bg-muted rounded-full overflow-hidden">
-                            <Box
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${pct}%`, background: STATUS_COLORS[s.status] }}
-                            />
-                          </Box>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                </Box>
-              );
-            })()}
-          </CardContent>
-        </Card>
-
-        {/* Score Distribution BarChart */}
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold">Score Distribution</CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-4">
-            {scoreBins.every((b) => b.count === 0) ? (
-              <Box className="flex items-center justify-center h-[200px]">
-                <Text as="p" className="text-sm text-muted-foreground">No assessment attempts yet.</Text>
-              </Box>
-            ) : (
-              <ChartContainer config={barConfig} className="h-[220px] w-full">
-                <BarChart data={scoreBins} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
-                  <XAxis dataKey="range" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="count" fill={BRAND.navy} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-        {/* Enrollment vs Completion LineChart */}
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold">Enrollment vs Completion</CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-4">
-            {weeklyActivity.length === 0 ? (
-              <Box className="flex items-center justify-center h-[200px]">
-                <Text as="p" className="text-sm text-muted-foreground">No activity data yet.</Text>
-              </Box>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={weeklyActivity} margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={HAIRLINE} />
-                  <XAxis dataKey="week" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} tickCount={5} tickLine={false} axisLine={false} />
-                  <Tooltip formatter={(v, name) => [`${v} learners`, name]} />
-                  <Legend iconType="plainline" iconSize={16} wrapperStyle={{ fontSize: 10 }} />
-                  <Line type="monotone" dataKey="Enrollments" stroke={BRAND.navy} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="Completions" stroke={BRAND.accent} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
-                </LineChart>
+      <Box className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Completion status" subtitle="Overall learner distribution">
+          <Box className="grid items-center gap-4 p-4 sm:grid-cols-[180px_1fr]">
+            <Box className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    dataKey="value"
+                    nameKey="status"
+                    innerRadius={52}
+                    outerRadius={80}
+                    paddingAngle={1}
+                    stroke="none"
+                  >
+                    {statusData.map((s) => (
+                      <Cell key={s.status} fill={STATUS_COLOR[s.status] ?? BRAND.navy} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: BRAND.surface,
+                      border: `1px solid ${BRAND.line}`,
+                      borderRadius: 0,
+                      fontSize: 12,
+                    }}
+                  />
+                </PieChart>
               </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </Box>
-
-      {/* ── Department Progress ── */}
-      <Card>
-        <CardHeader className="pb-3 pt-4 px-5 flex flex-row items-center justify-between">
-          <Box>
-            <CardTitle className="text-sm font-semibold">Department Progress</CardTitle>
-            <Text as="p" className="text-xs text-muted-foreground mt-0.5">Completion &amp; engagement by department</Text>
-          </Box>
-          <Link href="/admin/departments" className="text-xs text-navy font-medium hover:underline flex items-center gap-0.5">
-            View All <ChevronRight className="h-3.5 w-3.5" />
-          </Link>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
-          {deptCompletion.length === 0 ? (
-            <Box className="py-6 text-center">
-              <Text as="p" className="text-sm text-muted-foreground">No department data yet.</Text>
             </Box>
-          ) : (
-            <>
-              {/* Department cards */}
-              <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                {deptCompletion.map((d, idx) => {
-                  const palette = DEPT_PALETTE[idx % DEPT_PALETTE.length];
-                  return (
-                    <Box
-                      key={d.dept}
-                      className={`rounded-lg border border-border border-t-4 ${palette.border} p-4 flex flex-col gap-2`}
-                    >
-                      <Text as="span" className={`text-sm font-semibold ${palette.text}`}>{d.dept}</Text>
-                      <Text as="p" className={`text-3xl font-bold leading-none ${palette.text}`}>{d.pct}%</Text>
-                      <Text as="span" className="text-xs text-muted-foreground">{d.completed}/{d.total} completed</Text>
-                      <Box className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <Box
-                          className={`h-full rounded-full ${palette.bar}`}
-                          style={{ width: `${d.pct}%` }}
-                        />
-                      </Box>
-                      <Box className="flex items-center justify-between pt-1">
-                        <Text as="span" className="text-[11px] text-muted-foreground">{d.in_progress} in progress</Text>
-                        <Text as="span" className="text-[11px] text-muted-foreground">{d.hours_learning}h learning</Text>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
 
-              {/* Chart legend */}
-              <Box className="flex items-center justify-center gap-5 mb-2">
-                <Box className="flex items-center gap-1.5">
-                  <Box className="w-8 h-3 rounded-sm bg-navy" />
-                  <Text as="span" className="text-xs text-muted-foreground">Completed %</Text>
-                </Box>
-                <Box className="flex items-center gap-1.5">
-                  <Box className="w-8 h-3 rounded-sm bg-paper-cream" />
-                  <Text as="span" className="text-xs text-muted-foreground">In Progress %</Text>
-                </Box>
-              </Box>
-
-              {/* Dept bar chart */}
-              <ChartContainer
-                config={{
-                  pct:             { label: "Completed %",   color: BRAND.navy },
-                  in_progress_pct: { label: "In Progress %", color: BRAND.accent },
-                }}
-                className="h-[220px] w-full"
-              >
-                <BarChart data={deptCompletion} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
-                  <XAxis dataKey="dept" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                  <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="pct"             name="Completed %"   fill={BRAND.navy} radius={[3, 3, 0, 0]} maxBarSize={40} />
-                  <Bar dataKey="in_progress_pct" name="In Progress %" fill={BRAND.accent} radius={[3, 3, 0, 0]} maxBarSize={40} />
-                </BarChart>
-              </ChartContainer>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Recent Activity ── */}
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Recent Learners */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between py-3 px-5">
-            <CardTitle className="text-sm font-semibold">Recent Learners</CardTitle>
-            <Link href="/admin/users" className="text-xs text-navy font-medium hover:underline flex items-center gap-0.5">
-              View All <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent className="px-5 pb-4 pt-0">
-            {recentUsers.length === 0 ? (
-              <Box className="py-6 text-center">
-                <Text as="p" className="text-sm text-muted-foreground">No learners yet.</Text>
-              </Box>
-            ) : (
-              <Box className="divide-y">
-                {recentUsers.map((u) => {
-                  const initials = `${(u.first_name || "")[0] || ""}${(u.last_name || "")[0] || ""}`.toUpperCase();
-                  return (
-                    <Box key={u.id} className="flex items-center gap-3 py-2.5">
-                      <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className="bg-paper-cream text-navy text-xs font-bold">{initials}</AvatarFallback>
-                      </Avatar>
-                      <Box className="flex-1 min-w-0">
-                        <Text as="p" className="text-sm font-semibold">{u.first_name} {u.last_name}</Text>
-                        <Text as="span" className="text-[11px] text-muted-foreground">{u.email}</Text>
-                      </Box>
-                      <Box className="flex items-center gap-1 shrink-0">
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                        <Text as="span" className="text-[10px] text-muted-foreground">
-                          {new Date(u.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                        </Text>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Assessment Attempts */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between py-3 px-5">
-            <CardTitle className="text-sm font-semibold">Recent Assessment Attempts</CardTitle>
-            <Award className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="px-5 pb-4 pt-0">
-            {recentAttempts.length === 0 ? (
-              <Box className="py-6 text-center">
-                <Text as="p" className="text-sm text-muted-foreground">No attempts yet.</Text>
-              </Box>
-            ) : (
-              <Box className="divide-y">
-                {recentAttempts.map((a) => (
-                  <Box key={a.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <Box className="flex-1 min-w-0">
-                      <Text as="p" className="text-sm font-semibold truncate">{a.first_name} {a.last_name}</Text>
-                      <Text as="span" className="text-[11px] text-muted-foreground truncate block">
-                        {a.assessment_title} · {a.course_name}
+            <Box className="space-y-2.5">
+              {(data.statusBreakdown ?? []).map((s) => {
+                const total = (data.statusBreakdown ?? []).reduce((a, x) => a + x.value, 0);
+                const pct = total ? Math.round((s.value / total) * 100) : 0;
+                return (
+                  <Box key={s.status}>
+                    <Box className="flex items-baseline justify-between gap-2">
+                      <Text as="span" className="text-[12.5px] text-ink">{s.status}</Text>
+                      <Text as="span" className="text-[12.5px] text-text-2">
+                        <Text as="span" className="font-bold text-ink">{s.value}</Text>{" "}
+                        ({pct}%)
                       </Text>
                     </Box>
-                    <Box className="flex items-center gap-2 shrink-0">
-                      <Badge variant="secondary" className={`text-[10px] ${a.is_passed ? "bg-paper-cream text-navy" : "bg-error/10 text-error"}`}>
-                        {a.is_passed ? "Passed" : "Failed"}
-                      </Badge>
-                      <Text as="span" className="text-sm font-bold">{a.percentage}%</Text>
+                    {/* A track that is always full width with a fill inside it:
+                        a bare bar would make 0% invisible rather than empty. */}
+                    <Box className="mt-1 h-1.5 w-full bg-surface-3">
+                      <Box
+                        className="h-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: STATUS_COLOR[s.status] ?? BRAND.navy,
+                        }}
+                      />
                     </Box>
                   </Box>
-                ))}
-              </Box>
-            )}
-          </CardContent>
-        </Card>
+                );
+              })}
+            </Box>
+          </Box>
+        </Panel>
+
+        <Panel title="Engagement snapshot" subtitle="Key performance indicators">
+          <Box className="grid grid-cols-2 gap-2.5 p-4">
+            <StatTile label="Avg assessment score" value={`${e.avgScore ?? 0}%`} hint="Organisation average" icon={Percent} />
+            <StatTile label="Pass rate" value={`${e.passRate ?? 0}%`} hint="Of assessed learners" icon={CheckCircle2} />
+            <StatTile label="Total learning hours" value={`${e.totalHours ?? 0}h`} hint="All time, org-wide" icon={Clock} />
+            <StatTile label="Avg hours / learner" value={`${e.avgHoursPerLearner ?? 0}h`} hint="All time" icon={TrendingUp} />
+            <StatTile label="Hours this month" value={`${e.hoursThisMonth ?? 0}h`} hint="Org-wide" icon={Clock} />
+            <StatTile label="Certificates issued" value={e.certificatesIssued ?? 0} hint="All time" icon={Award} />
+          </Box>
+        </Panel>
       </Box>
 
+      <Panel
+        title="Department progress"
+        subtitle="Completion & engagement by department"
+        action={
+          <Link
+            href="/admin/departments"
+            className="flex items-center gap-1 text-[12px] font-semibold text-accent-blue hover:underline"
+          >
+            View all <ChevronRight className="size-3.5" />
+          </Link>
+        }
+      >
+        {/* Borders on the cells, not a `gap-px` over a coloured container: a
+            short final row would otherwise leave the container's grey showing
+            through where the missing cells would have been. */}
+        <Box className="grid border-b border-line sm:grid-cols-2 xl:grid-cols-4">
+          {depts.map((d) => (
+            <Box key={d.dept} className="border-b border-r border-line bg-surface px-4 py-3 last:border-r-0">
+              <Text as="p" className="text-[12.5px] font-semibold text-ink">{d.dept}</Text>
+              <Text as="p" className="mt-1 text-2xl font-bold leading-none text-accent-blue">
+                {d.pct}%
+              </Text>
+              <Text as="p" className="mt-1 text-[11px] text-text-3">
+                {d.completed}/{d.total} completed
+              </Text>
+              <Box className="mt-2 h-1.5 w-full bg-surface-3">
+                <Box className="h-full bg-accent-blue" style={{ width: `${d.pct}%` }} />
+              </Box>
+              <Box className="mt-1.5 flex justify-between text-[10.5px] text-text-3">
+                <Text as="span">{d.in_progress} in progress</Text>
+                <Text as="span">{d.hours_learning}h learning</Text>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+
+        {depts.length > 0 && (
+          <Box className="h-[220px] p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={depts} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={HAIRLINE} vertical={false} />
+                <XAxis dataKey="dept" tick={{ fontSize: 11, fill: BRAND.text2 }} tickLine={false} axisLine={{ stroke: HAIRLINE }} />
+                <YAxis tick={{ fontSize: 11, fill: BRAND.text2 }} tickLine={false} axisLine={false} unit="%" />
+                <Tooltip
+                  cursor={{ fill: BRAND.surface2 }}
+                  contentStyle={{ background: BRAND.surface, border: `1px solid ${BRAND.line}`, borderRadius: 0, fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="pct" name="Completed %" fill={BRAND.accent} maxBarSize={38} />
+                <Bar dataKey="in_progress_pct" name="In progress %" fill={BRAND.navy} maxBarSize={38} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
+        )}
+      </Panel>
+
+      <Box className="grid gap-4 lg:grid-cols-2">
+        <Panel
+          title="Action required"
+          subtitle={actions ? `${actions.length} item${actions.length === 1 ? "" : "s"} need attention` : "Loading…"}
+        >
+          {!actions ? (
+            <Box className="space-y-2 p-4">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
+            </Box>
+          ) : actions.length === 0 ? (
+            <Box className="px-4 py-10 text-center">
+              <CheckCircle2 className="mx-auto mb-2 size-7 text-success" />
+              <Text as="p" className="text-[12.5px] text-text-2">
+                Nothing needs chasing. Every learner is on track.
+              </Text>
+            </Box>
+          ) : (
+            <Box className="max-h-[420px] divide-y divide-line overflow-y-auto">
+              {actions.map((a, i) => {
+                const look = ACTION_LOOK[a.kind] ?? ACTION_LOOK["not-started"];
+                const Icon = look.icon;
+                return (
+                  <Box key={`${a.user_id}-${a.course_id}-${i}`} className="flex items-center gap-3 px-4 py-2.5">
+                    <Box className={cn("flex size-7 shrink-0 items-center justify-center", look.tone)}>
+                      <Icon className="size-3.5" />
+                    </Box>
+                    <Box className="min-w-0 flex-1">
+                      <Text as="p" className="truncate text-[12.5px] font-semibold text-ink">
+                        {a.name}
+                      </Text>
+                      <Text as="p" className="truncate text-[11px] text-text-3">
+                        {a.department ? `${a.department} · ` : ""}{a.course_name}
+                      </Text>
+                      <Text as="p" className="truncate text-[11px] text-text-2">{a.reason}</Text>
+                    </Box>
+                    {/* A label, not a button. Nudging is not built, and a
+                        button that does nothing is worse than no button. */}
+                    <Text
+                      as="span"
+                      className="shrink-0 border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-2"
+                    >
+                      {a.action}
+                    </Text>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </Panel>
+
+        <Panel title="Recent activity" subtitle="Latest admin actions">
+          {!activity ? (
+            <Box className="space-y-2 p-4">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
+            </Box>
+          ) : activity.length === 0 ? (
+            <Box className="px-4 py-10 text-center">
+              <Text as="p" className="text-[12.5px] text-text-3">
+                No activity recorded yet. Entries appear here as your team creates
+                users, publishes courses and assigns learning.
+              </Text>
+            </Box>
+          ) : (
+            <Box className="divide-y divide-line">
+              {activity.map((a) => {
+                const look = ACTIVITY_LOOK[a.group] ?? ACTIVITY_LOOK.content;
+                const Icon = look.icon;
+                return (
+                  <Box key={a.id} className="flex items-start gap-3 px-4 py-2.5">
+                    <Box className={cn("flex size-7 shrink-0 items-center justify-center", look.tone)}>
+                      <Icon className="size-3.5" />
+                    </Box>
+                    <Box className="min-w-0 flex-1">
+                      <Text as="p" className="text-[12.5px] font-semibold text-ink">{a.title}</Text>
+                      {a.detail && (
+                        <Text as="p" className="truncate text-[11px] text-text-2">{a.detail}</Text>
+                      )}
+                      <Text as="p" className="text-[11px] text-text-3">
+                        {a.actor_name} · {formatWhen(a.created_at)}
+                      </Text>
+                    </Box>
+                    <Text
+                      as="span"
+                      className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.12em] text-text-3"
+                    >
+                      {a.group}
+                    </Text>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </Panel>
+      </Box>
     </Box>
   );
+}
+
+/** `28 Apr 2026, 09:14` — the reference's format, in the user's locale. */
+function formatWhen(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

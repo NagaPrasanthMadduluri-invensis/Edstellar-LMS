@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -34,12 +33,16 @@ import {
   FileSpreadsheet, AlertCircle, BookOpen, ClipboardList,
   CheckCircle2, XCircle, Clock, Trophy, TrendingUp,
   ChevronDown, ChevronUp, CalendarDays, FileArchive, MinusCircle,
+  Eye, Pencil, Power, Trash2, ShieldCheck, GraduationCap, Presentation, UserX,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser } from "@/services/api/admin/admin-api";
+import { JOB_LEVELS, LOCATIONS } from "@/lib/workforce";
+import { cn } from "@/lib/utils";
+import { progressFill } from "@/lib/brand";
 
 const AVATAR_COLORS = [
   "bg-navy text-white",
@@ -59,7 +62,7 @@ const DEPARTMENTS = [
   "Operations", "Legal", "Customer Support", "Product", "Design",
 ];
 
-const EMPTY_FORM = { first_name: "", last_name: "", email: "", password: "", department: "", location: "", job_role: "" };
+const EMPTY_FORM = { first_name: "", last_name: "", email: "", password: "", department: "", location: "", job_role: "", job_level: "" };
 
 const HEADER_MAP = {
   "employee id": "employee_id", "employeeid": "employee_id", "employee_id": "employee_id",
@@ -69,6 +72,7 @@ const HEADER_MAP = {
   "department": "department", "dept": "department",
   "location": "location", "city": "location",
   "job role": "job_role", "job_role": "job_role", "jobrole": "job_role", "title": "job_role", "position": "job_role",
+  "job level": "job_level", "job_level": "job_level", "joblevel": "job_level", "level": "job_level", "seniority": "job_level",
   "password": "password",
 };
 
@@ -500,6 +504,63 @@ function UserDetailModal({ userId, open, onClose }) {
   );
 }
 
+/**
+ * Role key -> badge colours.
+ *
+ * Every hue is from the Spectra palette (TASTE §10.1). The badge says which
+ * portal the account belongs to, not how it is doing, so these are identity
+ * colours and nothing here means "good" or "bad".
+ */
+const ROLE_BADGE = {
+  admin:   "bg-accent-tint text-accent-blue border-accent-blue/25",
+  manager: "bg-[color-mix(in_oklab,var(--spectra-warning)_12%,transparent)] text-warning border-warning/25",
+  trainer: "bg-[color-mix(in_oklab,var(--spectra-rust)_12%,transparent)] text-rust border-rust/25",
+  learner: "bg-surface-3 text-text-2 border-line-strong",
+};
+
+/** `2026-09-15T…` -> `15 Sept 2026`. */
+function formatDay(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/**
+ * A square icon button for a table row action.
+ *
+ * `title` carries the label rather than a tooltip component: these sit inside
+ * a scrolling table, and a portalled tooltip there fights the scroll
+ * container for very little gain. `aria-label` carries the same string, so
+ * the button is not a nameless glyph to a screen reader — which is the real
+ * cost of replacing the words View / Edit / Deactivate / Delete with icons.
+ *
+ * A disabled action keeps its title, so hovering says WHY it is unavailable
+ * instead of leaving the admin to guess.
+ */
+function IconAction({ icon: Icon, label, onClick, disabled = false, danger = false, active = false }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex size-7 items-center justify-center border transition-colors",
+        disabled
+          ? "cursor-not-allowed border-line bg-surface-2 text-text-3/50"
+          : danger
+            ? "border-line bg-surface text-text-2 hover:border-danger hover:bg-danger/10 hover:text-danger"
+            : active
+              ? "border-success/30 bg-success/10 text-success hover:border-success"
+              : "border-line bg-surface text-text-2 hover:border-accent-blue hover:bg-accent-tint hover:text-accent-blue",
+      )}
+    >
+      <Icon className="size-3.5" />
+    </button>
+  );
+}
+
 export function AdminEmployeesContent() {
   const { user } = useAuth();
   const fileRef   = useRef(null);
@@ -511,6 +572,9 @@ export function AdminEmployeesContent() {
   const [filterProgress, setFilterProgress] = useState("all");
   const [filterLocation, setFilterLocation] = useState("all");
   const [filterJobRole, setFilterJobRole]   = useState("all");
+  const [filterRole, setFilterRole]         = useState("all");
+  const [filterLevel, setFilterLevel]       = useState("all");
+  const [stats, setStats]                   = useState(null);
   const [error, setError]                   = useState(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
   const [form, setForm]                     = useState(EMPTY_FORM);
@@ -519,7 +583,6 @@ export function AdminEmployeesContent() {
   const [confirmToggle, setConfirmToggle]   = useState(null);
   const [confirmDelete, setConfirmDelete]   = useState(null);
   const [actioning, setActioning]           = useState(false);
-  const [selected, setSelected]             = useState(new Set());
   const [exporting, setExporting]           = useState(false);
 
   // view detail modal
@@ -527,7 +590,7 @@ export function AdminEmployeesContent() {
 
   // edit modal
   const [editUser, setEditUser]     = useState(null);
-  const [editForm, setEditForm]     = useState({ first_name: "", last_name: "", email: "", location: "", job_role: "" });
+  const [editForm, setEditForm]     = useState({ first_name: "", last_name: "", email: "", department: "", location: "", job_role: "", job_level: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError]   = useState(null);
 
@@ -542,8 +605,13 @@ export function AdminEmployeesContent() {
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      const d = await apiClient("/api/admin/employees");
-      setEmployees(d.employees || []);
+      // The DIRECTORY, not /admin/employees: this table shows every account
+      // in the organization — admins and trainers included — while that
+      // endpoint is learners-only because it also feeds the assign-learning
+      // picker and the session roster.
+      const d = await apiClient("/api/admin/users/directory");
+      setEmployees(d.users || []);
+      setStats(d.stats || null);
     } catch (e) {
       setError(e.message);
     }
@@ -556,7 +624,11 @@ export function AdminEmployeesContent() {
     setActioning(true);
     try {
       await toggleUserStatus({ userId: confirmToggle.id, is_active: !confirmToggle.is_active });
-      setEmployees((prev) => prev.map((e) => e.id === confirmToggle.id ? { ...e, is_active: !e.is_active } : e));
+      // Refetch rather than patch the row in place. The KPI tiles above the
+      // table are computed by the server from the same rows, so a local edit
+      // moved the chip and left "Inactive users" saying 0 — two numbers on one
+      // screen disagreeing about the click that had just happened.
+      await load();
       setConfirmToggle(null);
     } catch (e) {
       setError(e.message);
@@ -570,8 +642,7 @@ export function AdminEmployeesContent() {
     setActioning(true);
     try {
       await deleteUser({ userId: confirmDelete.id });
-      setEmployees((prev) => prev.filter((e) => e.id !== confirmDelete.id));
-      setSelected((prev) => { const n = new Set(prev); n.delete(confirmDelete.id); return n; });
+      await load();   // keeps the KPI tiles in step — see handleToggleStatus
       setConfirmDelete(null);
     } catch (e) {
       setError(e.message);
@@ -605,7 +676,9 @@ export function AdminEmployeesContent() {
     setEditSaving(true); setEditError(null);
     try {
       await updateUser({ userId: editUser.id, data: editForm });
-      setEmployees((prev) => prev.map((e) => e.id === editUser.id ? { ...e, ...editForm } : e));
+      // `editForm` has no role/progress/last-activity fields, so spreading it
+      // over the row would blank the columns this table now shows. Refetch.
+      await load();
       setEditUser(null);
     } catch (e) {
       setEditError(e.message);
@@ -694,9 +767,14 @@ export function AdminEmployeesContent() {
     </Box>
   );
 
-  const depts    = [...new Set(employees.map((e) => e.department).filter(Boolean))].sort();
+  const depts     = [...new Set(employees.map((e) => e.department).filter(Boolean))].sort();
   const locations = [...new Set(employees.map((e) => e.location).filter(Boolean))].sort();
   const jobRoles  = [...new Set(employees.map((e) => e.job_role).filter(Boolean))].sort();
+  // Roles come from the rows so the filter offers exactly what is present;
+  // levels come from the closed list, in seniority order, so the dropdown
+  // reads Executive-to-Intern rather than alphabetically (workforce.js).
+  const roleOptions = [...new Set(employees.map((e) => e.role_label).filter(Boolean))].sort();
+  const levelOptions = JOB_LEVELS.filter((l) => employees.some((e) => e.job_level === l));
 
   const filtered = employees.filter((e) => {
     const q = `${e.first_name} ${e.last_name} ${e.email}`.toLowerCase();
@@ -708,19 +786,11 @@ export function AdminEmployeesContent() {
     const matchProgress = filterProgress === "all" || e.status === filterProgress;
     const matchLocation = filterLocation === "all" || e.location === filterLocation;
     const matchJobRole  = filterJobRole  === "all" || e.job_role === filterJobRole;
-    return matchSearch && matchDept && matchStatus && matchProgress && matchLocation && matchJobRole;
+    const matchRole     = filterRole     === "all" || e.role_label === filterRole;
+    const matchLevel    = filterLevel    === "all" || e.job_level === filterLevel;
+    return matchSearch && matchDept && matchStatus && matchProgress
+      && matchLocation && matchJobRole && matchRole && matchLevel;
   });
-
-  const allSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.id));
-  const toggleAll   = () => {
-    setSelected((prev) => {
-      const n = new Set(prev);
-      allSelected
-        ? filtered.forEach((e) => n.delete(e.id))
-        : filtered.forEach((e) => n.add(e.id));
-      return n;
-    });
-  };
 
   return (
     <Box>
@@ -732,6 +802,30 @@ export function AdminEmployeesContent() {
         className="hidden"
         onChange={handleFileSelect}
       />
+
+      {/* ── KPI tiles ──
+          Counts come with the directory rather than from five COUNT queries
+          beside it, so they can never disagree with the table below. */}
+      {stats && (
+        <Box className="mb-4 grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 xl:grid-cols-5">
+          {[
+            { label: "Total users",   value: stats.total,    hint: `${stats.active} active`,                    icon: Users,     tone: "tile-accent"  },
+            { label: "Admins",        value: stats.admins,   hint: `${stats.trainers} trainer${stats.trainers === 1 ? "" : "s"}`, icon: ShieldCheck, tone: "tile-accent" },
+            { label: "Learners",      value: stats.learners, hint: stats.managers ? `${stats.managers} manager${stats.managers === 1 ? "" : "s"}` : "Across the org", icon: GraduationCap, tone: "tile-success" },
+            { label: "Trainers",      value: stats.trainers, hint: "Deliver live sessions",                     icon: Presentation, tone: "tile-warning" },
+            { label: "Inactive users",value: stats.inactive, hint: stats.inactive ? "Needs review" : "None",    icon: UserX,     tone: stats.inactive ? "tile-rust" : "tile-accent" },
+          ].map((tile) => (
+            <Box key={tile.label} className="bg-surface px-3.5 py-3">
+              <Box className={`mb-2 flex size-7 items-center justify-center ${tile.tone}`}>
+                <tile.icon className="size-[15px]" />
+              </Box>
+              <Text as="p" className="text-xl font-bold leading-none text-ink">{tile.value}</Text>
+              <Text as="p" className="mt-1 text-[10.5px] font-medium text-text-2">{tile.label}</Text>
+              <Text as="p" className="mt-0.5 text-[10px] text-text-3">{tile.hint}</Text>
+            </Box>
+          ))}
+        </Box>
+      )}
 
       <Card className="overflow-hidden">
 
@@ -790,6 +884,24 @@ export function AdminEmployeesContent() {
           {/* Filters row */}
           <Box className="flex flex-wrap items-center gap-2">
             <Text as="span" className="text-xs font-medium text-ink/45 mr-1">Filter by:</Text>
+            <Select value={filterRole} onValueChange={setFilterRole}>
+              <SelectTrigger className={`h-8 text-xs w-[150px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterRole === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
+                <SelectValue>{filterRole === "all" ? "All Roles" : filterRole}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {roleOptions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterLevel} onValueChange={setFilterLevel}>
+              <SelectTrigger className={`h-8 text-xs w-[150px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterLevel === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
+                <SelectValue>{filterLevel === "all" ? "All Levels" : filterLevel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Levels</SelectItem>
+                {levelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={filterDept} onValueChange={setFilterDept}>
               <SelectTrigger className={`h-8 text-xs w-[150px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterDept === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>{filterDept === "all" ? "All Departments" : filterDept}</SelectValue>
@@ -872,18 +984,11 @@ export function AdminEmployeesContent() {
           </Box>
         ) : (
           <Box className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[1180px] text-sm">
               <thead>
                 <tr className="border-b bg-muted/20">
-                  <th className="px-5 py-3 w-10">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={toggleAll}
-                      aria-label="Select all"
-                    />
-                  </th>
-                  {["User", "Role", "Department", "Status", "Courses", "Completion", "Last Activity", "Actions"].map((h) => (
-                    <th key={h} className="text-left text-[11px] font-semibold text-muted-foreground tracking-wide uppercase px-4 py-3 whitespace-nowrap">
+                  {["User", "Role", "Department", "Location", "Level", "Status", "Courses", "Completion", "Last Activity", "Actions"].map((h) => (
+                    <th key={h} className="text-left text-[11px] font-semibold text-muted-foreground tracking-wide uppercase px-3 py-3 whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -896,19 +1001,7 @@ export function AdminEmployeesContent() {
                   return (
                     <tr key={emp.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
 
-                      <td className="px-5 py-3.5">
-                        <Checkbox
-                          checked={selected.has(emp.id)}
-                          onCheckedChange={(v) => setSelected((prev) => {
-                            const n = new Set(prev);
-                            v ? n.add(emp.id) : n.delete(emp.id);
-                            return n;
-                          })}
-                          aria-label={`Select ${emp.first_name}`}
-                        />
-                      </td>
-
-                      <td className="px-4 py-3.5">
+                      <td className="px-3 py-3">
                         <Box className="flex items-center gap-3">
                           <Avatar className="h-9 w-9 shrink-0">
                             <AvatarFallback className={`text-xs font-bold ${avatarColor}`}>{initials}</AvatarFallback>
@@ -920,85 +1013,109 @@ export function AdminEmployeesContent() {
                         </Box>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <Badge className="bg-paper-cream text-navy border border-navy/20 text-[10px] font-bold tracking-widest uppercase px-2.5 py-0.5">
-                          Learner
+                      {/* The RBAC role LABEL, not `users.role`: the portal
+                          selector collapses a Manager into "learner", so this
+                          column showed every Manager as a Learner. */}
+                      <td className="px-3 py-3">
+                        <Badge className={`text-[10px] font-bold tracking-widest uppercase px-2.5 py-0.5 border ${ROLE_BADGE[emp.role_key] ?? ROLE_BADGE.learner}`}>
+                          {emp.role_label}
                         </Badge>
                       </td>
 
-                      <td className="px-4 py-3.5">
+                      <td className="px-3 py-3">
                         <Text as="span" className="text-sm">{emp.department || "—"}</Text>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        {emp.is_active ? (
-                          <Badge className="bg-paper-cream text-navy border border-navy/20 gap-1.5 font-medium text-xs px-2.5">
-                            <Box className="w-1.5 h-1.5 rounded-full bg-navy shrink-0" />
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-paper-warm text-ink/45 border border-border gap-1.5 font-medium text-xs px-2.5">
-                            <Box className="w-1.5 h-1.5 rounded-full bg-paper-cream shrink-0" />
-                            Inactive
-                          </Badge>
-                        )}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <Text as="span" className="text-sm">{emp.location || "—"}</Text>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <Text as="span" className="text-sm font-bold text-navy">{emp.assigned_courses}</Text>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <Text as="span" className="text-sm">{emp.job_level || "—"}</Text>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <Box className="flex items-center gap-2 min-w-[120px]">
-                          <Progress value={emp.progress} className="h-1.5 w-20" />
-                          <Text as="span" className="text-xs text-muted-foreground shrink-0">{emp.progress}%</Text>
-                        </Box>
-                      </td>
-
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <Text as="span" className="text-sm">
-                          {new Date(emp.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      <td className="px-3 py-3">
+                        {/* The shared status chips, so "active" looks the
+                            same here as everywhere else in the product. */}
+                        <Text as="span" className={emp.is_active ? "chip chip-complete" : "chip chip-idle"}>
+                          <Box className={cn("size-1.5 shrink-0 rounded-full", emp.is_active ? "bg-success" : "bg-text-3")} />
+                          {emp.is_active ? "Active" : "Inactive"}
                         </Text>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <Box className="flex items-center gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 text-xs font-medium"
+                      <td className="px-3 py-3">
+                        <Text as="span" className="text-sm font-bold text-navy">{emp.assigned_courses}</Text>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        {/* Track always full width with the fill inside it, so
+                            0% reads as empty rather than as a missing bar.
+                            `progressFill` is the one place that decides what
+                            colour a progress bar is (lib/brand.js). */}
+                        <Box className="flex items-center gap-2 min-w-[120px]">
+                          <Box className="h-1.5 w-20 shrink-0 bg-surface-3">
+                            <Box
+                              className="h-full"
+                              style={{ width: `${emp.progress}%`, background: progressFill(emp.progress) }}
+                            />
+                          </Box>
+                          <Text as="span" className="shrink-0 text-xs font-semibold text-text-2">{emp.progress}%</Text>
+                        </Box>
+                      </td>
+
+                      {/* Last ACTIVITY. This printed `created_at` before, so
+                          every row claimed the person had last been active on
+                          the day they joined — a date that was always wrong
+                          and never looked it. Null means they have done
+                          nothing yet, which is worth seeing. */}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {emp.last_activity ? (
+                          <Text as="span" className="text-sm">{formatDay(emp.last_activity)}</Text>
+                        ) : (
+                          <Text as="span" className="text-sm text-text-3">Never</Text>
+                        )}
+                      </td>
+
+                      {/* Four icon actions. `can_manage` is false for an
+                          admin or trainer — `assertMutableLearner` refuses to
+                          edit, deactivate or delete one, so those three are
+                          DISABLED rather than left enabled to fail with a 403.
+                          View stays open for every row. */}
+                      <td className="px-3 py-3">
+                        <Box className="flex items-center gap-1">
+                          <IconAction
+                            icon={Eye}
+                            label={`View ${emp.first_name} ${emp.last_name}`}
                             onClick={() => setDetailUserId(emp.id)}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 text-xs font-medium"
+                          />
+                          <IconAction
+                            icon={Pencil}
+                            label={emp.can_manage ? "Edit" : `${emp.role_label} accounts are not editable here`}
+                            disabled={!emp.can_manage}
                             onClick={() => {
                               setEditUser(emp);
-                              setEditForm({ first_name: emp.first_name, last_name: emp.last_name, email: emp.email, location: emp.location || "", job_role: emp.job_role || "" });
+                              setEditForm({ first_name: emp.first_name, last_name: emp.last_name, email: emp.email, department: emp.department || "", location: emp.location || "", job_role: emp.job_role || "", job_level: emp.job_level || "" });
                               setEditError(null);
                             }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 text-xs font-medium"
+                          />
+                          <IconAction
+                            icon={Power}
+                            label={
+                              !emp.can_manage
+                                ? `${emp.role_label} accounts cannot be deactivated here`
+                                : emp.is_active ? "Deactivate" : "Activate"
+                            }
+                            disabled={!emp.can_manage}
+                            active={!emp.is_active}
                             onClick={() => setConfirmToggle({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, is_active: emp.is_active })}
-                          >
-                            {emp.is_active ? "Deactivate" : "Activate"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-3 text-xs font-medium text-error border-error/30 hover:bg-error/10 hover:text-error"
+                          />
+                          <IconAction
+                            icon={Trash2}
+                            label={emp.can_manage ? "Delete" : `${emp.role_label} accounts cannot be deleted here`}
+                            disabled={!emp.can_manage}
+                            danger
                             onClick={() => setConfirmDelete({ id: emp.id, name: `${emp.first_name} ${emp.last_name}` })}
-                          >
-                            Delete
-                          </Button>
+                          />
                         </Box>
                       </td>
 
@@ -1096,14 +1213,43 @@ export function AdminEmployeesContent() {
                 <Label>Email <Text as="span" className="text-error">*</Text></Label>
                 <Input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} />
               </Box>
+              {/* Location and Job level are SELECTS, not free text. Both are
+                  Reports filter and comparison dimensions, and a dimension is
+                  only useful if its values repeat across people — typing
+                  produced two spellings of one office and left three learners
+                  matching no filter value at all. Job role stays free text: it
+                  is a job title, not a reporting axis (TASTE §10.3.1.1). */}
               <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Box className="space-y-1.5">
+                  <Label>Department</Label>
+                  <Select value={editForm.department} onValueChange={(v) => setEditForm((p) => ({ ...p, department: v }))}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Box>
+                <Box className="space-y-1.5">
                   <Label>Location</Label>
-                  <Input placeholder="e.g. Bangalore" value={editForm.location} onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))} />
+                  <Select value={editForm.location} onValueChange={(v) => setEditForm((p) => ({ ...p, location: v }))}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
+                    <SelectContent>
+                      {LOCATIONS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </Box>
                 <Box className="space-y-1.5">
                   <Label>Job Role</Label>
                   <Input placeholder="e.g. Software Engineer" value={editForm.job_role} onChange={(e) => setEditForm((p) => ({ ...p, job_role: e.target.value }))} />
+                </Box>
+                <Box className="space-y-1.5">
+                  <Label>Job Level</Label>
+                  <Select value={editForm.job_level} onValueChange={(v) => setEditForm((p) => ({ ...p, job_level: v }))}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
+                    <SelectContent>
+                      {JOB_LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </Box>
               </Box>
               {editError && (
@@ -1159,14 +1305,29 @@ export function AdminEmployeesContent() {
                 </SelectContent>
               </Select>
             </Box>
+            {/* Location and Job level are selects — see the edit dialog. */}
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Box className="space-y-1.5">
                 <Label>Location</Label>
-                <Input placeholder="e.g. Bangalore" value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} />
+                <Select value={form.location} onValueChange={(v) => setForm((p) => ({ ...p, location: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
+                  <SelectContent>
+                    {LOCATIONS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </Box>
               <Box className="space-y-1.5">
                 <Label>Job Role</Label>
                 <Input placeholder="e.g. Software Engineer" value={form.job_role} onChange={(e) => setForm((p) => ({ ...p, job_role: e.target.value }))} />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label>Job Level</Label>
+                <Select value={form.job_level} onValueChange={(v) => setForm((p) => ({ ...p, job_level: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
+                  <SelectContent>
+                    {JOB_LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </Box>
             </Box>
             <Box className="space-y-1.5">

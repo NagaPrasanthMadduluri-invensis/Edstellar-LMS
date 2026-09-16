@@ -1,17 +1,16 @@
-import { Skeleton } from "@/components/ui/skeleton";
 import Box from "@/components/ui/box";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default function AdminCourseModulesLoading() {
+export default function AdminCourseDetailLoading() {
   return (
-    <Box className="space-y-5">
-      <Skeleton className="h-8 w-48" />
-      <Box className="flex items-center justify-between">
-        <Skeleton className="h-5 w-24" />
-        <Skeleton className="h-8 w-28" />
-      </Box>
+    <Box className="space-y-4">
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-16 w-72" />
+      <Skeleton className="h-[110px] w-full" />
+      <Skeleton className="h-11 w-full" />
       <Box className="space-y-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          <Skeleton key={i} className="h-20 w-full" />
         ))}
       </Box>
     </Box>
