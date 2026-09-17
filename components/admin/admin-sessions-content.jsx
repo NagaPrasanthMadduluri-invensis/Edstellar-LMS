@@ -24,7 +24,9 @@ import {
   CalendarDays, Clock, Users, MapPin, Video, Plus, Search,
   Pencil, Trash2, CheckCircle2, AlertCircle, BookOpen, UserCircle,
   CalendarCheck, BarChart3, Lock, Save, UserPlus, ChevronDown,
+  TrendingUp, Archive, ArchiveRestore, X, ArrowLeft, Layers, UserCheck,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,8 @@ import { SESSION_TYPE_LABEL, sessionTypeLabel } from "@/lib/session-types";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import {
+  bulkSessionAction, createSessionBatch, updateSessionBatch, deleteSessionBatch,
+  fetchSessionWaitlist, promoteFromWaitlist, dropFromWaitlist,
   uploadCourseThumbnail, discardCourseThumbnail,
 } from "@/services/api/admin/admin-api";
 import { ThumbnailField } from "@/components/admin/thumbnail-field";
@@ -51,10 +55,10 @@ const EMPTY_FORM = {
    `in_progress` is derived from the clock by the API (display_status) rather
    than stored — see server/src/modules/sessions/session-status.util.ts. */
 const STATUS_CFG = {
-  upcoming:    { label: "Upcoming",    cls: "bg-paper-warm text-ink/60 border-border"   },
-  in_progress: { label: "In progress", cls: "bg-paper-cream text-ink border-navy/25"    },
-  completed:   { label: "Completed",   cls: "bg-navy text-paper border-navy"            },
-  cancelled:   { label: "Cancelled",   cls: "bg-error/10 text-error border-error/30"    },
+  upcoming:    { label: "Upcoming",    cls: "bg-paper-warm text-ink/60 border-border", chip: "chip-idle"     },
+  in_progress: { label: "In progress", cls: "bg-paper-cream text-ink border-navy/25",  chip: "chip-progress" },
+  completed:   { label: "Completed",   cls: "bg-navy text-paper border-navy",          chip: "chip-complete" },
+  cancelled:   { label: "Cancelled",   cls: "bg-error/10 text-error border-error/30",  chip: "chip-error"    },
 };
 
 /** The status to show. Falls back to the stored one if the API is older. */
@@ -65,9 +69,9 @@ function displayOf(session) {
 /* Labels come from lib/session-types so the list, both calendars and the form
    all say the same thing. Only the icon and chip live here. */
 const TYPE_CFG = {
-  ILT:     { label: SESSION_TYPE_LABEL.ILT,     cls: "bg-paper-cream text-navy border-0", icon: MapPin },
-  Virtual: { label: SESSION_TYPE_LABEL.Virtual, cls: "bg-paper-cream text-navy border-0", icon: Video  },
-  Webinar: { label: SESSION_TYPE_LABEL.Webinar, cls: "bg-paper-cream text-navy border-0", icon: Video  },
+  ILT:     { label: SESSION_TYPE_LABEL.ILT,     cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: MapPin },
+  Virtual: { label: SESSION_TYPE_LABEL.Virtual, cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: Video  },
+  Webinar: { label: SESSION_TYPE_LABEL.Webinar, cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: Video  },
 };
 
 const ATTENDANCE_STATUS_CFG = {
@@ -84,11 +88,11 @@ const AVATAR_COLORS = [
   "bg-error","bg-navy","bg-navy","bg-navy",
 ];
 
-const TABS = [
-  { id: "sessions",    label: "Sessions",           icon: CalendarCheck },
-  { id: "attendance",  label: "Mark Attendance",    icon: CheckCircle2  },
-  { id: "reports",     label: "Attendance Reports", icon: BarChart3     },
-];
+/** Spectra tinted tiles (TASTE §10.4) — replaces the old paper-cream circles. */
+const TILE = {
+  accent: "tile-accent", success: "tile-success",
+  warning: "tile-warning", rust: "tile-rust",
+};
 
 /* ── helpers ── */
 
@@ -112,6 +116,24 @@ function avatarInitials(first, last) {
 
 function avatarColor(id) {
   return AVATAR_COLORS[Number(id || 0) % AVATAR_COLORS.length];
+}
+
+function BulkBtn({ children, onClick, disabled, danger = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "cursor-pointer border px-3 py-1.5 text-[11.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        danger
+          ? "border-danger bg-danger text-white hover:bg-danger/85"
+          : "border-white/25 bg-transparent text-white hover:bg-white/10",
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 function LoadingSkeleton() {
@@ -327,6 +349,8 @@ function SessionsTab({
   setDeleteTarget,
   onMarkAttendance,
   focusSessionId,
+  showArchived, setShowArchived, archivedCount,
+  setBatchTarget, setWaitlistTarget,
 }) {
   const focusRef = useRef(null);
 
@@ -342,6 +366,12 @@ function SessionsTab({
   }, [focusSessionId, sessions.length]);
   const [filterType,     setFilterType]     = useState("all");
   const [filterStatus,   setFilterStatus]   = useState("all");
+  const [search,         setSearch]         = useState("");
+  const [sortOrder,      setSortOrder]      = useState("newest");
+  const [selected,       setSelected]       = useState(new Set());
+  const [bulkBusy,       setBulkBusy]       = useState(false);
+  const [bulkError,      setBulkError]      = useState(null);
+  const [bulkConfirm,    setBulkConfirm]    = useState(null);
   const [rosterTarget,   setRosterTarget]   = useState(null);
   const [cancelTarget,   setCancelTarget]   = useState(null);
   const [cancelling,     setCancelling]     = useState(false);
@@ -349,23 +379,107 @@ function SessionsTab({
   const [completing,     setCompleting]     = useState(false);
   const [completeError,  setCompleteError]  = useState(null);
 
-  const filtered = sessions.filter((s) => {
+  // Switching sets invalidates the selection: those ids are no longer on
+  // screen and a bulk action would act on rows the admin can no longer see.
+  useEffect(() => { setSelected(new Set()); }, [showArchived]);
+
+  const query = search.trim().toLowerCase();
+  let filtered = sessions.filter((s) => {
     const matchType   = filterType   === "all" || s.session_type === filterType;
     const matchStatus = filterStatus === "all" || displayOf(s)   === filterStatus;
-    return matchType && matchStatus;
+    const matchSearch =
+      !query ||
+      s.title.toLowerCase().includes(query) ||
+      (s.trainer ?? "").toLowerCase().includes(query) ||
+      (s.session_type ?? "").toLowerCase().includes(query) ||
+      (s.venue_url ?? "").toLowerCase().includes(query);
+    return matchType && matchStatus && matchSearch;
   });
+  if (sortOrder === "alpha") {
+    filtered = [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+  } else if (sortOrder === "registered") {
+    filtered = [...filtered].sort(
+      (a, b) => Number(b.roster_count || 0) - Number(a.roster_count || 0),
+    );
+  }
+  // "newest" is the API's own order (date DESC, start_time DESC) — left alone
+  // rather than re-sorted, so the two cannot drift apart.
+
+  const allVisibleSelected =
+    filtered.length > 0 && filtered.every((s) => selected.has(s.id));
+
+  function toggleAll() {
+    setSelected(allVisibleSelected ? new Set() : new Set(filtered.map((s) => s.id)));
+  }
+
+  function toggleOne(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function runBulk(action, ids = [...selected]) {
+    if (ids.length === 0) return;
+    setBulkBusy(true); setBulkError(null);
+    try {
+      const res = await bulkSessionAction({ ids, action });
+      if (res.affected < res.requested) {
+        setBulkError(
+          `${res.affected} of ${res.requested} updated — a completed session ` +
+          `cannot be cancelled, because its attendance has already credited people.`,
+        );
+      }
+      setSelected(new Set());
+      setBulkConfirm(null);
+      await load();
+    } catch (e) { setBulkError(e.message); } finally { setBulkBusy(false); }
+  }
 
   const totalRegistered = sessions.reduce((sum, s) => sum + Number(s.roster_count || 0), 0);
   const countOf = (status) => sessions.filter((s) => displayOf(s) === status).length;
 
+  const completedSessions = sessions.filter((s) => displayOf(s) === "completed");
+
+  /**
+   * Attendance actually CREDITED, averaged over completed sessions.
+   *
+   * Only `present`, `late` and `partial` credit a learner (§10.7), which is
+   * exactly what `credited_count` counts — so this rate matches the hours and
+   * completions those sessions produced, rather than being a turnout figure
+   * that would quietly disagree with them.
+   */
+  const avgAttendance = completedSessions.length
+    ? Math.round(
+        completedSessions.reduce((sum, s) => {
+          const roster = Number(s.roster_count || 0);
+          return sum + (roster ? (Number(s.credited_count || 0) / roster) * 100 : 0);
+        }, 0) / completedSessions.length,
+      )
+    : null;
+
+  /**
+   * Completed sessions whose attendance is not fully marked.
+   *
+   * The one actionable number on the strip: until every name is marked, the
+   * people who turned up have not been credited with the training or its
+   * hours. A prompt, not a fault — which is why it reads "need attention" and
+   * only takes the danger colour when there is something to do.
+   */
+  const needsAttention = completedSessions.filter(
+    (s) => Number(s.attendance_marked_count || 0) < Number(s.roster_count || 0),
+  ).length;
+
   const statCards = [
-    { icon: CalendarCheck, value: sessions.length,          label: "Total Sessions",   sub: "All time",             iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
-    { icon: AlertCircle,   value: countOf("upcoming"),      label: "Upcoming",         sub: "Not yet started",      iconBg: "bg-paper-cream", iconColor: "text-ink/70", circle: "bg-paper-cream" },
-    // The actionable number: these are past their start time and still waiting
-    // for the admin to mark them completed, which is what credits the learners.
-    { icon: Clock,         value: countOf("in_progress"),   label: "In progress",      sub: "Awaiting completion",  iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
-    { icon: CheckCircle2,  value: countOf("completed"),     label: "Completed",        sub: "Learners credited",    iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
-    { icon: Users,         value: totalRegistered,          label: "Total Registered", sub: "Across all sessions",  iconBg: "bg-paper-cream", iconColor: "text-navy",   circle: "bg-paper-cream" },
+    { icon: CalendarCheck, value: sessions.length,      label: "Total sessions",   tone: "accent"  },
+    { icon: Clock,         value: countOf("upcoming"),  label: "Upcoming",         tone: "warning" },
+    { icon: CheckCircle2,  value: countOf("completed"), label: "Completed",        tone: "success" },
+    { icon: Users,         value: totalRegistered,      label: "Total registered", tone: "accent"  },
+    { icon: TrendingUp,    value: avgAttendance === null ? "—" : `${avgAttendance}%`,
+      label: "Avg attendance", tone: "success" },
+    { icon: AlertCircle,   value: needsAttention,       label: "Need attention",
+      tone: "rust", alert: needsAttention > 0 },
   ];
 
   /**
@@ -407,27 +521,44 @@ function SessionsTab({
   return (
     <Box className="space-y-5">
 
-      {/* Stat Cards */}
-      <Box className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* ── KPI strip. Reduced from the rows already on screen, never from a
+              second query, so a tile cannot disagree with the list beneath it —
+              the rule the Manage Users directory follows (§10.12). ── */}
+      <Box className="grid gap-px border border-line bg-line sm:grid-cols-3 xl:grid-cols-6">
         {statCards.map((s) => (
-          <Card key={s.label} className="relative overflow-hidden p-5">
-            <Box className="relative z-10 flex items-start gap-3">
-              <Box className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${s.iconBg}`}>
-                <s.icon className={`h-5 w-5 ${s.iconColor}`} />
-              </Box>
-              <Box>
-                <Text as="h2" className="text-3xl font-bold leading-tight">{s.value}</Text>
-                <Text as="p" className="text-sm text-muted-foreground">{s.label}</Text>
-                <Text as="p" className="text-xs text-muted-foreground/70 mt-0.5">{s.sub}</Text>
-              </Box>
+          <Box key={s.label} className="flex items-center gap-3 bg-surface px-4 py-3">
+            <Box className={cn("flex size-8 shrink-0 items-center justify-center", TILE[s.tone])}>
+              <s.icon className="size-4" />
             </Box>
-            <Box className={`pointer-events-none absolute -right-5 -top-5 h-20 w-20 rounded-full opacity-60 sm:h-24 sm:w-24 ${s.circle}`} />
-          </Card>
+            <Box className="min-w-0">
+              <Text
+                as="p"
+                className={cn(
+                  "text-xl font-bold leading-none",
+                  s.alert ? "text-danger" : "text-ink",
+                )}
+              >
+                {s.value}
+              </Text>
+              <Text as="p" className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-text-3">
+                {s.label}
+              </Text>
+            </Box>
+          </Box>
         ))}
       </Box>
 
       {/* Toolbar */}
       <Box className="flex items-center gap-3 flex-wrap">
+        <Box className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-3" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search title, trainer, type, venue…"
+            className="h-10 bg-white pl-9 text-sm"
+          />
+        </Box>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="h-10 w-[140px] text-sm bg-white border-border shadow-sm">
             <SelectValue>{filterType === "all" ? "All Types" : sessionTypeLabel(filterType)}</SelectValue>
@@ -451,11 +582,120 @@ function SessionsTab({
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
-        <Text as="p" className="text-sm text-muted-foreground flex-1">{filtered.length} session{filtered.length !== 1 ? "s" : ""}</Text>
-        <Button className="h-10 bg-navy hover:bg-navy-soft text-paper gap-1.5 shrink-0 px-5 text-sm" onClick={openCreate}>
+        <Select value={sortOrder} onValueChange={setSortOrder}>
+          <SelectTrigger className="h-10 w-[170px] bg-white text-sm">
+            <SelectValue>
+              {sortOrder === "alpha" ? "A → Z"
+                : sortOrder === "registered" ? "Most registered" : "Newest first"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Newest first</SelectItem>
+            <SelectItem value="alpha">A → Z</SelectItem>
+            <SelectItem value="registered">Most registered</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="outline"
+          onClick={() => setShowArchived((v) => !v)}
+          className={cn(
+            "h-10 cursor-pointer gap-1.5 shrink-0 text-sm font-semibold",
+            showArchived && "border-navy bg-navy text-accent-soft hover:bg-navy-soft hover:text-accent-soft",
+          )}
+        >
+          {showArchived ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
+          {showArchived ? "Active" : `Archived${archivedCount ? ` (${archivedCount})` : ""}`}
+        </Button>
+
+        <Button
+          className="h-10 shrink-0 cursor-pointer gap-1.5 bg-navy px-5 text-sm text-paper hover:bg-navy-soft"
+          onClick={openCreate}
+          disabled={showArchived}
+        >
           <Plus className="h-4 w-4" />New Session
         </Button>
       </Box>
+
+      {bulkError && (
+        <Box className="border border-danger/30 bg-danger/10 px-3 py-2">
+          <Text as="p" className="text-[12.5px] text-danger">{bulkError}</Text>
+        </Box>
+      )}
+
+      {/* ── Bulk action bar ── */}
+      {selected.size > 0 && (
+        <Box className="flex flex-wrap items-center gap-2 bg-navy px-4 py-2.5">
+          <Text as="span" className="text-[12.5px] font-semibold text-white">
+            {selected.size} selected
+          </Text>
+          <Box className="flex-1" />
+          {!showArchived ? (
+            <>
+              <BulkBtn onClick={() => runBulk("cancel")} disabled={bulkBusy}>Cancel</BulkBtn>
+              <BulkBtn onClick={() => runBulk("archive")} disabled={bulkBusy}>Archive</BulkBtn>
+            </>
+          ) : (
+            <BulkBtn onClick={() => runBulk("restore")} disabled={bulkBusy}>Restore</BulkBtn>
+          )}
+          <BulkBtn danger onClick={() => setBulkConfirm(selected.size)} disabled={bulkBusy}>
+            Delete
+          </BulkBtn>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="cursor-pointer px-2 text-[11.5px] text-white/80 hover:text-white"
+          >
+            Clear
+          </button>
+        </Box>
+      )}
+
+      {/* ── Select all + count ── */}
+      <Box className="flex items-center gap-2.5">
+        {filtered.length > 0 && (
+          <Checkbox
+            checked={allVisibleSelected}
+            onCheckedChange={toggleAll}
+            aria-label="Select all sessions"
+            className="cursor-pointer"
+          />
+        )}
+        <Text as="p" className="text-[12px] text-text-3">
+          {filtered.length} {showArchived ? "archived " : ""}session{filtered.length !== 1 ? "s" : ""}
+        </Text>
+      </Box>
+
+      <AlertDialog open={bulkConfirm !== null} onOpenChange={(o) => { if (!o) setBulkConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {bulkConfirm} session{bulkConfirm === 1 ? "" : "s"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {/* The warning is the point. A session IS a course assignment
+                  (§10.7), so deleting one takes real learning history with
+                  it — the archive is the reversible alternative and the
+                  dialog has to say so. */}
+              This permanently deletes each session, its companion training
+              course, its roster, its attendance record and every completion
+              those sessions credited. Learning hours already earned from them
+              go too, and none of it can be undone.
+              <br /><br />
+              To clear finished sessions off this list without losing any of
+              that, <strong>archive</strong> them instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => runBulk("delete")}
+              disabled={bulkBusy}
+              className="bg-danger text-white hover:bg-danger/90"
+            >
+              {bulkBusy ? "Deleting…" : `Delete ${bulkConfirm}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Session List */}
       {filtered.length === 0 ? (
@@ -467,165 +707,23 @@ function SessionsTab({
         </Card>
       ) : (
         <Box className="space-y-3">
-          {filtered.map((s) => {
-            const typeCfg   = TYPE_CFG[s.session_type] || TYPE_CFG.ILT;
-            const view      = displayOf(s);
-            const statusCfg = STATUS_CFG[view] || STATUS_CFG.upcoming;
-            const TypeIcon  = typeCfg.icon;
-            const isCompleted = view === "completed";
-            const isCancelled = view === "cancelled";
-            const isUpcoming  = view === "upcoming";
-            const rosterCount = Number(s.roster_count || 0);
-            const credited    = Number(s.credited_count || 0);
-            const marked      = Number(s.attendance_marked_count || 0);
-            const attendancePct =
-              rosterCount > 0 ? Math.round((credited / rosterCount) * 100) : 0;
-
-            return (
-              <Card
-                key={s.id}
-                ref={String(s.id) === String(focusSessionId) ? focusRef : null}
-                // py-0: CardContent below supplies the padding.
-                className={cn(
-                  "py-0 overflow-hidden hover:shadow-md transition-shadow",
-                  String(s.id) === String(highlighted) &&
-                    "ring-2 ring-navy/40 shadow-md",
-                )}
-              >
-                <CardContent className="p-4 sm:p-5">
-                  <Box className="flex flex-wrap items-start gap-4">
-
-                    {/* Cover picture, when the session has one. Absent by
-                        default, so a session without one looks exactly as it
-                        did — no placeholder tile taking the space. */}
-                    {s.thumbnail_url && (
-                      <CourseArt
-                        thumbnailUrl={s.thumbnail_url}
-                        alt={s.title}
-                        scrim="light"
-                        sizes="64px"
-                        className="h-16 w-16 rounded-xl border border-navy/20 shrink-0"
-                      />
-                    )}
-
-                    {/* Left */}
-                    <Box className="min-w-0 flex-1 basis-[14rem] space-y-2">
-
-                      {/* Row 1: badges */}
-                      <Box className="flex items-center gap-2 flex-wrap">
-                        <Badge className={`text-[11px] font-medium flex items-center gap-1 ${typeCfg.cls}`}>
-                          <TypeIcon className="h-3 w-3" />{typeCfg.label}
-                        </Badge>
-                        <Badge className={`text-[11px] font-medium ${statusCfg.cls}`}>
-                          {statusCfg.label}
-                        </Badge>
-                        {s.course_name && (
-                          <Badge variant="outline" className="text-[11px] font-medium border-navy/20 text-navy bg-paper-cream flex items-center gap-1">
-                            <BookOpen className="h-3 w-3" />{s.course_name}
-                          </Badge>
-                        )}
-                      </Box>
-
-                      {/* Row 2: title */}
-                      <Text as="h3" className="text-base font-extrabold leading-snug">{s.title}</Text>
-
-                      {/* Row 3: meta */}
-                      <Box className="flex items-center gap-4 flex-wrap text-sm text-muted-foreground">
-                        <Box className="flex items-center gap-1.5">
-                          <UserCircle className="h-3.5 w-3.5 shrink-0" />
-                          <Text as="span">{s.trainer}</Text>
-                        </Box>
-                        <Box className="flex items-center gap-1.5">
-                          <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                          <Text as="span">{formatDate(s.date)}</Text>
-                        </Box>
-                        <Box className="flex items-center gap-1.5">
-                          <Clock className="h-3.5 w-3.5 shrink-0" />
-                          <Text as="span">{s.start_time}–{s.end_time} IST</Text>
-                        </Box>
-                        <Box className="flex items-center gap-1.5">
-                          {s.session_type === "Virtual"
-                            ? <Video className="h-3.5 w-3.5 shrink-0 text-navy" />
-                            : <MapPin className="h-3.5 w-3.5 shrink-0 text-navy" />}
-                          <Text as="span" className="truncate max-w-[220px]">{s.venue_url}</Text>
-                        </Box>
-                      </Box>
-
-                      {/* Row 4: description */}
-                      {s.description && (
-                        <Text as="p" className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                          {s.description}
-                        </Text>
-                      )}
-                    </Box>
-
-                    {/* Right */}
-                    <Box className="ml-auto flex w-full shrink-0 flex-col items-start gap-2 sm:ml-2 sm:w-auto sm:items-end">
-                      {/* Registered count */}
-                      <Text as="p" className="text-sm font-semibold text-muted-foreground">
-                        Registered{" "}
-                        <Text as="span" className="text-foreground">{s.roster_count}/{s.capacity}</Text>
-                      </Text>
-
-                      {/* Attendance, from the real tally the API returns. This
-                          read `roster/roster*75` before — the constant 75% for
-                          every session with anyone on it. */}
-                      {isCompleted && rosterCount > 0 && (
-                        <Text as="p" className="text-sm font-bold text-navy">
-                          Attendance {attendancePct}%
-                          <Text as="span" className="font-normal text-muted-foreground">
-                            {" "}· {credited} credited
-                          </Text>
-                        </Text>
-                      )}
-                      {!isCompleted && !isCancelled && rosterCount > 0 && (
-                        <Text as="p" className="text-xs text-muted-foreground">
-                          {marked > 0
-                            ? `Attendance marked for ${marked} of ${rosterCount}`
-                            : "Attendance not marked yet"}
-                        </Text>
-                      )}
-
-                      {/* Action buttons */}
-                      <Box className="flex flex-wrap items-center gap-1.5 justify-start sm:justify-end">
-                        {!isCompleted && (
-                          <Button variant="outline" size="sm" className="h-7 text-xs px-2.5"
-                            onClick={() => setRosterTarget({ id: s.id, title: s.title })}>
-                            Roster
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline" size="sm"
-                          className="h-7 text-xs px-2.5 text-navy border-navy/20 hover:bg-paper-cream"
-                          onClick={() => onMarkAttendance(String(s.id))}
-                        >
-                          {isCompleted ? "View Attendance" : "Mark Attendance"}
-                        </Button>
-                        {!isCompleted && (
-                          <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => openEdit(s)}>
-                            <Pencil className="h-3 w-3 mr-1" />Edit
-                          </Button>
-                        )}
-                        {!isCompleted && !isCancelled && (
-                          <Button size="sm"
-                            className="h-7 text-xs px-2.5 bg-navy hover:bg-navy-soft text-paper"
-                            onClick={() => { setCompleteError(null); setCompleteTarget(s); }}>
-                            <CheckCircle2 className="h-3 w-3 mr-1" />Mark Completed
-                          </Button>
-                        )}
-                        {isUpcoming && (
-                          <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 text-error border-error/30 hover:bg-error/10"
-                            onClick={() => setCancelTarget(s)}>
-                            Cancel
-                          </Button>
-                        )}
-                      </Box>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {filtered.map((s) => (
+            <SessionCard
+              key={s.id}
+              session={s}
+              selected={selected.has(s.id)}
+              highlighted={String(s.id) === String(highlighted)}
+              cardRef={String(s.id) === String(focusSessionId) ? focusRef : null}
+              onToggle={() => toggleOne(s.id)}
+              onRoster={() => setRosterTarget({ id: s.id, title: s.title })}
+              onBatches={() => setBatchTarget(s)}
+              onWaitlist={() => setWaitlistTarget(s)}
+              onAttendance={() => onMarkAttendance(String(s.id))}
+              onEdit={() => openEdit(s)}
+              onComplete={() => { setCompleteError(null); setCompleteTarget(s); }}
+              onCancel={() => setCancelTarget(s)}
+            />
+          ))}
         </Box>
       )}
 
@@ -690,6 +788,563 @@ function SessionsTab({
 /* ══════════════════════════════════════════
    MARK ATTENDANCE TAB
 ══════════════════════════════════════════ */
+
+
+/* ── One session ───────────────────────────────────────────────────────────
+   Spectra: square, hairline-ruled, no shadow (§10.4). The old card carried
+   `rounded-xl` and `hover:shadow-md`, which is the one thing that makes a
+   component look foreign here.
+
+   Three things the reference card shows that our data now supports: which
+   sitting people are in (batches), who is queuing (waitlist), and how they got
+   on (enrolment mode). A single-sitting session — the default, and every
+   session that predates batches — draws a plain meter and says none of it.
+────────────────────────────────────────────────────────────────────────────*/
+
+function SessionCard({
+  session: s, selected, highlighted, cardRef,
+  onToggle, onRoster, onBatches, onWaitlist, onAttendance, onEdit,
+  onComplete, onCancel,
+}) {
+  const typeCfg = TYPE_CFG[s.session_type] || TYPE_CFG.ILT;
+  const view = displayOf(s);
+  const statusCfg = STATUS_CFG[view] || STATUS_CFG.upcoming;
+  const TypeIcon = typeCfg.icon;
+  const isCompleted = view === "completed";
+  const isCancelled = view === "cancelled";
+  const isUpcoming = view === "upcoming";
+
+  const roster = Number(s.roster_count || 0);
+  const credited = Number(s.credited_count || 0);
+  const marked = Number(s.attendance_marked_count || 0);
+  const capacity = Number(s.capacity || 0);
+  const attendancePct = roster > 0 ? Math.round((credited / roster) * 100) : 0;
+
+  const batches = (s.batches ?? []).filter((b) => b.display_status !== "cancelled");
+  const isMultiBatch = batches.length > 1;
+  const pending = batches.filter((b) => b.display_status === "pending");
+  const waiting = Number(s.waitlist_count || 0);
+  const isSelf = s.enroll_mode === "self";
+
+  /**
+   * What "out of" means when there are several sittings.
+   *
+   * Batches may carry different capacities, so "N per batch" is only true when
+   * they all match — the reference could assume one number because its mock
+   * had one. Mixed sizes report the TOTAL instead, because a single per-batch
+   * figure would be wrong for at least one of them.
+   */
+  const batchCaps = batches.map((b) => Number(b.capacity || capacity || 0));
+  const sameCap = batchCaps.length > 0 && batchCaps.every((c) => c === batchCaps[0]);
+  const batchCapacityLabel = sameCap
+    ? `${batchCaps[0]} per batch`
+    : `${batchCaps.reduce((a, c) => a + c, 0)} across ${batches.length} batches`;
+
+  return (
+    <Box
+      ref={cardRef}
+      className={cn(
+        "border bg-surface transition-colors",
+        selected ? "border-accent-blue" : "border-line hover:border-line-strong",
+        highlighted && "ring-2 ring-accent-blue/40",
+      )}
+    >
+      <Box className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:px-5">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggle}
+          aria-label={`Select ${s.title}`}
+          className="mt-1 shrink-0 cursor-pointer"
+        />
+
+        {s.thumbnail_url && (
+          <CourseArt
+            thumbnailUrl={s.thumbnail_url}
+            alt={s.title}
+            scrim="light"
+            sizes="64px"
+            className="size-16 shrink-0 border border-line"
+          />
+        )}
+
+        {/* ── Left ── */}
+        <Box className="min-w-0 flex-1 basis-[14rem] space-y-2">
+          <Box className="flex flex-wrap items-center gap-2">
+            <Text as="span" className={cn("chip inline-flex items-center gap-1", typeCfg.chip)}>
+              <TypeIcon className="size-3" />{typeCfg.label}
+            </Text>
+            <Text as="span" className={cn("chip", statusCfg.chip)}>{statusCfg.label}</Text>
+            {/* Only said when it is NOT the default — a chip on every card
+                saying "Admin assigned" is noise, not information. */}
+            {isSelf && <Text as="span" className="chip chip-progress">Self enrolment</Text>}
+            {isMultiBatch && (
+              <Text as="span" className="chip chip-idle">{batches.length} batches</Text>
+            )}
+            {s.course_name && (
+              <Text as="span" className="chip chip-idle inline-flex items-center gap-1">
+                <BookOpen className="size-3" />{s.course_name}
+              </Text>
+            )}
+          </Box>
+
+          <Text as="h3" className="text-[15px] font-bold leading-snug text-ink">{s.title}</Text>
+
+          <Box className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-text-2">
+            <Text as="span" className="inline-flex items-center gap-1.5">
+              <UserCircle className="size-3.5 shrink-0 text-text-3" />{s.trainer}
+            </Text>
+            {/* A multi-batch session has no single date of its own — saying
+                one would name whichever sitting happened to be first. */}
+            <Text as="span" className="inline-flex items-center gap-1.5">
+              <CalendarDays className="size-3.5 shrink-0 text-text-3" />
+              {isMultiBatch ? `${batches.length} sittings` : formatDate(s.date)}
+            </Text>
+            {!isMultiBatch && (
+              <Text as="span" className="inline-flex items-center gap-1.5">
+                <Clock className="size-3.5 shrink-0 text-text-3" />
+                {s.start_time}–{s.end_time} IST
+              </Text>
+            )}
+            <Text as="span" className="inline-flex min-w-0 items-center gap-1.5">
+              {s.session_type === "Virtual"
+                ? <Video className="size-3.5 shrink-0 text-text-3" />
+                : <MapPin className="size-3.5 shrink-0 text-text-3" />}
+              <Text as="span" className="truncate">{s.venue_url}</Text>
+            </Text>
+          </Box>
+
+          {s.description && (
+            <Text as="p" className="line-clamp-2 text-[12px] leading-relaxed text-text-2">
+              {s.description}
+            </Text>
+          )}
+
+          {/* ── Fill meter. Segmented per batch when there is more than one,
+                  so an admin can see at a glance which sitting still has room.
+                  A pending batch is hatched rather than filled: it has no date,
+                  so its bar would otherwise claim a scheduled sitting. ── */}
+          <Box className="pt-1">
+            <Box className="flex items-baseline justify-between gap-2">
+              <Text as="span" className="text-[11px] text-text-3">
+                Registered
+              </Text>
+              <Text as="span" className="text-[12.5px] font-bold text-ink">
+                {roster}
+                <Text as="span" className="font-normal text-[11px] text-text-3">
+                  {isMultiBatch ? ` / ${batchCapacityLabel}` : ` / ${capacity}`}
+                </Text>
+                {isCompleted && roster > 0 && (
+                  <Text
+                    as="span"
+                    className={cn("font-semibold", attendancePct >= 70 ? "text-success" : "text-danger")}
+                  >
+                    {" "}· {attendancePct}% attended
+                  </Text>
+                )}
+              </Text>
+            </Box>
+            <BatchMeter batches={batches} roster={roster} capacity={capacity} />
+            {pending.length > 0 && (
+              <Text as="p" className="mt-1 text-[10.5px] text-warning">
+                {pending.length} batch{pending.length === 1 ? "" : "es"} awaiting a date
+              </Text>
+            )}
+          </Box>
+
+          {!isCompleted && !isCancelled && roster > 0 && (
+            <Text as="p" className="text-[11px] text-text-3">
+              {marked > 0
+                ? `Attendance marked for ${marked} of ${roster}`
+                : "Attendance not marked yet"}
+            </Text>
+          )}
+        </Box>
+
+        {/* ── Right: actions ── */}
+        <Box className="ml-auto flex w-full shrink-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
+          {waiting > 0 && (
+            <button
+              type="button"
+              onClick={onWaitlist}
+              className="cursor-pointer text-[11.5px] font-semibold text-warning underline-offset-2 hover:underline"
+            >
+              {waiting} waiting
+            </button>
+          )}
+
+          <Box className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+            {!isCompleted && (
+              <CardBtn onClick={onRoster}>Roster</CardBtn>
+            )}
+            {/* Shown for a completed session too: its sittings are still
+                worth looking at, and the dialog is where an admin sees who
+                was in which batch. Only a cancelled session hides it. */}
+            {!isCancelled && (
+              <CardBtn onClick={onBatches} icon={Layers}>
+                {batches.length ? `Batches (${batches.length})` : "Batches"}
+              </CardBtn>
+            )}
+            <CardBtn onClick={onAttendance} icon={UserCheck}>
+              {isCompleted ? "View attendance" : "Mark attendance"}
+            </CardBtn>
+            {!isCompleted && <CardBtn onClick={onEdit} icon={Pencil}>Edit</CardBtn>}
+            {!isCompleted && !isCancelled && (
+              <CardBtn primary onClick={onComplete} icon={CheckCircle2}>Mark completed</CardBtn>
+            )}
+            {isUpcoming && <CardBtn danger onClick={onCancel}>Cancel</CardBtn>}
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * The fill bar.
+ *
+ * One plain bar for a single sitting; one segment per batch when there are
+ * several. A `pending` batch is hatched, not filled — it has no date, so a
+ * proportional bar would read as a scheduled sitting that is partly full.
+ */
+function BatchMeter({ batches, roster, capacity }) {
+  if (batches.length === 0) {
+    const pct = capacity ? Math.min(100, Math.round((roster / capacity) * 100)) : 0;
+    return (
+      <Box className="mt-1.5 h-[7px] w-full bg-surface-3">
+        <Box className="h-full bg-accent-blue" style={{ width: `${pct}%` }} />
+      </Box>
+    );
+  }
+  return (
+    <Box className="mt-1.5 flex h-[7px] gap-[3px]">
+      {batches.map((b) => {
+        const cap = Number(b.capacity || capacity || 0);
+        const pct = cap ? Math.min(100, Math.round((Number(b.roster_count) / cap) * 100)) : 0;
+        const label = `Batch ${b.batch_no} · ${b.roster_count}/${cap}${
+          b.display_status === "pending" ? " · awaiting date" : ""
+        }`;
+        return (
+          <Box key={b.id} title={label} className="relative flex-1 overflow-hidden bg-surface-3">
+            {b.display_status === "pending" ? (
+              <Box className="absolute inset-0 bg-[repeating-linear-gradient(45deg,var(--spectra-warning)_0_3px,color-mix(in_oklab,var(--spectra-warning)_60%,white)_3px_6px)]" />
+            ) : (
+              <Box
+                className={cn(
+                  "absolute inset-y-0 left-0",
+                  b.display_status === "completed" ? "bg-success" : "bg-accent-blue",
+                )}
+                style={{ width: `${pct}%` }}
+              />
+            )}
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
+function CardBtn({ children, onClick, icon: Icon, primary = false, danger = false, disabled = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "inline-flex h-7 items-center gap-1 border px-2.5 text-[11.5px] font-semibold transition-colors",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+        primary
+          ? "border-navy bg-navy text-accent-soft hover:bg-accent-blue hover:text-white"
+          : danger
+            ? "border-line bg-surface text-text-2 hover:bg-danger hover:text-white"
+            : "border-line bg-surface text-text-2 hover:bg-accent-blue hover:text-white",
+      )}
+    >
+      {Icon && <Icon className="size-3" />}
+      {children}
+    </button>
+  );
+}
+
+
+/* ── Batch manager ─────────────────────────────────────────────────────────
+   A batch is one sitting. Adding the first one turns a single-sitting session
+   into a multi-batch one; deleting the last one turns it back, and nobody is
+   unenrolled either way — roster rows fall back to "no sitting assigned".
+────────────────────────────────────────────────────────────────────────────*/
+
+const EMPTY_BATCH = { label: "", date: "", start_time: "", end_time: "", capacity: "" };
+
+function BatchesDialog({ session, onClose, onChanged }) {
+  const [form, setForm] = useState(EMPTY_BATCH);
+  const [editing, setEditing] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const batches = session.batches ?? [];
+
+  async function save() {
+    setBusy(true); setError(null);
+    try {
+      const data = {
+        label: form.label.trim() || null,
+        date: form.date || null,
+        start_time: form.start_time || null,
+        end_time: form.end_time || null,
+        capacity: form.capacity ? Number(form.capacity) : null,
+      };
+      if (editing) await updateSessionBatch({ batchId: editing.id, data: { ...data, status: editing.status } });
+      else await createSessionBatch({ sessionId: session.id, data });
+      setForm(EMPTY_BATCH); setEditing(null);
+      await onChanged();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  async function remove(batch) {
+    setBusy(true); setError(null);
+    try {
+      await deleteSessionBatch({ batchId: batch.id });
+      await onChanged();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Batches — {session.title}</DialogTitle>
+        </DialogHeader>
+
+        <Box className="space-y-4">
+          <Box className="border-l-2 border-accent-blue bg-accent-tint px-3 py-2">
+            <Text as="p" className="text-[11.5px] leading-relaxed text-text-2">
+              A batch is one sitting of this session. Everyone still earns the
+              same training — batches only say <em>when</em> each person attends.
+              With no batches, the session runs once on its own date.
+            </Text>
+          </Box>
+
+          {batches.length > 0 && (
+            <Box className="divide-y divide-line border border-line">
+              {batches.map((b) => (
+                <Box key={b.id} className="flex flex-wrap items-center gap-3 bg-surface px-3.5 py-2.5">
+                  <Text as="span" className="flex size-6 shrink-0 items-center justify-center bg-navy font-mono text-[11px] font-bold text-accent-soft">
+                    {b.batch_no}
+                  </Text>
+                  <Box className="min-w-0 flex-1">
+                    <Text as="p" className="truncate text-[12.5px] font-semibold text-ink">
+                      {b.label || `Batch ${b.batch_no}`}
+                    </Text>
+                    <Text as="p" className="text-[11px] text-text-3">
+                      {b.date ? `${formatDate(b.date)} · ${b.start_time ?? "—"}–${b.end_time ?? "—"}` : "Date not set"}
+                      {" · "}{b.roster_count}/{b.capacity} registered
+                    </Text>
+                  </Box>
+                  <Text
+                    as="span"
+                    className={cn(
+                      "chip shrink-0",
+                      b.display_status === "completed" ? "chip-complete"
+                        : b.display_status === "pending" ? "chip-warning" : "chip-progress",
+                    )}
+                  >
+                    {b.display_status}
+                  </Text>
+                  <Box className="flex shrink-0 gap-1">
+                    <CardBtn
+                      icon={Pencil}
+                      onClick={() => {
+                        setEditing(b);
+                        setForm({
+                          label: b.label ?? "", date: b.date ?? "",
+                          start_time: b.start_time ?? "", end_time: b.end_time ?? "",
+                          capacity: b.capacity ? String(b.capacity) : "",
+                        });
+                      }}
+                    >
+                      Edit
+                    </CardBtn>
+                    <CardBtn danger icon={Trash2} onClick={() => remove(b)}>Delete</CardBtn>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          <Box className="space-y-3 border border-line bg-surface-2 p-3.5">
+            <Text as="p" className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
+              {editing ? `Edit batch ${editing.batch_no}` : "Add a batch"}
+            </Text>
+            <Box className="grid gap-3 sm:grid-cols-2">
+              <Box className="space-y-1.5">
+                <Label>Label</Label>
+                <Input
+                  value={form.label} maxLength={80}
+                  onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))}
+                  placeholder="e.g. Morning cohort"
+                />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label>Capacity</Label>
+                <Input
+                  type="number" min="1" value={form.capacity}
+                  onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))}
+                  placeholder={`Defaults to ${session.capacity}`}
+                />
+              </Box>
+            </Box>
+            <Box className="grid gap-3 sm:grid-cols-3">
+              <Box className="space-y-1.5">
+                <Label>Date</Label>
+                <Input
+                  type="date" value={form.date}
+                  onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+                />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label>Start</Label>
+                <Input
+                  type="time" value={form.start_time}
+                  onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))}
+                />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label>End</Label>
+                <Input
+                  type="time" value={form.end_time}
+                  onChange={(e) => setForm((p) => ({ ...p, end_time: e.target.value }))}
+                />
+              </Box>
+            </Box>
+            <Text as="p" className="text-[10.5px] text-text-3">
+              Leave the date blank to create the batch now and fix the date later —
+              it shows as <strong>pending</strong> until you do.
+            </Text>
+            <Box className="flex gap-2">
+              <Button
+                onClick={save}
+                disabled={busy}
+                className="h-8 cursor-pointer rounded-none bg-navy text-[12.5px] text-accent-soft hover:bg-accent-blue hover:text-white"
+              >
+                {busy ? "Saving…" : editing ? "Save batch" : "Add batch"}
+              </Button>
+              {editing && (
+                <Button
+                  variant="outline"
+                  onClick={() => { setEditing(null); setForm(EMPTY_BATCH); }}
+                  className="h-8 cursor-pointer rounded-none text-[12.5px]"
+                >
+                  Cancel edit
+                </Button>
+              )}
+            </Box>
+          </Box>
+
+          {error && (
+            <Box className="border border-danger/30 bg-danger/10 px-3 py-2">
+              <Text as="p" className="text-[12.5px] text-danger">{error}</Text>
+            </Box>
+          )}
+        </Box>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── Waitlist ──────────────────────────────────────────────────────────────
+   Only self-enrol sessions produce one. A waitlisted person is NOT enrolled —
+   promoting them is what creates their assignment and puts the training in
+   their My Courses, which is why it goes through the roster path.
+────────────────────────────────────────────────────────────────────────────*/
+
+function WaitlistDialog({ session, onClose, onChanged }) {
+  const [rows, setRows] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await fetchSessionWaitlist({ sessionId: session.id });
+      setRows(d.waitlist ?? []);
+      setError(null);
+    } catch (e) { setError(e.message); setRows([]); }
+  }, [session.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const full = Number(session.roster_count || 0) >= Number(session.capacity || 0);
+
+  async function act(fn, userId) {
+    setBusy(true); setError(null);
+    try {
+      await fn({ sessionId: session.id, userId });
+      await load();
+      await onChanged();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Waitlist — {session.title}</DialogTitle>
+        </DialogHeader>
+
+        <Text as="p" className="-mt-2 text-[12px] text-text-2">
+          {session.roster_count}/{session.capacity} places taken.
+          {full
+            ? " The session is full, so new self-enrolments queue here."
+            : " There is room — promoting somebody enrols them straight away."}
+        </Text>
+
+        {error && (
+          <Box className="border border-danger/30 bg-danger/10 px-3 py-2">
+            <Text as="p" className="text-[12.5px] text-danger">{error}</Text>
+          </Box>
+        )}
+
+        {rows === null ? (
+          <Text as="p" className="py-6 text-center text-[12.5px] text-text-3">Loading…</Text>
+        ) : rows.length === 0 ? (
+          <Box className="border border-dashed border-line-strong bg-surface-2 px-4 py-10 text-center">
+            <Text as="p" className="text-[12.5px] text-text-2">Nobody is waiting.</Text>
+          </Box>
+        ) : (
+          <Box className="divide-y divide-line border border-line">
+            {rows.map((r, i) => (
+              <Box key={r.id} className="flex items-center gap-3 bg-surface px-3.5 py-2.5">
+                <Text as="span" className="w-5 shrink-0 font-mono text-[11px] font-bold text-text-3">
+                  {i + 1}
+                </Text>
+                <Box className="min-w-0 flex-1">
+                  <Text as="p" className="truncate text-[12.5px] font-semibold text-ink">
+                    {r.first_name} {r.last_name}
+                  </Text>
+                  <Text as="p" className="truncate text-[11px] text-text-3">{r.email}</Text>
+                </Box>
+                <Box className="flex shrink-0 gap-1">
+                  <CardBtn primary disabled={busy} onClick={() => act(promoteFromWaitlist, r.user_id)}>
+                    Enrol
+                  </CardBtn>
+                  <CardBtn danger disabled={busy} onClick={() => act(dropFromWaitlist, r.user_id)}>
+                    Remove
+                  </CardBtn>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function MarkAttendanceTab({ sessions, initialSessionId }) {
   const [selectedId,     setSelectedId]     = useState(initialSessionId || "");
@@ -1109,7 +1764,9 @@ export function AdminSessionsContent() {
   const focusSessionId = useSearchParams().get("session");
   const { user } = useAuth();
 
-  const [activeTab,   setActiveTab]   = useState("sessions");
+  /** "sessions" | "attendance" | "reports" — a place the page goes, reached
+   *  from a card, not a tab the page always wears. */
+  const [view, setView] = useState("sessions");
   const [attendanceSessionId, setAttendanceSessionId] = useState("");
   const [sessions,    setSessions]    = useState(null);
   const [courses,     setCourses]     = useState([]);
@@ -1135,10 +1792,26 @@ export function AdminSessionsContent() {
   const [thumbnailFile,    setThumbnailFile]    = useState(null);
   const [thumbnailCleared, setThumbnailCleared] = useState(false);
 
+  /**
+   * The batch manager and waitlist open from a card but render up here, beside
+   * the other dialogs — so the state lives with the dialog, not with the tab
+   * that triggers it. Same shape as `deleteTarget`.
+   */
+  const [batchTarget,    setBatchTarget]    = useState(null);
+  const [waitlistTarget, setWaitlistTarget] = useState(null);
+
+  /**
+   * Archived sessions instead of live ones. Held HERE rather than in
+   * `SessionsTab`, because `load` is what fetches and the flag changes which
+   * set the API returns — a swap, not a client-side filter.
+   */
+  const [showArchived,  setShowArchived]  = useState(false);
+  const [archivedCount, setArchivedCount] = useState(0);
+
   const load = useCallback(() => {
     if (!user) return;
     Promise.all([
-      apiClient("/api/admin/sessions"),
+      apiClient(`/api/admin/sessions${showArchived ? "?archived=true" : ""}`),
       apiClient("/api/admin/courses"),
       apiClient("/api/admin/employees"),
       // The organization's trainer accounts. Assigning one is what puts the
@@ -1147,13 +1820,14 @@ export function AdminSessionsContent() {
     ])
       .then(([sRes, cRes, eRes, tRes]) => {
         setSessions(sRes.sessions || []);
+        setArchivedCount(sRes.archived_count ?? 0);
         setCourses((cRes.courses || []).filter((c) => c.is_active));
         setTrainers(tRes.trainers || []);
         const depts = [...new Set((eRes.employees || []).map((e) => e.department).filter(Boolean))].sort();
         setDeptOptions(depts);
       })
       .catch((e) => setError(e.message));
-  }, [user]);
+  }, [user, showArchived]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1252,7 +1926,7 @@ export function AdminSessionsContent() {
 
   const onMarkAttendance = (sessionId) => {
     setAttendanceSessionId(sessionId);
-    setActiveTab("attendance");
+    setView("attendance");
   };
 
   if (error) return (
@@ -1266,31 +1940,24 @@ export function AdminSessionsContent() {
   return (
     <Box className="space-y-5">
 
-      {/* ── Tab Bar ── */}
-      <Box className="flex gap-0 overflow-x-auto border-b">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px sm:px-5",
-                active
-                  ? "border-navy/20 text-navy bg-white"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-paper-warm"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </Box>
+      {/* ── No tab bar: the sessions grid IS the page.
+              Attendance and reports are reached FROM a session — marking
+              attendance is something you do to one sitting, not a mode the
+              whole page sits in — and each shows a back link to return. The
+              three-tab bar made the grid one of three equals and buried the
+              thing every visit starts with. ── */}
+      {view !== "sessions" && (
+        <button
+          type="button"
+          onClick={() => setView("sessions")}
+          className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-text-3 transition-colors hover:text-accent-blue"
+        >
+          <ArrowLeft className="size-3.5" />
+          Back to sessions
+        </button>
+      )}
 
-      {/* ── Tab Content ── */}
-      {activeTab === "sessions" && (
+      {view === "sessions" && (
         <SessionsTab
           sessions={sessions}
           courses={courses}
@@ -1301,19 +1968,41 @@ export function AdminSessionsContent() {
           setDeleteTarget={setDeleteTarget}
           onMarkAttendance={onMarkAttendance}
           focusSessionId={focusSessionId}
+          showArchived={showArchived}
+          setShowArchived={setShowArchived}
+          archivedCount={archivedCount}
+          onViewReports={() => setView("reports")}
+          setBatchTarget={setBatchTarget}
+          setWaitlistTarget={setWaitlistTarget}
         />
       )}
 
-      {activeTab === "attendance" && (
+      {view === "attendance" && (
         <MarkAttendanceTab
           sessions={sessions}
           initialSessionId={attendanceSessionId}
         />
       )}
 
-      {activeTab === "reports" && (
+      {view === "reports" && (
         <AttendanceReportsTab
           sessions={sessions}
+        />
+      )}
+
+      {batchTarget && (
+        <BatchesDialog
+          session={sessions?.find((x) => x.id === batchTarget.id) ?? batchTarget}
+          onClose={() => setBatchTarget(null)}
+          onChanged={load}
+        />
+      )}
+
+      {waitlistTarget && (
+        <WaitlistDialog
+          session={sessions?.find((x) => x.id === waitlistTarget.id) ?? waitlistTarget}
+          onClose={() => setWaitlistTarget(null)}
+          onChanged={load}
         />
       )}
 

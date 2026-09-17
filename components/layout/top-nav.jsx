@@ -12,11 +12,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, User, Settings, LogOut } from "lucide-react";
+import { Bell, Building2, KeyRound, LogOut, User } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
+import { MyProfileDialog } from "@/components/shared/my-profile-dialog";
+// In `shared/`, not `admin/`: this shell is rendered by all four portals, and
+// TASTE §1.2 forbids portal-specific imports reaching across. Only a tenant
+// admin ever OPENS it — that is `showOrgSettings` below, not the file's home.
+import { OrganizationSettingsDialog } from "@/components/shared/organization-settings-dialog";
 
 /**
  * One product name in both portals.
@@ -33,6 +40,25 @@ import { useAuth } from "@/hooks/use-auth";
  */
 export function TopNav() {
   const { user, logout } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [orgOpen, setOrgOpen] = useState(false);
+
+  /**
+   * Organization settings is a TENANT admin's screen. A platform admin has
+   * the whole Tenant Directory instead and no org of their own worth editing,
+   * and a learner or trainer has no business in it — the API answers 403 for
+   * all three, so the item is not offered rather than offered and refused
+   * (TASTE §10.3.1.2).
+   */
+  const showOrgSettings = user?.role === "admin" && !user?.isPlatformAdmin;
+
+  /** No shared change-password route; each portal has its own. */
+  const changePassword =
+    user?.role === "trainer"
+      ? "/trainer/change-password"
+      : user?.role === "admin"
+        ? (user?.isPlatformAdmin ? "/platform/change-password" : "/admin/change-password")
+        : "/change-password";
 
   return (
     <Box
@@ -94,17 +120,32 @@ export function TopNav() {
             }
           />
           <DropdownMenuContent align="end" className="w-48">
+            {/* Every item here does something. "Profile" and "Settings"
+                previously had no handler and no href at all — two controls
+                that looked live, closed the menu and changed nothing, which
+                is the screen-that-lies failure the standards doc keeps
+                returning to. */}
             <DropdownMenuGroup>
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setProfileOpen(true)}>
                 <User className="mr-2 h-4 w-4" />
-                Profile
+                My profile
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </DropdownMenuItem>
+              {showOrgSettings && (
+                <DropdownMenuItem onClick={() => setOrgOpen(true)}>
+                  <Building2 className="mr-2 h-4 w-4" />
+                  Organization settings
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                render={
+                  <Link href={changePassword}>
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Change password
+                  </Link>
+                }
+              />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout}>
@@ -114,6 +155,11 @@ export function TopNav() {
           </DropdownMenuContent>
         </DropdownMenu>
       </Box>
+
+      <MyProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
+      {showOrgSettings && (
+        <OrganizationSettingsDialog open={orgOpen} onOpenChange={setOrgOpen} />
+      )}
     </Box>
   );
 }

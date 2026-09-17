@@ -2,6 +2,7 @@
 
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TopNav } from "@/components/layout/top-nav";
+import { SupportSessionBanner } from "@/components/layout/support-session-banner";
 import { AuthProvider } from "@/providers/auth-provider";
 import Box from "@/components/ui/box";
 
@@ -28,6 +29,11 @@ export function PortalShell({ user, sidebar, children }) {
     <AuthProvider initialUser={user}>
       <SidebarProvider>
         <Box className="flex h-full flex-col">
+          {/* Above the topbar and outside the scroll container, so a support
+              session is visible on every page of every portal without each
+              one remembering to say so. Renders nothing in an ordinary
+              session. */}
+          <SupportSessionBanner session={user?.impersonation} />
           <TopNav />
           <Box className="flex flex-1 overflow-hidden">
             {sidebar}

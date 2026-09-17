@@ -643,6 +643,245 @@ stays as short as the answers allow.
 the verified token regardless, so an editable contact field would be a control
 that does nothing — the same rule as the assessment Live switch (§10.3.1.4).
 
+### 10.3.1.8 The list-page shape
+
+Course Library, Learning Paths and Live Sessions are the same page three times,
+and they are built the same way on purpose — an admin who learns one has
+learned all three:
+
+```
+KPI strip  →  toolbar  →  bulk bar (when something is selected)  →  select-all + count  →  cards
+```
+
+- **KPI tiles are reduced from the rows already on screen**, never a second
+  query, so a tile cannot disagree with the list beneath it (§10.12 records the
+  Manage Users version of this rule). Six tiles, `tile-accent` / `-success` /
+  `-warning` / `-rust` for the icon.
+- **A figure with nothing behind it renders `—`, not `0`.** "No score yet" and
+  "averaged zero" are different facts.
+- **One tile may be actionable and it says so in words.** Sessions' "Need
+  attention" counts completed sessions whose attendance is not fully marked —
+  until those names are marked nobody has been credited. It takes `danger` only
+  when the count is non-zero; a red zero is a false alarm.
+- **The archived toggle SWAPS the set**, and clears the selection when it does
+  — those ids are no longer on screen and a bulk action would act on rows the
+  admin can no longer see.
+- **A bulk result that affected fewer rows than it named says so**, with the
+  reason. Silent partial success is worse than a refusal.
+- **Create is disabled while viewing archived.** There is nothing to create
+  into.
+
+**A destructive confirm names what else goes.** Deleting a session takes its
+roster, its attendance and every completion it credited; deleting a path takes
+everybody's place on it. Both dialogs say that and both point at archive as the
+reversible alternative — an admin who does not know the cascade cannot consent
+to it.
+
+### 10.3.1.9 Assign Learning is one flow, not four tabs
+
+`/admin/assign-learning` reads as one sentence — assign THESE items to THESE
+people by THIS date — and the footer says the sentence back with real counts
+before anything is sent.
+
+It replaced a four-tab screen (Courses / Journeys / Groups / Assessments) where
+each tab assigned one kind of thing to one kind of audience in its own shape.
+Assigning a course and a path to the same department meant doing the job twice,
+differently, and two of the four tabs assigned nothing at all.
+
+- **Step 1 takes courses AND paths into one list.** They go to the same people,
+  so they belong in the same basket.
+- **Step 2's three modes resolve to one `audience` array**, computed once and
+  read by the counter, the confirm dialog and the send — so the number the
+  admin agreed to is the number that gets assigned.
+- **Only deliverable items are offered.** Draft, archived and session-training
+  courses are filtered out: a session is assigned by adding someone to its
+  roster (§10.7), so offering it here would be a control that lies.
+- **One request per ITEM carrying the whole audience**, not one per
+  (item, learner) pair. The bulk endpoints are single statements, so a
+  department cannot end up half-enrolled, and 3 items across 40 learners is 3
+  requests rather than 120.
+- **The confirm says progress is not reset.** Re-assigning a department is the
+  common case and the opposite assumption is the alarming one.
+
+### 10.3.1.10 The sessions grid IS the page
+
+`/admin/sessions` has no tab bar. Marking attendance is something you do to one
+sitting, not a mode the whole page sits in — so it is reached from a card and
+shows a "← Back to sessions" link to return. The three-tab bar made the grid
+one of three equals and buried the thing every visit starts with.
+
+**A session card says what the session IS, and only what applies.** The
+"Self enrolment" chip appears only when that is not the default — a chip on
+every card reading "Admin assigned" is noise. A multi-batch session shows
+"3 sittings" in place of a date, because it has no single date of its own and
+naming one would name whichever sitting happened to be first.
+
+**The fill meter is segmented per batch**, so an admin sees at a glance which
+sitting still has room. A `pending` batch — one with no date yet — is hatched
+rather than proportionally filled: a part-filled bar would read as a scheduled
+sitting, which is exactly what it is not.
+
+**"N per batch" is only said when it is true.** Batches may carry different
+capacities, so mixed sizes report the total ("10 / 60 across 3 batches")
+instead. The reference could assume one number because its mock had one; ours
+cannot.
+
+**The waitlist count is a button**, styled `warning` and underlined on hover,
+because it opens the queue. Promoting somebody from it enrols them — the dialog
+says whether there is room first, since promoting into a full session is a
+deliberate override rather than a queue moving.
+
+### 10.3.1.11 The super-admin portal
+
+Five pages behind `(platform)`, and the landing one is **Platform Overview**
+(`/platform/dashboard` — the route is unchanged so existing links and the
+post-login redirect still work; only the label and the content moved).
+
+**It leads with what is WRONG, not with revenue.** The money strip is at the
+top because it is the page's subject, but immediately under it are three
+attention panels — overdue invoices, contracts to renew, seat requests
+waiting — because those are the only items on the page that need somebody to
+do something today. When all three are zero the panels collapse to one green
+line saying so, which is a claim worth making explicitly: an admin should be
+able to tell "nothing needs attention" from "the page did not load".
+
+**A contract warning is never just a chip.** `contract_state` arrives derived
+from the API (`lib/tenant-account.js` holds only how each state READS, never
+how it is computed — recomputing it in the browser would be a second
+definition of "expiring" that drifts the first time the 60-day window moves).
+The overview names every tenant inside its window, soonest first, and says
+"in 30 days" or "10 days ago" beside the chip — a chip alone says a contract
+is expiring without saying when, which is the one thing the reader needs.
+
+#### The avatar menu
+
+Every item in it does something. "Profile" and "Settings" previously had no
+handler and no `href` at all — two controls that looked live, closed the menu
+and changed nothing.
+
+- **My profile** opens a dialog in every portal: read first, edit second,
+  because most opens are somebody checking what their account says.
+- **Organization settings** appears only for a TENANT admin. A platform admin
+  has the whole Tenant Directory instead, and a learner or trainer gets a 403
+  — so the item is not offered rather than offered and refused.
+- **Change password** had no page in the admin or platform portals at all,
+  while the learner and trainer portals both had one and the API route was
+  already open to any role. Both pages now exist, and the menu resolves the
+  href from the role.
+
+**What cannot be edited is SHOWN, not hidden.** Email and Department render as
+facts with "Set by your admin" under them, so nobody hunts for a control that
+should not exist — and the edit form says outright that department decides who
+can see your progress. The organization dialog does the same at a larger
+scale: plan, contract dates, contract value and seat limit sit under a
+padlocked "Your account with Edstellar" heading as facts, never as disabled
+inputs. A greyed input reads as "temporarily unavailable"; these are "not
+yours".
+
+**The mock's Manager field is not rendered.** There is no reporting line in
+this product, so it would be permanently "—".
+
+**`DialogFooter` carries `-mx-4 -mb-4`**, which assumes the content keeps its
+default `p-4`. Both of these dialogs set `p-0` so their navy header can meet
+the edges, so both reset it with `mx-0 mb-0` — without that the footer renders
+16px wider than the dialog and gives it a horizontal scrollbar.
+
+**Opening a tenant signs you in as them, and the UI says so three times.**
+The Tenant Directory's "Open tenant" is not a link to a read-only view — it
+swaps the platform admin's cookie for one that acts as that tenant's admin. A
+click with that consequence gets a confirm that names the person whose account
+it will be, says the tenant's own activity log records it, and says the session
+lasts an hour. All three before the click, not from the banner afterwards. The
+button renders DISABLED with the reason in its title when the tenant has no
+admin account (§10.3.1.2) — there is nothing to become and the API refuses it.
+
+Once inside, `support-session-banner.jsx` is the first element in
+`portal-shell.jsx` — above the topbar, sticky, outside the scroll container, on
+every page of every portal. It is **not dismissible**: a banner you can close
+is closed exactly when it matters. `danger` is correct here rather than an
+exception to §10.1 — acting on the wrong tenant's data IS the failure this
+prevents, and the bar is the only thing between the admin and it. Note the
+`text-white` restated on the inner `Text`: the primitive's default ink colour
+wins over the parent's otherwise, and the tenant name came out muddy on red.
+
+Both navigations are `window.location.href`, never `router.push`. The auth
+cookie has just been swapped, and every RSC payload the router has cached
+belongs to the other session — a soft navigation renders one portal's pages
+from the other's data.
+
+**A tenant is created with its first admin, in one form.** The account fields
+are required and marked so, because the API creates both in one transaction
+and a tenant without an admin is exactly the state this page warns about on its
+own cards. The temporary password is a plain text input, not masked — whoever
+creates the tenant has to read it out to the customer, and masking a value the
+author must transcribe helps nobody. The slug follows the name until the admin
+edits it, then stops: typing a deliberate slug and then fixing a typo in the
+name should not silently throw the slug away.
+
+**A card names a real account, never a typed-in one.** The tenant card's
+footer used to print the `contact_*` fields — free text an admin fills in — and
+the demo rows had been filled from the reference mock, so the directory named
+two people who have no accounts. It now shows the tenant's actual admin from
+`users`, with `OWNER` or `ADMIN` beside the name and the email as a `mailto:`
+link, and `+N more admin` when there is more than one. The commercial contact
+is still editable and still shown, but separately and prefixed `Billing:`, and
+only when somebody has genuinely recorded one. The rule generalises:
+
+> If a field is displayed as an identity — who runs this, who to contact, who
+> approved it — prefer the one the database can verify over the one somebody
+> typed. A free-text name is fine as a supplement and dangerous as the answer,
+> because nothing ever tells you it went stale.
+
+A tenant with no active admin account gets a `warning` line saying so, not a
+blank row.
+
+**Money is scanned, not typed, so it is short.** `formatMoney()` renders
+₹45.0 L and ₹1.20 Cr on a card; full precision stays in the number input where
+it is being entered. A null contract value renders `—`, never ₹0.
+
+**A refusal the API will certainly make is stated on the form before Save.**
+The payment dialog says what the outstanding amount is and that a part payment
+is fine; the invoice dialog says a draft owes nothing until it is issued; the
+seat dialog says the number is the TOTAL you want, not how many to add. Each of
+those is a rule the API enforces with a 422 or 409 — the form only means the
+admin hears it while typing rather than after pressing Save. Where the guard is
+certain the submit button also disables, per §10.3.1.2.
+
+**Approving a seat request says that it writes the limit.** "Approve & set
+limit", and under the number: *Saving sets this tenant's limit to 30
+immediately.* The difference between recording a decision and changing what the
+tenant can do is the whole feature, and a button labelled just "Approve" hides
+it.
+
+#### Seats, on the tenant's side
+
+The seat meter sits in Manage Users **above the KPI tiles**, because it is the
+one figure on that page that can STOP the admin: at the cap the API refuses
+`+ Add User` with a 409. Showing the meter only after they had hit it would
+make the refusal read as a bug.
+
+- **`+ Add User` and `Bulk Upload` render DISABLED at the cap**, with a title
+  saying why. That form only ever creates learners — which is exactly what a
+  seat is — so the 409 is certain, and §10.3.1.2's rule applies: an enabled
+  button that always fails is the screen that lies. A *failed* seat fetch
+  leaves them enabled; the API is still the enforcement, and a network blip
+  must not lock an admin out of adding people.
+- **The panel states what a seat is**: only active learners count, admins and
+  trainers do not, and deactivating somebody frees one. That is the first thing
+  an admin at the cap will try, and they should not have to test whether it
+  works.
+- **The answer to the last request stays on screen** once it is no longer
+  pending. An approval that silently changed a number would leave the admin
+  guessing whether it landed; the note Edstellar wrote is rendered under the
+  meter with the granted figure beside it.
+- **Seats refetch with every directory refetch**, not just on mount — creating
+  or deactivating somebody moves the meter, and a stale meter beside a table
+  that just changed is the two-numbers-disagreeing failure §10.12 records for
+  the KPI tiles.
+
+With no limit configured the panel is one quiet line, not a meter reading
+"unlimited of unlimited".
+
 ### 10.3.2 Descriptions
 
 Every description — course, module, lesson, assessment, session — is capped at

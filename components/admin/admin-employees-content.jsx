@@ -39,7 +39,8 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser } from "@/services/api/admin/admin-api";
+import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser, fetchSeatState } from "@/services/api/admin/admin-api";
+import { SeatUsagePanel } from "@/components/admin/seat-usage-panel";
 import { JOB_LEVELS, LOCATIONS } from "@/lib/workforce";
 import { cn } from "@/lib/utils";
 import { progressFill } from "@/lib/brand";
@@ -575,6 +576,7 @@ export function AdminEmployeesContent() {
   const [filterRole, setFilterRole]         = useState("all");
   const [filterLevel, setFilterLevel]       = useState("all");
   const [stats, setStats]                   = useState(null);
+  const [seatState, setSeatState]           = useState(null);
   const [error, setError]                   = useState(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
   const [form, setForm]                     = useState(EMPTY_FORM);
@@ -609,9 +611,17 @@ export function AdminEmployeesContent() {
       // in the organization — admins and trainers included — while that
       // endpoint is learners-only because it also feeds the assign-learning
       // picker and the session roster.
-      const d = await apiClient("/api/admin/users/directory");
+      const [d, seats] = await Promise.all([
+        apiClient("/api/admin/users/directory"),
+        // Seats travel with every refetch, not just the first: creating or
+        // deactivating somebody moves the meter, and a stale one beside a
+        // table that just changed is the two-numbers-disagreeing failure the
+        // KPI tiles are already refetched to avoid.
+        fetchSeatState().catch(() => null),
+      ]);
       setEmployees(d.users || []);
       setStats(d.stats || null);
+      setSeatState(seats);
     } catch (e) {
       setError(e.message);
     }
@@ -767,6 +777,10 @@ export function AdminEmployeesContent() {
     </Box>
   );
 
+  // `false` when seats could not be read, so a failed seat fetch never locks
+  // an admin out of adding people — the API still enforces the real limit.
+  const seatsFull = Boolean(seatState?.seats?.is_full);
+
   const depts     = [...new Set(employees.map((e) => e.department).filter(Boolean))].sort();
   const locations = [...new Set(employees.map((e) => e.location).filter(Boolean))].sort();
   const jobRoles  = [...new Set(employees.map((e) => e.job_role).filter(Boolean))].sort();
@@ -802,6 +816,13 @@ export function AdminEmployeesContent() {
         className="hidden"
         onChange={handleFileSelect}
       />
+
+      {/* ── Licensed seats ──
+          Above the tiles because it is the one figure on this page that can
+          STOP the admin: at the cap, "+ Add User" is refused by the API with a
+          409. Showing the meter only after they have hit it would make the
+          refusal read as a bug. */}
+      <SeatUsagePanel state={seatState} onChanged={load} />
 
       {/* ── KPI tiles ──
           Counts come with the directory rather than from five COUNT queries
@@ -842,6 +863,8 @@ export function AdminEmployeesContent() {
               variant="outline"
               size="sm"
               className="h-8 text-xs gap-1.5"
+              disabled={seatsFull}
+              title={seatsFull ? "All licensed seats are in use — free one or request more above" : undefined}
               onClick={() => { setBulkResult(null); setBulkRows(null); setParseError(null); setBulkOpen(true); }}
             >
               <Upload className="h-3.5 w-3.5" />
@@ -857,8 +880,14 @@ export function AdminEmployeesContent() {
               <Download className="h-3.5 w-3.5" />
               {exporting ? "Exporting…" : "Export"}
             </Button>
+            {/* Disabled at the cap rather than enabled-and-refused: this form
+                only ever creates LEARNERS, which is exactly what a seat is, so
+                the API's 409 is certain. §10.3.1.2's rule — the title says
+                why, and the seat panel above says what to do about it. */}
             <Button
               size="sm"
+              disabled={seatsFull}
+              title={seatsFull ? "All licensed seats are in use — free one or request more above" : undefined}
               className="h-8 text-xs gap-1.5 bg-navy hover:bg-navy-soft text-paper"
               onClick={() => { setForm(EMPTY_FORM); setFormError(null); setDialogOpen(true); }}
             >

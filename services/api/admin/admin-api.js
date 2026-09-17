@@ -556,6 +556,19 @@ export async function deleteQuestion({ questionId }) {
 
 /* ── Users ── */
 
+/**
+ * LEARNERS only — deliberately not the Manage Users directory.
+ *
+ * `/admin/employees` answers "people who can be given a course", which is what
+ * the assign picker and the session roster both need. The directory
+ * (`/admin/users/directory`) answers "every account", admins and trainers
+ * included, and offering those as assignees is exactly the mistake §10.12
+ * records the two endpoints existing to prevent.
+ */
+export async function fetchEmployees() {
+  return apiClient("/api/admin/employees");
+}
+
 export async function fetchUsers() {
   return apiClient("/api/admin/users");
 }
@@ -648,4 +661,139 @@ export async function fetchServiceRequests({ limit, offset } = {}) {
 
 export async function createServiceRequest(data) {
   return apiClient("/api/admin/services/requests", { method: "POST", body: data });
+}
+
+/* ── Learning Paths ── */
+
+/**
+ * The admin builder's list. `archived` SWAPS the set rather than widening it —
+ * archived and live paths are never shown together.
+ */
+export async function fetchLearningPaths({ archived = false, status, limit = 100 } = {}) {
+  const query = new URLSearchParams();
+  if (archived) query.set("archived", "true");
+  if (status) query.set("status", status);
+  query.set("limit", String(limit));
+  return apiClient(`/api/admin/journeys?${query.toString()}`);
+}
+
+export async function fetchLearningPath({ pathId }) {
+  return apiClient(`/api/admin/journeys/${pathId}`);
+}
+
+export async function createLearningPath({ data }) {
+  return apiClient("/api/admin/journeys", { method: "POST", body: data });
+}
+
+export async function updateLearningPath({ pathId, data }) {
+  return apiClient(`/api/admin/journeys/${pathId}`, { method: "PUT", body: data });
+}
+
+export async function deleteLearningPath({ pathId }) {
+  return apiClient(`/api/admin/journeys/${pathId}`, { method: "DELETE" });
+}
+
+/** The ordered course list — replaces the whole set in one call. */
+export async function setLearningPathCourses({ pathId, courses }) {
+  return apiClient(`/api/admin/journeys/${pathId}/courses`, {
+    method: "PUT",
+    body: { courses },
+  });
+}
+
+export async function fetchLearningPathLearners({ pathId }) {
+  return apiClient(`/api/admin/journeys/${pathId}/learners`);
+}
+
+export async function assignLearningPath({ pathId, userIds }) {
+  return apiClient(`/api/admin/journeys/${pathId}/assign`, {
+    method: "POST",
+    body: { user_ids: userIds },
+  });
+}
+
+/**
+ * activate | draft | archive | restore | delete over a selection.
+ *
+ * Single-card actions call this with one id too, so there is one code path and
+ * one result shape for both — the same choice the course library made.
+ */
+export async function bulkLearningPaths({ ids, action }) {
+  return apiClient("/api/admin/journeys/bulk", {
+    method: "POST",
+    body: { ids, action },
+  });
+}
+
+/**
+ * Bulk cancel / archive / restore / delete over selected sessions.
+ *
+ * Single-card actions use this too, so there is one code path and one result
+ * shape — the same choice the course library and learning paths made.
+ */
+export async function bulkSessionAction({ ids, action }) {
+  return apiClient("/api/admin/sessions/bulk", {
+    method: "POST",
+    body: { ids, action },
+  });
+}
+
+/* ── Session batches & waitlist ── */
+
+/**
+ * A batch is one SITTING of a session — never a separate course. A session
+ * with no batches is a single sitting using its own date and capacity, which
+ * is the default. See `0025_session_batches.sql` for why that matters.
+ */
+export async function createSessionBatch({ sessionId, data }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/batches`, { method: "POST", body: data });
+}
+
+export async function updateSessionBatch({ batchId, data }) {
+  return apiClient(`/api/admin/sessions/batches/${batchId}`, { method: "PUT", body: data });
+}
+
+export async function deleteSessionBatch({ batchId }) {
+  return apiClient(`/api/admin/sessions/batches/${batchId}`, { method: "DELETE" });
+}
+
+/** Move a rostered learner between sittings. `batchId: null` unassigns them. */
+export async function setRosterBatch({ sessionId, userId, batchId }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/roster/batch`, {
+    method: "PUT",
+    body: { user_id: userId, batch_id: batchId },
+  });
+}
+
+export async function fetchSessionWaitlist({ sessionId }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/waitlist`);
+}
+
+/** Promote off the queue onto the roster — which is what gives them the
+ *  training in My Courses, so it goes through the roster path server-side. */
+export async function promoteFromWaitlist({ sessionId, userId }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/waitlist/${userId}/promote`, {
+    method: "POST",
+  });
+}
+
+export async function dropFromWaitlist({ sessionId, userId }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/waitlist/${userId}`, { method: "DELETE" });
+}
+
+/* ── Seats ──
+ *
+ * The tenant's side only. Nothing here writes `seat_limit` — an organization
+ * raising its own cap would make the cap meaningless — so the most this can do
+ * is ask (`0028_seat_limits.sql`).
+ */
+
+/** Used, limit, remaining, plus this org's own request history. */
+export async function fetchSeatState() {
+  return apiClient("/api/admin/seats/requests");
+}
+
+/** Ask Edstellar for a higher limit. One open request at a time. */
+export async function requestMoreSeats({ data }) {
+  return apiClient("/api/admin/seats/requests", { method: "POST", body: data });
 }
