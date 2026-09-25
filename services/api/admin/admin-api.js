@@ -797,3 +797,25 @@ export async function fetchSeatState() {
 export async function requestMoreSeats({ data }) {
   return apiClient("/api/admin/seats/requests", { method: "POST", body: data });
 }
+
+/**
+ * The organization's own roles, for the Add User dialog and the Change role
+ * action. `GET /api/admin/roles` is open to the admin audience (reading roles
+ * is not gated; only `manage_roles` writes are), so a `manage_users` admin who
+ * cannot edit roles can still put somebody on one.
+ */
+export async function fetchOrgRoles() {
+  return apiClient("/api/admin/roles");
+}
+
+/**
+ * Move a user onto a role. The server rewrites `users.role` from the role's
+ * portal, so the portal is never sent — the two columns cannot be made to
+ * disagree from here.
+ */
+export async function assignUserRole({ userId, roleId }) {
+  return apiClient(`/api/admin/users/${userId}/role`, {
+    method: "PATCH",
+    body: { roleId },
+  });
+}

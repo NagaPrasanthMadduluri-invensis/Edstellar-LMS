@@ -39,7 +39,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser, fetchSeatState } from "@/services/api/admin/admin-api";
+import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser, fetchSeatState, fetchOrgRoles, assignUserRole } from "@/services/api/admin/admin-api";
 import { SeatUsagePanel } from "@/components/admin/seat-usage-panel";
 // The lists are per-tenant data now, curated by Edstellar at onboarding
 // (`0031`), so they are FETCHED rather than imported. `lib/workforce.js` is
@@ -47,6 +47,9 @@ import { SeatUsagePanel } from "@/components/admin/seat-usage-panel";
 import { fetchMyOrgOptions } from "@/services/api/profile-api";
 import { cn } from "@/lib/utils";
 import { progressFill } from "@/lib/brand";
+
+/** How a role's portal reads in a picker. One place, so it cannot drift. */
+const PORTAL_WORD = { admin: "Admin portal", learner: "Learner portal", trainer: "Trainer portal" };
 
 const AVATAR_COLORS = [
   "bg-navy text-white",
@@ -66,7 +69,7 @@ const DEPARTMENTS = [
   "Operations", "Legal", "Customer Support", "Product", "Design",
 ];
 
-const EMPTY_FORM = { first_name: "", last_name: "", email: "", password: "", department: "", location: "", job_role: "", job_level: "" };
+const EMPTY_FORM = { first_name: "", last_name: "", email: "", password: "", department: "", location: "", job_role: "", job_level: "", role_id: "", manager_id: "" };
 
 const HEADER_MAP = {
   "employee id": "employee_id", "employeeid": "employee_id", "employee_id": "employee_id",
@@ -541,6 +544,59 @@ function formatDay(value) {
  * A disabled action keeps its title, so hovering says WHY it is unavailable
  * instead of leaving the admin to guess.
  */
+/**
+ * Who this person reports to.
+ *
+ * **Everybody active is offered, minus the person being edited**, because a
+ * reporting line is not confined to one department or one role — an admin or
+ * a trainer manages people too, and restricting the list to Manager-role
+ * accounts would mean recording the org chart only in a particular order.
+ *
+ * Excluding SELF is done here as well as on the server. The API refuses it
+ * with a 422 regardless; leaving the option in the list would be offering a
+ * choice that is always wrong (§10.3.1.2).
+ *
+ * A cycle (A reports to B who reports to A) is NOT filtered here — it needs a
+ * walk up the chain, which is a query. The API refuses it with a sentence
+ * naming both people, which is a better error than a silently shorter list.
+ */
+function ManagerField({ value, onChange, people, excludeId }) {
+  const options = (people ?? []).filter(
+    (p) => p.is_active && String(p.id) !== String(excludeId),
+  );
+  const picked = options.find((p) => String(p.id) === String(value)) ?? null;
+
+  return (
+    <Box className="space-y-1.5">
+      <Label>Manager</Label>
+      <Select
+        value={value ? String(value) : "none"}
+        onValueChange={(v) => onChange(v === "none" ? "" : v)}
+      >
+        <SelectTrigger className="h-9 text-sm">
+          <SelectValue>
+            {picked ? `${picked.first_name} ${picked.last_name}` : "No manager"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          <SelectItem value="none">No manager</SelectItem>
+          {options.map((p) => (
+            <SelectItem key={p.id} value={String(p.id)}>
+              {p.first_name} {p.last_name}
+              <Text as="span" className="ml-1.5 text-[10.5px] text-text-3">
+                {p.role_label}
+              </Text>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Text as="p" className="text-[11px] text-muted-foreground">
+        Their manager sees this person&apos;s progress in Team Learning.
+      </Text>
+    </Box>
+  );
+}
+
 function IconAction({ icon: Icon, label, onClick, disabled = false, danger = false, active = false }) {
   return (
     <button
@@ -584,6 +640,14 @@ export function AdminEmployeesContent() {
   const [error, setError]                   = useState(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
   const [form, setForm]                     = useState(EMPTY_FORM);
+  /* The org's own roles. An admin can now onboard somebody straight onto the
+     trainer portal, which is the only way the session form's trainer picker
+     ever gets an entry without shell access. */
+  const [orgRoles, setOrgRoles]             = useState(null);
+  const [roleTarget, setRoleTarget]         = useState(null);
+  const [roleChoice, setRoleChoice]         = useState("");
+  const [roleSaving, setRoleSaving]         = useState(false);
+  const [roleError, setRoleError]           = useState(null);
   const [saving, setSaving]                 = useState(false);
   const [formError, setFormError]           = useState(null);
   const [confirmToggle, setConfirmToggle]   = useState(null);
@@ -596,7 +660,7 @@ export function AdminEmployeesContent() {
 
   // edit modal
   const [editUser, setEditUser]     = useState(null);
-  const [editForm, setEditForm]     = useState({ first_name: "", last_name: "", email: "", department: "", location: "", job_role: "", job_level: "" });
+  const [editForm, setEditForm]     = useState({ first_name: "", last_name: "", email: "", department: "", location: "", job_role: "", job_level: "", manager_id: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError]   = useState(null);
 
@@ -615,7 +679,7 @@ export function AdminEmployeesContent() {
       // in the organization — admins and trainers included — while that
       // endpoint is learners-only because it also feeds the assign-learning
       // picker and the session roster.
-      const [d, seats, options] = await Promise.all([
+      const [d, seats, options, roles] = await Promise.all([
         apiClient("/api/admin/users/directory"),
         // Seats travel with every refetch, not just the first: creating or
         // deactivating somebody moves the meter, and a stale one beside a
@@ -625,11 +689,16 @@ export function AdminEmployeesContent() {
         // The branch locations and job levels this org may offer. Fetched
         // with the directory so the forms below never render a stale list.
         fetchMyOrgOptions().catch(() => null),
+        // The org's roles, for the Add User selector and Change role. A
+        // failure leaves the selector out rather than blocking onboarding —
+        // creating a learner is what the dialog did before this existed.
+        fetchOrgRoles().catch(() => null),
       ]);
       setEmployees(d.users || []);
       setStats(d.stats || null);
       setSeatState(seats);
       setOrgOptions(options);
+      setOrgRoles(roles?.roles ?? null);
     } catch (e) {
       setError(e.message);
     }
@@ -676,7 +745,13 @@ export function AdminEmployeesContent() {
     if (form.password.length < 6){ setFormError("Password must be at least 6 characters"); return; }
     setSaving(true); setFormError(null);
     try {
-      await createUser({ data: form });
+      await createUser({
+        data: {
+          ...form,
+          role_id: form.role_id ? Number(form.role_id) : undefined,
+          manager_id: form.manager_id ? Number(form.manager_id) : null,
+        },
+      });
       setDialogOpen(false);
       setForm(EMPTY_FORM);
       load();
@@ -687,13 +762,33 @@ export function AdminEmployeesContent() {
     }
   };
 
+  const handleAssignRole = async () => {
+    if (!roleChoice) { setRoleError("Pick a role"); return; }
+    setRoleSaving(true); setRoleError(null);
+    try {
+      await assignUserRole({ userId: roleTarget.id, roleId: Number(roleChoice) });
+      setRoleTarget(null);
+      // Refetch rather than patch: the role change moves role_label, the KPI
+      // counts and the seat meter at once, and three numbers disagreeing with
+      // the row that just changed is the failure §10.12 records.
+      await load();
+    } catch (e) {
+      setRoleError(e.message);
+    } finally {
+      setRoleSaving(false);
+    }
+  };
+
   const handleEditSave = async () => {
     if (!editForm.first_name.trim()) { setEditError("First name is required"); return; }
     if (!editForm.last_name.trim())  { setEditError("Last name is required");  return; }
     if (!editForm.email.trim())      { setEditError("Email is required");       return; }
     setEditSaving(true); setEditError(null);
     try {
-      await updateUser({ userId: editUser.id, data: editForm });
+      await updateUser({
+        userId: editUser.id,
+        data: { ...editForm, manager_id: editForm.manager_id ? Number(editForm.manager_id) : null },
+      });
       // `editForm` has no role/progress/last-activity fields, so spreading it
       // over the row would blank the columns this table now shows. Refetch.
       await load();
@@ -788,6 +883,15 @@ export function AdminEmployeesContent() {
   // `false` when seats could not be read, so a failed seat fetch never locks
   // an admin out of adding people — the API still enforces the real limit.
   const seatsFull = Boolean(seatState?.seats?.is_full);
+
+  /* A seat is an ACTIVE LEARNER (`0028`), so only a learner-portal role costs
+     one. That is why `+ Add User` stays enabled at the cap once a non-learner
+     role is chosen: the API would accept it, and disabling a control the API
+     would honour is the mirror of §10.3.1.2's screen that lies. */
+  const selectedRole = (orgRoles ?? []).find((r) => String(r.id) === String(form.role_id)) ?? null;
+  const rolePortal = selectedRole?.portal ?? "learner";
+  const createCostsSeat = rolePortal === "learner";
+  const blockedBySeats = seatsFull && createCostsSeat;
 
   // Active options only. An empty array is a real state, not a loading one:
   // a tenant Edstellar has not given branch locations to yet genuinely has
@@ -1064,6 +1168,26 @@ export function AdminEmployeesContent() {
                         <Badge className={`text-[10px] font-bold tracking-widest uppercase px-2.5 py-0.5 border ${ROLE_BADGE[emp.role_key] ?? ROLE_BADGE.learner}`}>
                           {emp.role_label}
                         </Badge>
+                        {/* Somebody with reports but no Manager role has a
+                            team recorded that they cannot see — Team Learning
+                            is gated on `view_team_learning`. Data nobody can
+                            read is the silent half of the screen-that-lies
+                            failure, so it is surfaced here where the Change
+                            role action that fixes it already lives. */}
+                        {emp.reports_count > 0 && emp.role_key !== "manager" && emp.role_key !== "admin" && (
+                          <Text
+                            as="p"
+                            className="mt-1 text-[10px] leading-tight text-warning"
+                            title="They have direct reports but no Manager role, so they cannot open Team Learning. Use Change role."
+                          >
+                            manages {emp.reports_count} · no Manager role
+                          </Text>
+                        )}
+                        {emp.reports_count > 0 && (emp.role_key === "manager" || emp.role_key === "admin") && (
+                          <Text as="p" className="mt-1 text-[10px] leading-tight text-text-3">
+                            manages {emp.reports_count}
+                          </Text>
+                        )}
                       </td>
 
                       <td className="px-3 py-3">
@@ -1138,7 +1262,7 @@ export function AdminEmployeesContent() {
                             disabled={!emp.can_manage}
                             onClick={() => {
                               setEditUser(emp);
-                              setEditForm({ first_name: emp.first_name, last_name: emp.last_name, email: emp.email, department: emp.department || "", location: emp.location || "", job_role: emp.job_role || "", job_level: emp.job_level || "" });
+                              setEditForm({ first_name: emp.first_name, last_name: emp.last_name, email: emp.email, department: emp.department || "", location: emp.location || "", job_role: emp.job_role || "", job_level: emp.job_level || "", manager_id: emp.manager_id ? String(emp.manager_id) : "" });
                               setEditError(null);
                             }}
                           />
@@ -1153,6 +1277,25 @@ export function AdminEmployeesContent() {
                             active={!emp.is_active}
                             onClick={() => setConfirmToggle({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, is_active: emp.is_active })}
                           />
+                          {/* Change role is offered on EVERY row, unlike the
+                              three beside it. `assertMutableLearner` refuses
+                              to edit, deactivate or delete a non-learner, but
+                              `RolesService.assign` has no such rule — moving
+                              a trainer back to learner is exactly the thing an
+                              admin needs and the only route out of a wrong
+                              choice. Absent entirely when the roles fetch
+                              failed, rather than opening an empty dialog. */}
+                          {orgRoles && orgRoles.length > 0 && (
+                            <IconAction
+                              icon={ShieldCheck}
+                              label={`Change role — currently ${emp.role_label}`}
+                              onClick={() => {
+                                setRoleTarget(emp);
+                                setRoleChoice(emp.role_id ? String(emp.role_id) : "");
+                                setRoleError(null);
+                              }}
+                            />
+                          )}
                           <IconAction
                             icon={Trash2}
                             label={emp.can_manage ? "Delete" : `${emp.role_label} accounts cannot be deleted here`}
@@ -1171,6 +1314,105 @@ export function AdminEmployeesContent() {
           </Box>
         )}
       </Card>
+
+      {/* ── Change role ── */}
+      <Dialog open={!!roleTarget} onOpenChange={(o) => { if (!o) setRoleTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change role</DialogTitle>
+          </DialogHeader>
+          {roleTarget && (() => {
+            const next = (orgRoles ?? []).find((r) => String(r.id) === String(roleChoice)) ?? null;
+            const wasLearner = roleTarget.role === "learner";
+            const becomesLearner = next?.portal === "learner";
+            const movesPortal = next && next.portal !== roleTarget.role;
+            /* The API refuses to leave an organization with no admin, and a
+               refusal that certain belongs on the button rather than after
+               Save (§10.3.1.2). Counted from the rows already on screen so it
+               cannot disagree with the table — and if the count is ever wrong
+               the API still refuses, so this only ever errs toward caution. */
+            const activeAdmins = employees.filter((e) => e.role === "admin" && e.is_active).length;
+            const strandsOrg =
+              roleTarget.role === "admin" && next && next.portal !== "admin" && activeAdmins <= 1;
+            return (
+              <Box className="space-y-4">
+                <Text as="p" className="text-sm text-muted-foreground">
+                  {roleTarget.first_name} {roleTarget.last_name} is currently{" "}
+                  <Text as="span" className="font-semibold text-foreground">{roleTarget.role_label}</Text>.
+                </Text>
+
+                <Box className="space-y-1.5">
+                  <Label>New role</Label>
+                  <Select value={roleChoice} onValueChange={setRoleChoice}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue>
+                        {next ? `${next.label} — ${PORTAL_WORD[next.portal] ?? next.portal}` : "Pick a role"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(orgRoles ?? []).map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.label} — {PORTAL_WORD[r.portal] ?? r.portal}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Box>
+
+                {/* Every consequence the API will apply, said before Save —
+                    the portal move, the seat, and the forced sign-out. An
+                    admin who does not know a role change signs somebody out
+                    cannot consent to it. */}
+                {movesPortal && (
+                  <Box className="space-y-1 border border-line bg-surface-2 px-3 py-2.5">
+                    <Text as="p" className="text-[11.5px] text-foreground">
+                      They move to the <Text as="span" className="font-semibold">{PORTAL_WORD[next.portal]}</Text>{" "}
+                      and will be signed out once.
+                    </Text>
+                    {becomesLearner && !wasLearner && (
+                      <Text as="p" className="text-[11.5px] text-muted-foreground">
+                        A learner uses a licensed seat. If none is free this will be refused.
+                      </Text>
+                    )}
+                    {wasLearner && !becomesLearner && (
+                      <Text as="p" className="text-[11.5px] text-muted-foreground">
+                        This frees a licensed seat — only active learners count.
+                      </Text>
+                    )}
+                    {next.portal === "trainer" && (
+                      <Text as="p" className="text-[11.5px] text-muted-foreground">
+                        They can then be picked as the trainer on a session.
+                      </Text>
+                    )}
+                  </Box>
+                )}
+
+                {strandsOrg && (
+                  <Text as="p" className="text-[11.5px] text-error">
+                    This is the only active admin. Give somebody else an admin
+                    role first — an organization with no admin cannot be signed
+                    into or managed.
+                  </Text>
+                )}
+
+                {roleError && <Text as="p" className="text-sm text-error">{roleError}</Text>}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRoleTarget(null)} disabled={roleSaving}>Cancel</Button>
+                  <Button
+                    onClick={handleAssignRole}
+                    disabled={roleSaving || !roleChoice || strandsOrg || String(roleChoice) === String(roleTarget.role_id)}
+                    title={strandsOrg ? "The organization would be left with no admin" : undefined}
+                    className="bg-navy hover:bg-navy-soft text-paper"
+                  >
+                    {roleSaving ? "Saving…" : "Change role"}
+                  </Button>
+                </DialogFooter>
+              </Box>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Confirm Toggle Status ── */}
       <AlertDialog open={!!confirmToggle} onOpenChange={(o) => { if (!o) setConfirmToggle(null); }}>
@@ -1295,6 +1537,15 @@ export function AdminEmployeesContent() {
                     </SelectContent>
                   </Select>
                 </Box>
+                {/* Everyone except this person — you cannot report to
+                    yourself, and offering the option would be a choice the
+                    API always refuses. */}
+                <ManagerField
+                  value={editForm.manager_id}
+                  onChange={(v) => setEditForm((p) => ({ ...p, manager_id: v }))}
+                  people={employees}
+                  excludeId={editUser?.id}
+                />
               </Box>
               {editError && (
                 <Box className="flex items-center gap-2 text-error text-sm">
@@ -1373,21 +1624,67 @@ export function AdminEmployeesContent() {
                   </SelectContent>
                 </Select>
               </Box>
+              {/* No exclusion: the person does not exist yet, so they cannot
+                  be in their own list. */}
+              <ManagerField
+                value={form.manager_id}
+                onChange={(v) => setForm((p) => ({ ...p, manager_id: v }))}
+                people={employees}
+              />
             </Box>
             <Box className="space-y-1.5">
               <Label>Password <Text as="span" className="text-error">*</Text></Label>
               <Input type="password" placeholder="Minimum 6 characters" autoComplete="new-password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} />
             </Box>
+
+            {/* ROLE. Omitted means the learner role, which is exactly what
+                this dialog did before the selector existed — so an admin who
+                ignores it gets the old behaviour. Choosing a trainer role is
+                the only way the session form's Trainer picker ever gets an
+                entry without somebody running a shell script. */}
+            {orgRoles && orgRoles.length > 0 && (
+              <Box className="space-y-1.5">
+                <Label>Role</Label>
+                <Select
+                  value={form.role_id ? String(form.role_id) : "default"}
+                  onValueChange={(v) => setForm((p) => ({ ...p, role_id: v === "default" ? "" : v }))}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue>
+                      {selectedRole ? `${selectedRole.label} — ${PORTAL_WORD[selectedRole.portal] ?? selectedRole.portal}` : "Learner (default)"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Learner (default)</SelectItem>
+                    {orgRoles.map((r) => (
+                      <SelectItem key={r.id} value={String(r.id)}>
+                        {r.label} — {PORTAL_WORD[r.portal] ?? r.portal}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Said here because it decides whether Add is refused at the
+                    cap, and an admin at the cap needs to know a trainer is
+                    still possible. */}
+                <Text as="p" className="text-[11px] text-muted-foreground">
+                  {createCostsSeat
+                    ? "Learners use a licensed seat."
+                    : `${selectedRole?.label ?? "This role"} does not use a seat — only active learners count.`}
+                </Text>
+              </Box>
+            )}
+
             {formError && <Text as="p" className="text-sm text-error">{formError}</Text>}
           </Box>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={handleCreate}
-              disabled={saving}
+              disabled={saving || blockedBySeats}
+              title={blockedBySeats ? "All licensed seats are in use. A trainer or admin role does not use a seat." : undefined}
               className="bg-navy hover:bg-navy-soft text-paper"
             >
-              {saving ? "Creating…" : "Add Learner"}
+              {saving ? "Creating…" : `Add ${selectedRole?.label ?? "Learner"}`}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -801,8 +801,10 @@ padlocked "Your account with Edstellar" heading as facts, never as disabled
 inputs. A greyed input reads as "temporarily unavailable"; these are "not
 yours".
 
-**The mock's Manager field is not rendered.** There is no reporting line in
-this product, so it would be permanently "—".
+**The mock's Manager field is not rendered HERE**, and that is now about the
+profile dialog rather than the product. `0033` added the reporting line, so a
+manager exists — but like department it is set by an admin, not by the person
+(§10.3.1.15). It is a fact on somebody's record, not a field they may edit.
 
 **`DialogFooter` carries `-mx-4 -mb-4`**, which assumes the content keeps its
 default `p-4`. Both of these dialogs set `p-0` so their navy header can meet
@@ -965,6 +967,197 @@ person that may since have been renamed, and a notification describing what
 happened then must keep saying that. Icons are lucide NAMES mapped in the bell
 (§10.3.1.6), and `Map` is aliased there because the bare name shadows the
 global `Map` constructor — a bug this codebase has already shipped once.
+
+### 10.3.1.13 The trainer portal: calendar and feedback
+
+Two pages beside My Sessions, and between them they are the whole trainer
+portal's reason to be opened on a day with no attendance to mark.
+
+**Training Calendar is a second VIEW, not a second page of data.** It reads
+`GET /api/trainer/sessions` — the same call My Sessions makes — and lays the
+rows on a month grid. There is no calendar endpoint, so the grid and the list
+cannot disagree about which sessions are yours. Same rule as the KPI tiles
+being reduced from the rows already on screen (§10.3.1.8).
+
+- **Monday-first**, because that is how a working week is read here.
+- **`in_progress` arrives derived** from the API as `display_status`. Nothing
+  here recomputes it from the clock, or the calendar would contradict the
+  session list beside it (§10.3).
+- **A session with no date is NAMED, not dropped.** It cannot be placed on a
+  grid, and silently leaving it off is how a trainer misses work — so a line
+  under the grid says how many there are and where to find them.
+- **The day chip opens a dialog, and the dialog says what is still owed.**
+  "Attendance is not marked. Until it is, nobody on this roster has been
+  credited for the training" — the one thing a trainer can still do wrong
+  about a session that has already happened.
+
+#### Feedback
+
+**Anonymous, and the page says so rather than leaving it to be inferred.**
+The API never sends a name — `user_id` is stored and no trainer route selects
+it — so there is nothing this page could leak by accident. It states it
+anyway, at the top, because a trainer who believes they can work out who wrote
+something reads the comments differently, and so does a learner who is not
+sure. The learner's form makes the same promise in the same words before the
+first star is clicked.
+
+**An average under three responses is withheld, not shown.** The card prints
+"1 response — too few to average" instead of a number. A single 2/5 rendered
+as "2.0" invites a conclusion three more responses might reverse — the
+`sufficient: false` refusal from §10.12, applied to a smaller number.
+"No responses yet" and "too few to average" are different sentences, because
+they are different facts.
+
+**Each dimension says whose it is to fix.** Content is the admin's, Trainer is
+the trainer's, Delivery is shared — printed under every tile. Three ratings
+exist precisely because they fail separately, and a trainer reading a low
+Content score as a verdict on their teaching would be the page misleading them
+about their own job.
+
+**No reply, no delete.** Feedback a trainer can remove is feedback nobody
+should trust, and replying would need the author. Abuse is an admin's to
+handle, with the names.
+
+#### Giving it, on the learner's side
+
+The control lives in the learner's Training Calendar dialog, where they are
+already looking at the session — not on a page of its own that nobody visits.
+
+**It is ABSENT, not disabled, when the API would refuse.** Only somebody
+marked present, late or partial for a completed session may rate it, and the
+eligibility list is a separate fetch from the calendar's own because
+attendance is not on the sessions read. A learner marked Absent sees their
+attendance and no feedback control at all — §10.3.1.2's rule taken one step
+further, because there is no useful "why" to put in a disabled button's title
+that is not just "you were not there".
+
+**All three stars are required and Save says why it is off** — "Rate all three
+to save". A half-answered form makes a row that skews every average it lands
+in. Re-opening it loads what was actually saved, so revising starts from the
+existing answer rather than from blank, and the footer says "This replaces
+your earlier answer."
+
+**Opening the form CLOSES the session dialog** rather than stacking on it.
+Two dialogs deep is a place with two Close buttons and no obvious back.
+
+### 10.3.1.14 Roles in Manage Users, and the trainer a session needs
+
+The session form's Trainer picker was correct and permanently empty: nothing
+in the product could put a person on a trainer role, so the list could only be
+filled over SSH. Two controls fix that, and they answer different questions.
+
+**Add User gained a Role selector.** Omitted means Learner, which is exactly
+what the dialog did before — an admin who ignores the field gets the old
+behaviour. Two things follow the choice rather than being stated once:
+
+- **the note under it**, because whether the account costs a seat is the thing
+  an admin at the cap needs: *"Trainer does not use a seat — only active
+  learners count."*
+- **the button**, which reads "Add Trainer" rather than "Add Learner". A
+  submit button that names the wrong thing is how somebody creates twenty of
+  the wrong kind of account.
+
+`+ Add User` stays ENABLED at the seat cap once a non-learner role is picked.
+Disabling it there would be the mirror of §10.3.1.2 — refusing a control the
+API would honour.
+
+**Change role is a row action, and it is offered on EVERY row** — unlike Edit,
+Deactivate and Delete, which render disabled for non-learners because
+`assertMutableLearner` refuses them. `RolesService.assign` has no such rule,
+and moving a trainer back to learner is exactly the thing an admin needs when
+they pick wrong. The dialog says every consequence before Save:
+
+- which portal they move to, **and that they will be signed out once** — an
+  admin who does not know a role change ends somebody's session cannot consent
+  to it;
+- that becoming a learner takes a seat, or that leaving learner frees one;
+- that a trainer *"can then be picked as the trainer on a session"*, which is
+  the whole reason most admins will open this dialog.
+
+**It disables when the change would leave the organization with no admin**,
+counted from the rows already on screen, with the reason in words. The API
+refuses it with a 409 regardless; the disable means the admin hears it while
+reading rather than after pressing Save.
+
+#### The session form now requires a trainer account
+
+A session with no linked trainer is admin-only — nobody can mark its
+attendance from a trainer portal — so Create is refused without one.
+
+- **With trainers**: the picker reads "Select a trainer" and Create is
+  disabled until one is chosen, its title saying why.
+- **With none**: the picker is replaced by a bordered note that says what is
+  missing, why it matters, and links to Manage Users. A dead end that explains
+  itself is still a dead end; the route out is the point.
+- **Free text survives only while EDITING a session that already has no
+  account.** Those predate trainer accounts, and the field carries a `warning`
+  line saying the session stays admin-only until one is linked. Offering the
+  box on a new session would be a control the API refuses.
+
+That link is worth one more sentence, because getting it wrong wasted a round
+of verification: **Manage Users is `/admin/users`, not `/admin/employees`.**
+`/admin/employees` is the API path for the learners-only endpoint and is a 404
+in the browser — so the one route out of the empty state 404'd until the real
+UI was driven. A link is not verified by reading it.
+
+### 10.3.1.15 The reporting line, and Team Learning
+
+**A manager is also a learner.** The Manager role sits on the learner portal,
+so they keep My Courses, hours, certificates and the leaderboard, and gain one
+module. Nothing about this screen treats them as a different kind of user —
+which is why a manager who reports to somebody appears in that person's team
+with their own progress, exactly like anybody else.
+
+#### The Manager field
+
+It sits on Add User and Edit User, and **offers everybody active except the
+person being edited**. Not just Manager-role accounts: an admin or a trainer
+manages people too, and restricting the list would mean the org chart could
+only be recorded in a particular order. Self is excluded in the component as
+well as refused by the API — leaving the option in would be offering a choice
+that is always wrong (§10.3.1.2).
+
+A CYCLE is not filtered out of the list, because detecting one needs a walk up
+the chain, which is a query. The API refuses it with a sentence naming both
+people, which reads better than a silently shorter dropdown.
+
+The field says what it is FOR — *"Their manager sees this person's progress in
+Team Learning"* — because "Manager" alone looks like a label and is in fact a
+grant of visibility over somebody's learning record.
+
+**Somebody with reports but no Manager role is flagged in the row**: "manages 3
+· no Manager role", in `warning`, with the reason in its title. They have a
+team recorded that they cannot see, and the Change role action that fixes it is
+two icons away. A plain "manages 3" in grey is shown when the role is right, so
+the flag reads as a problem rather than as a count.
+
+#### Team Learning
+
+It says **"Your team — 2 direct reports"** at the top, so the rule is on the
+screen and not only in the query. The page follows the reference mock:
+
+- **Six tiles, reduced from the rows below** — never a second query, so a tile
+  cannot disagree with the table (§10.3.1.8).
+- **Avg score renders `—` when nobody has been assessed**, never 0. "No score
+  yet" and "averaged zero" are different facts, and the API sends null for
+  exactly this reason.
+- **"N need attention" appears only when N is non-zero.** A red zero is a false
+  alarm, the same rule the sessions grid follows.
+- **Action required says "Nothing needs attention — everyone is on track"**
+  rather than rendering an empty panel. An admin has to be able to tell that
+  from a panel that failed to load (§10.3.1.11).
+- **Nudge stays said.** Once pressed it reads "Nudged" and disables, because a
+  manager needs to know they already prodded this person rather than pressing
+  it three more times.
+- **The hours bar is per-person against the monthly goal**, green when on track
+  and `warning` when not — the number beside it takes `danger` only below the
+  goal, never as decoration.
+
+**Postgres timestamps are not ISO.** `2026-09-12 14:50:57.807+00` has a `+00`
+offset that `new Date()` rejects, so every Last active cell rendered `—` while
+the API was sending a real date. Only the date is displayed, so take
+`slice(0, 10)` and build from the parts. Worth knowing before adding another
+date column to any screen that reads a raw row.
 
 ### 10.3.2 Descriptions
 

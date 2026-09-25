@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { SESSION_TYPE_LABEL } from "@/lib/session-types";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { SessionFeedbackDialog } from "@/components/learner/session-feedback-dialog";
+import { fetchLearnerFeedbackSessions } from "@/services/api/feedback-api";
 
 const SESSION_TYPES = {
   ILT:     { label: SESSION_TYPE_LABEL.ILT,     dot: "bg-navy", chip: "border-l-2 border-navy/20 bg-paper-cream text-navy" },
@@ -79,6 +81,30 @@ export function LearnerTrainingCalendar() {
   const [sessions, setSessions]   = useState(null);
   const [selected, setSelected]   = useState(null);
   const [view,     setView]       = useState("calendar"); // "calendar" | "list"
+  /* Keyed by session id: what this learner already said, and whether they
+     may say anything at all. A separate read from the calendar's own,
+     because eligibility depends on ATTENDANCE — which the sessions list does
+     not carry — and a button offered to somebody the API will refuse is the
+     screen-that-lies failure (§10.3.1.2). */
+  const [feedback, setFeedback]   = useState({});
+  const [rating,   setRating]     = useState(null);
+
+  const loadFeedback = useCallback(() => {
+    fetchLearnerFeedbackSessions()
+      .then((d) => {
+        const byId = {};
+        for (const row of d.sessions || []) byId[row.session_id] = row;
+        setFeedback(byId);
+      })
+      // Silent: feedback is an extra on this page, and an error banner over
+      // the calendar would hide the thing the learner actually came for.
+      .catch(() => setFeedback({}));
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    loadFeedback();
+  }, [user, loadFeedback]);
 
   useEffect(() => {
     if (!user) return;
@@ -336,6 +362,48 @@ export function LearnerTrainingCalendar() {
                   </Text>
                 )}
 
+                {/* Feedback, but only where the API will actually accept it.
+                    `fb` exists only for sessions this learner was marked
+                    present/late/partial for AND that are completed, so the
+                    button is absent rather than present-and-refused. */}
+                {(() => {
+                  const fb = feedback[selected.id];
+                  if (!fb) return null;
+                  return (
+                    <Box className="border-t pt-3">
+                      {fb.submitted ? (
+                        <Box className="space-y-1.5">
+                          <Text as="p" className="text-xs text-muted-foreground">
+                            You rated this session. Your trainer sees the
+                            ratings, never your name.
+                          </Text>
+                          <Button
+                            size="sm" variant="outline"
+                            className="w-full cursor-pointer"
+                            onClick={() => { setRating(fb); setSelected(null); }}
+                          >
+                            Update your feedback
+                          </Button>
+                        </Box>
+                      ) : (
+                        <Box className="space-y-1.5">
+                          <Text as="p" className="text-xs text-muted-foreground">
+                            You attended this session. Your trainer will not
+                            see your name.
+                          </Text>
+                          <Button
+                            size="sm"
+                            className="w-full cursor-pointer bg-navy text-paper hover:bg-navy-soft"
+                            onClick={() => { setRating(fb); setSelected(null); }}
+                          >
+                            Give feedback
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })()}
+
                 {/* Being on the roster IS being assigned the training, so the
                     calendar entry leads to the same card My Courses shows. */}
                 {selected.training_course_id && (
@@ -350,6 +418,13 @@ export function LearnerTrainingCalendar() {
           );
         })()}
       </Dialog>
+
+      <SessionFeedbackDialog
+        session={rating}
+        open={!!rating}
+        onOpenChange={(o) => !o && setRating(null)}
+        onSaved={loadFeedback}
+      />
 
     </Box>
   );

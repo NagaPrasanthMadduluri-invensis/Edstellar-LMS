@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2077,7 +2078,28 @@ export function AdminSessionsContent() {
                     "Someone else" keeps the original behaviour, which an
                     external facilitator needs and which is the only option for
                     an organization that has no trainer accounts yet. */}
-                {trainers.length > 0 && (
+                {trainers.length === 0 ? (
+                  /* A new session REQUIRES a trainer account, so an org with
+                     none cannot create one — and the form says where to fix
+                     that rather than leaving the admin at a dead end. Linking
+                     an account is what puts the session in the trainer's
+                     portal, which is where attendance is marked. */
+                  <Box className="border border-dashed border-line-strong bg-surface-2 px-3 py-2.5">
+                    <Text as="p" className="text-[11.5px] font-semibold text-ink">
+                      No trainer accounts in this organization yet
+                    </Text>
+                    <Text as="p" className="mt-0.5 text-[11px] text-muted-foreground">
+                      A session needs one — it is what puts the session in the
+                      trainer&apos;s portal, where attendance is marked.
+                    </Text>
+                    <Link
+                      href="/admin/users"
+                      className="mt-1.5 inline-block text-[11.5px] font-semibold text-accent-blue underline-offset-2 hover:underline"
+                    >
+                      Add a trainer from Manage Users →
+                    </Link>
+                  </Box>
+                ) : (
                   <Select
                     value={form.trainer_user_id ? String(form.trainer_user_id) : "none"}
                     onValueChange={(v) => {
@@ -2098,31 +2120,47 @@ export function AdminSessionsContent() {
                         {form.trainer_user_id
                           ? trainers.find((t) => String(t.id) === String(form.trainer_user_id))?.name
                             ?? "Trainer account"
-                          : "Someone else (type a name)"}
+                          : editTarget
+                            ? "Someone else (type a name)"
+                            : "Select a trainer"}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {trainers.map((t) => (
                         <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
                       ))}
-                      <SelectItem value="none">Someone else (type a name)</SelectItem>
+                      {/* Only offered while editing a session that already
+                          has no linked account. A NEW session must name one. */}
+                      {editTarget && (
+                        <SelectItem value="none">Someone else (type a name)</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 )}
-                <Input
-                  placeholder="Full name"
-                  value={form.trainer}
-                  onChange={set("trainer")}
-                  disabled={Boolean(form.trainer_user_id)}
-                  className="h-10"
-                />
-                <Text as="p" className="text-[11px] text-muted-foreground">
-                  {form.trainer_user_id
-                    ? "This trainer will see the session, its participants and attendance in their own portal."
-                    : trainers.length > 0
-                      ? "Not linked to an account — the session stays admin-only."
-                      : "No trainer accounts in this organization yet, so the session stays admin-only."}
-                </Text>
+                {/* Free text survives ONLY for sessions that already have it.
+                    A new session must name an account, so typing a name into
+                    a box the API will refuse would be a control that lies. */}
+                {editTarget && !form.trainer_user_id && (
+                  <>
+                    <Input
+                      placeholder="Full name"
+                      value={form.trainer}
+                      onChange={set("trainer")}
+                      className="h-10"
+                    />
+                    <Text as="p" className="text-[11px] text-warning">
+                      This session predates trainer accounts. It stays
+                      admin-only until you link one — nobody can mark its
+                      attendance from a trainer portal.
+                    </Text>
+                  </>
+                )}
+                {form.trainer_user_id && (
+                  <Text as="p" className="text-[11px] text-muted-foreground">
+                    This trainer will see the session, its participants and
+                    attendance in their own portal.
+                  </Text>
+                )}
               </Box>
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Capacity</Label>
@@ -2192,7 +2230,23 @@ export function AdminSessionsContent() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="bg-navy hover:bg-navy-soft text-paper">
+            {/* A NEW session needs a trainer account; the API returns 422
+                without one, so the button disables and its title says why
+                rather than letting the admin fill the form and be refused
+                (§10.3.1.2). Editing is unaffected — a legacy session with a
+                typed name stays editable. */}
+            <Button
+              onClick={handleSave}
+              disabled={saving || (!editTarget && !form.trainer_user_id)}
+              title={
+                !editTarget && !form.trainer_user_id
+                  ? trainers.length === 0
+                    ? "This organization has no trainer accounts yet. Add one from Manage Users."
+                    : "Pick a trainer — a session has to name one."
+                  : undefined
+              }
+              className="bg-navy hover:bg-navy-soft text-paper"
+            >
               {saving ? "Saving…" : editTarget ? "Save Changes" : "Create Session"}
             </Button>
           </DialogFooter>
