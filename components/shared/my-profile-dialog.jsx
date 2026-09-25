@@ -20,7 +20,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { fetchMyProfile, updateMyProfile } from "@/services/api/profile-api";
-import { JOB_LEVELS, LOCATIONS } from "@/lib/workforce";
+// Per-tenant now (`0031`), so fetched rather than imported. A learner and a
+// trainer both open this dialog, and both see their OWN organization's list.
+import { fetchMyOrgOptions } from "@/services/api/profile-api";
 import { cn } from "@/lib/utils";
 
 /**
@@ -227,6 +229,41 @@ function Fact({ icon: Icon, label, value, note }) {
 /* ── Edit ────────────────────────────────────────────────────────────────── */
 
 function ProfileForm({ profile: p, onCancel, onSaved }) {
+  /*
+   * Fetched here rather than passed down from the dialog, because the read
+   * view does not need it — the options only matter once somebody is editing,
+   * and most opens never are (§ the dialog's own docblock).
+   *
+   * `/admin/organization/options` is `@Roles('admin')`, so a learner or
+   * trainer gets 403 and falls back to whatever they already have. That is
+   * correct rather than a gap: their two fields are still validated by the
+   * API against the org's list, and offering them a free choice they cannot
+   * save would be the control-that-lies failure. What they lose is the
+   * dropdown, not the value.
+   */
+  const [options, setOptions] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetchMyOrgOptions()
+      .then((d) => alive && setOptions(d))
+      .catch(() => alive && setOptions({ locations: [], job_levels: [] }));
+    return () => { alive = false; };
+  }, []);
+
+  // Whatever the person already has stays selectable even if it has since
+  // been retired — otherwise opening the form would silently blank it.
+  const withCurrent = (list, current) =>
+    current && !list.includes(current) ? [current, ...list] : list;
+
+  const locationOptions = withCurrent(
+    (options?.locations ?? []).map((l) => l.name),
+    p.location,
+  );
+  const jobLevelOptions = withCurrent(
+    (options?.job_levels ?? []).map((j) => j.name),
+    p.job_level,
+  );
+
   const [form, setForm] = useState({
     first_name: p.first_name ?? "",
     last_name: p.last_name ?? "",
@@ -308,7 +345,7 @@ function ProfileForm({ profile: p, onCancel, onSaved }) {
                 <SelectValue>{form.job_level || "Not set"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {JOB_LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                {jobLevelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
             </Select>
           </Box>
@@ -319,7 +356,7 @@ function ProfileForm({ profile: p, onCancel, onSaved }) {
                 <SelectValue>{form.location || "Not set"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {LOCATIONS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                {locationOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
             </Select>
           </Box>

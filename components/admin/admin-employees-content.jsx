@@ -41,7 +41,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser, fetchSeatState } from "@/services/api/admin/admin-api";
 import { SeatUsagePanel } from "@/components/admin/seat-usage-panel";
-import { JOB_LEVELS, LOCATIONS } from "@/lib/workforce";
+// The lists are per-tenant data now, curated by Edstellar at onboarding
+// (`0031`), so they are FETCHED rather than imported. `lib/workforce.js` is
+// gone — a constant could not describe a customer with an office in Dubai.
+import { fetchMyOrgOptions } from "@/services/api/profile-api";
 import { cn } from "@/lib/utils";
 import { progressFill } from "@/lib/brand";
 
@@ -577,6 +580,7 @@ export function AdminEmployeesContent() {
   const [filterLevel, setFilterLevel]       = useState("all");
   const [stats, setStats]                   = useState(null);
   const [seatState, setSeatState]           = useState(null);
+  const [orgOptions, setOrgOptions]         = useState(null);
   const [error, setError]                   = useState(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
   const [form, setForm]                     = useState(EMPTY_FORM);
@@ -611,17 +615,21 @@ export function AdminEmployeesContent() {
       // in the organization — admins and trainers included — while that
       // endpoint is learners-only because it also feeds the assign-learning
       // picker and the session roster.
-      const [d, seats] = await Promise.all([
+      const [d, seats, options] = await Promise.all([
         apiClient("/api/admin/users/directory"),
         // Seats travel with every refetch, not just the first: creating or
         // deactivating somebody moves the meter, and a stale one beside a
         // table that just changed is the two-numbers-disagreeing failure the
         // KPI tiles are already refetched to avoid.
         fetchSeatState().catch(() => null),
+        // The branch locations and job levels this org may offer. Fetched
+        // with the directory so the forms below never render a stale list.
+        fetchMyOrgOptions().catch(() => null),
       ]);
       setEmployees(d.users || []);
       setStats(d.stats || null);
       setSeatState(seats);
+      setOrgOptions(options);
     } catch (e) {
       setError(e.message);
     }
@@ -781,14 +789,21 @@ export function AdminEmployeesContent() {
   // an admin out of adding people — the API still enforces the real limit.
   const seatsFull = Boolean(seatState?.seats?.is_full);
 
+  // Active options only. An empty array is a real state, not a loading one:
+  // a tenant Edstellar has not given branch locations to yet genuinely has
+  // none to offer, and the forms say so rather than showing a blank dropdown.
+  const locationOptions = (orgOptions?.locations ?? []).map((l) => l.name);
+  const jobLevelOptions = (orgOptions?.job_levels ?? []).map((j) => j.name);
+
   const depts     = [...new Set(employees.map((e) => e.department).filter(Boolean))].sort();
   const locations = [...new Set(employees.map((e) => e.location).filter(Boolean))].sort();
   const jobRoles  = [...new Set(employees.map((e) => e.job_role).filter(Boolean))].sort();
   // Roles come from the rows so the filter offers exactly what is present;
   // levels come from the closed list, in seniority order, so the dropdown
-  // reads Executive-to-Intern rather than alphabetically (workforce.js).
+  // reads Executive-to-Intern rather than alphabetically — the org list is
+  // stored in seniority order (`organization_job_levels.sort_order`).
   const roleOptions = [...new Set(employees.map((e) => e.role_label).filter(Boolean))].sort();
-  const levelOptions = JOB_LEVELS.filter((l) => employees.some((e) => e.job_level === l));
+  const levelOptions = jobLevelOptions.filter((l) => employees.some((e) => e.job_level === l));
 
   const filtered = employees.filter((e) => {
     const q = `${e.first_name} ${e.last_name} ${e.email}`.toLowerCase();
@@ -1263,7 +1278,7 @@ export function AdminEmployeesContent() {
                   <Select value={editForm.location} onValueChange={(v) => setEditForm((p) => ({ ...p, location: v }))}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
                     <SelectContent>
-                      {LOCATIONS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                      {locationOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </Box>
@@ -1276,7 +1291,7 @@ export function AdminEmployeesContent() {
                   <Select value={editForm.job_level} onValueChange={(v) => setEditForm((p) => ({ ...p, job_level: v }))}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
                     <SelectContent>
-                      {JOB_LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                      {jobLevelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </Box>
@@ -1341,7 +1356,7 @@ export function AdminEmployeesContent() {
                 <Select value={form.location} onValueChange={(v) => setForm((p) => ({ ...p, location: v }))}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
                   <SelectContent>
-                    {LOCATIONS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    {locationOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Box>
@@ -1354,7 +1369,7 @@ export function AdminEmployeesContent() {
                 <Select value={form.job_level} onValueChange={(v) => setForm((p) => ({ ...p, job_level: v }))}>
                   <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
                   <SelectContent>
-                    {JOB_LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    {jobLevelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Box>

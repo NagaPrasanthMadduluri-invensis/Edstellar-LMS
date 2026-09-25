@@ -460,9 +460,32 @@ toward learning hours, and the learner should not have to guess that.
 
 ### 10.3.1.1 Closed lists
 
-`job_level` and `location` on a user are **dropdowns, not text fields**
-(`lib/workforce.js`, mirroring `server/src/common/workforce.ts`, which is what
-enforces them).
+`job_level` and `location` on a user are **dropdowns, not text fields** — and
+since `0031` their options are **per-tenant data fetched from
+`/api/admin/organization/options`**, not a constant. `lib/workforce.js` is
+gone.
+
+**The rule below did not change; only who curates the list did.** Edstellar
+sets each tenant's branch locations and job levels when it onboards them, and
+the tenant picks from that. A form that let an org type its own value would
+recreate the `job_role` problem the rest of this section describes — so the
+tenant's endpoint is read-only and the writes are `@PlatformAdmin()`.
+
+Three consequences for anything rendering these fields:
+
+- **Fetch them; never import them.** An empty array is a real state, not a
+  loading one — a tenant Edstellar has not given branch locations to genuinely
+  has none, and the form says so rather than showing a blank dropdown.
+- **Keep the value the person already has selectable**, even if it has since
+  been retired (`withCurrent` in the profile dialog). Otherwise opening the
+  form silently blanks it.
+- **A learner or trainer gets 403 from the options endpoint** — it is
+  `@Roles('admin')`. Their profile dialog falls back to what they already
+  have. That is correct: the API still validates their two fields against the
+  org's list, and offering a free choice they cannot save would be the
+  control-that-lies failure.
+
+The original argument, unchanged:
 
 Both are filter and comparison dimensions in the Reports builder, and a
 dimension is only useful if its values repeat across people. `job_role` beside
@@ -855,8 +878,8 @@ it.
 
 #### Seats, on the tenant's side
 
-The seat meter sits in Manage Users **above the KPI tiles**, because it is the
-one figure on that page that can STOP the admin: at the cap the API refuses
+The **Seat Licence** panel sits in Manage Users **above the KPI tiles**,
+because it is the one figure on that page that can STOP the admin: at the cap the API refuses
 `+ Add User` with a 409. Showing the meter only after they had hit it would
 make the refusal read as a bug.
 
@@ -881,6 +904,67 @@ make the refusal read as a bug.
 
 With no limit configured the panel is one quiet line, not a meter reading
 "unlimited of unlimited".
+
+**The legend is context, not arithmetic — and that had to be designed for.**
+The reference mock reads "20 of 50 seats used" and breaks it down as
+1 admin + 1 trainer + 18 learners, which sums to the headline. Ours does not
+count it that way: a seat is an active learner
+(`server/.../0028_seat_limits.sql` records why — an organization should never
+have to choose between an extra trainer and an extra learner). Three things
+keep the panel from being read the mock's way, and all three are needed:
+
+- the headline counts learners only, so the bar and the number agree;
+- admins and trainers are grouped under ONE qualifier — *"1 admin and 1
+  trainer — no seat used"*. Listed flat beside the learners they read as a
+  sum, and a qualifier trailing the last item looks like it applies only to
+  that item, which is what the first version did;
+- the footnote says it a third time in words.
+
+Two readings of one panel is how a customer ends up believing they bought
+something they did not, so the repetition is deliberate rather than clutter.
+
+**"onboarded 31 Aug 2026" comes from `organizations.created_at`.** Every
+tenant that predates the console shares one timestamp because the tenancy
+migration created them in a single transaction — that is truthful, not a bug,
+and tenants provisioned through the directory get their real date.
+
+### 10.3.1.12 The notification bell
+
+One bell in `top-nav.jsx`, so all four portals get it from one component. It
+replaced a hardcoded `3` on a button with no handler — a badge that never
+moved, in every portal.
+
+**Once seen, the badge is GONE — not a zero, not a grey dot.** The bell alone
+is the read state, which is what makes its presence meaningful. Opening the
+panel is what "seen" means, and the count clears **optimistically** the moment
+it opens rather than after the round trip: the badge is about the person's
+attention, not the server's state, and a number that lingers after you have
+looked reads as broken. If the write fails the badge stays clear for the
+session — they HAVE seen them — and the next poll restores the truth.
+
+**Unread rows keep a tint inside the panel** even though the badge has gone,
+so the list still shows which ones were new when it was opened. The badge and
+the tint answer different questions.
+
+**Polling is 60s, plus a refetch on window focus.** There is no websocket here
+and a bell is not a chat — nothing in it justifies a request every few seconds
+from every open tab in four portals. Focus is what actually catches somebody
+up after they have been away.
+
+**A failed poll is silent.** It does not put an error banner in the top bar of
+every page; the message appears inside the panel, where somebody has asked to
+look.
+
+**It renders nothing without a session.** Mounted in the shell, it would
+otherwise fire an unauthenticated request on the login page.
+
+**Wording comes down ON the row, not from the catalogue.** `lib/notifications.js`
+mirrors only the icon and the group — the stable parts. The title and body were
+composed when the notification was written, because they name a course or a
+person that may since have been renamed, and a notification describing what
+happened then must keep saying that. Icons are lucide NAMES mapped in the bell
+(§10.3.1.6), and `Map` is aliased there because the bare name shadows the
+global `Map` constructor — a bug this codebase has already shipped once.
 
 ### 10.3.2 Descriptions
 

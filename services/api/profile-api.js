@@ -37,3 +37,14 @@ export async function fetchMyOrganization() {
 export async function updateMyOrganization({ data }) {
   return apiClient("/api/admin/organization", { method: "PATCH", body: data });
 }
+
+/**
+ * The branch locations and job levels THIS organization offers.
+ *
+ * Replaces the hardcoded `lib/workforce.js`: the lists are per-tenant data
+ * curated by Edstellar at onboarding (`0031`), so a form has to fetch them
+ * rather than import them. Read-only for a tenant — only the platform writes.
+ */
+export async function fetchMyOrgOptions() {
+  return apiClient("/api/admin/organization/options");
+}

@@ -157,3 +157,38 @@ export async function exitSupportSession() {
 export async function createTenant({ data }) {
   return apiClient("/api/platform/organizations", { method: "POST", body: data });
 }
+
+/* ── Reference data for onboarding, and a tenant's curated lists ── */
+
+/** Edstellar's own industry segmentation — a code catalogue. */
+export async function fetchIndustries() {
+  return apiClient("/api/platform/geo/industries");
+}
+
+/** 250 countries. Served from the API, never bundled — see `GeoService`. */
+export async function fetchCountries() {
+  return apiClient("/api/platform/geo/countries");
+}
+
+/** Every city in one country, de-duplicated, with its state for display. */
+export async function fetchCities({ countryCode }) {
+  return apiClient(`/api/platform/geo/countries/${countryCode}/cities`);
+}
+
+/** A tenant's branch locations and job levels, including retired ones. */
+export async function fetchOrgOptions({ organizationId }) {
+  return apiClient(`/api/platform/organizations/${organizationId}/options`);
+}
+
+/** Replaces the whole set. Anything omitted is deactivated, never deleted. */
+export async function setOrgLocations({ organizationId, locations }) {
+  return apiClient(`/api/platform/organizations/${organizationId}/options/locations`, {
+    method: "PUT", body: { locations },
+  });
+}
+
+export async function setOrgJobLevels({ organizationId, jobLevels }) {
+  return apiClient(`/api/platform/organizations/${organizationId}/options/job-levels`, {
+    method: "PUT", body: { job_levels: jobLevels },
+  });
+}

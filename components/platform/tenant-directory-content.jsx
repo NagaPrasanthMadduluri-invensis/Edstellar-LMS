@@ -23,8 +23,12 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  createTenant, fetchTenants, openSupportSession, updateTenant,
+  createTenant, fetchOrgOptions, fetchTenants, openSupportSession,
+  setOrgJobLevels, setOrgLocations, updateTenant,
 } from "@/services/api/platform/platform-api";
+import {
+  BranchLocationFields, IndustryField, JobLevelFields,
+} from "@/components/platform/workforce-fields";
 import {
   BILLING_CYCLES, CONTRACT_STATE, PLANS, formatMoney,
 } from "@/lib/tenant-account";
@@ -486,6 +490,7 @@ function TenantDialog({ tenant, onClose, onSaved }) {
     name: tenant.name ?? "",
     isActive: tenant.is_active,
     industry: tenant.industry ?? "",
+    country: "", locations: [], jobLevels: [],
     region: tenant.region ?? "",
     contactName: tenant.contact_name ?? "",
     contactEmail: tenant.contact_email ?? "",
@@ -499,6 +504,35 @@ function TenantDialog({ tenant, onClose, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  /*
+   * Load this tenant's CURRENT branch locations and job levels.
+   *
+   * Only the active ones: the edit form posts the whole set back, so seeding
+   * it with retired entries would silently resurrect them. A location removed
+   * last month stays deactivated unless somebody deliberately re-adds it.
+   */
+  useEffect(() => {
+    let alive = true;
+    fetchOrgOptions({ organizationId: tenant.id })
+      .then((d) => {
+        if (!alive) return;
+        const active = d.locations.filter((l) => l.is_active);
+        setForm((p) => ({
+          ...p,
+          country: active[0]?.country_code ?? "",
+          locations: active.map((l) => ({
+            name: l.name,
+            country_code: l.country_code,
+            country_name: l.country_name,
+            state_name: l.state_name,
+          })),
+          jobLevels: d.job_levels.filter((j) => j.is_active).map((j) => j.name),
+        }));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [tenant.id]);
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -516,7 +550,9 @@ function TenantDialog({ tenant, onClose, onSaved }) {
           name: form.name.trim(),
           isActive: form.isActive,
           industry: form.industry.trim() || null,
-          region: form.region.trim() || null,
+          // The country name, from the branch locations themselves — one
+          // source, so the card and the picker cannot disagree.
+          region: form.locations[0]?.country_name ?? (form.region.trim() || null),
           contactName: form.contactName.trim() || null,
           contactEmail: form.contactEmail.trim() || null,
           contactPhone: form.contactPhone.trim() || null,
@@ -528,6 +564,25 @@ function TenantDialog({ tenant, onClose, onSaved }) {
           notes: form.notes.trim() || null,
         },
       });
+
+      /*
+       * The two lists are separate PUTs, not fields on the tenant patch.
+       *
+       * They live in their own tables with their own replace semantics
+       * (absent means deactivated, never deleted), and folding them into the
+       * organization patch would mean a form that sends only a renamed
+       * company silently wiping every branch location — the omitted-versus-
+       * null trap §10.10 records for thumbnails, at a much larger scale.
+       */
+      await setOrgLocations({
+        organizationId: tenant.id,
+        locations: form.locations,
+      });
+      await setOrgJobLevels({
+        organizationId: tenant.id,
+        jobLevels: form.jobLevels,
+      });
+
       onClose();
       await onSaved();
     } catch (e) { setError(e.message); } finally { setSaving(false); }
@@ -557,12 +612,14 @@ function TenantDialog({ tenant, onClose, onSaved }) {
               </Box>
               <Switch checked={form.isActive} onCheckedChange={(v) => set("isActive", v)} />
             </Box>
-            <Field label="Industry">
-              <Input value={form.industry} onChange={(e) => set("industry", e.target.value)} placeholder="e.g. IT Services" />
-            </Field>
-            <Field label="Region">
-              <Input value={form.region} onChange={(e) => set("region", e.target.value)} placeholder="e.g. India · South" />
-            </Field>
+            <IndustryField value={form.industry} onChange={(v) => set("industry", v)} />
+            <BranchLocationFields
+              country={form.country}
+              onCountryChange={(v) => setForm((p) => ({ ...p, country: v, locations: [] }))}
+              locations={form.locations}
+              onLocationsChange={(v) => set("locations", v)}
+            />
+            <JobLevelFields value={form.jobLevels} onChange={(v) => set("jobLevels", v)} />
           </Box>
 
           <Section>Billing contact (optional)</Section>
@@ -661,6 +718,16 @@ function TenantDialog({ tenant, onClose, onSaved }) {
 
 /* ── Provision a tenant ───────────────────────────────────────────────── */
 
+/**
+ * What a new tenant's job levels start as — the same six the old
+ * `lib/workforce.js` hardcoded, now an editable opening position rather than
+ * a rule. The server seeds the identical list (`DEFAULT_JOB_LEVELS` in
+ * `org-options.service.ts`) for a tenant created any other way.
+ */
+const DEFAULT_JOB_LEVELS = [
+  "Executive", "Senior", "Manager", "Mid", "Junior", "Intern",
+];
+
 /** Lowercase, hyphenated, no leading/trailing hyphen — the API's own rule. */
 function slugify(name) {
   return name
@@ -686,6 +753,10 @@ function NewTenantDialog({ onClose, onSaved }) {
   const [form, setForm] = useState({
     name: "", slug: "", slugTouched: false,
     industry: "", region: "", plan: "", billingCycle: "",
+    // `country` is the ISO code the picker works in; `region` is what the
+    // organization stores, set from the country's NAME on save so the
+    // directory card keeps reading "India" rather than "IN".
+    country: "", locations: [], jobLevels: [...DEFAULT_JOB_LEVELS],
     contractStart: "", contractEnd: "", contractValue: "", seatLimit: "",
     adminFirstName: "", adminLastName: "", adminEmail: "", adminPassword: "",
   });
@@ -704,6 +775,9 @@ function NewTenantDialog({ onClose, onSaved }) {
 
   const ready =
     form.name.trim() &&
+    // At least one branch location, because a tenant with none hands its
+    // admin a dropdown they cannot use on the first learner they onboard.
+    form.locations.length > 0 &&
     form.adminFirstName.trim() &&
     form.adminLastName.trim() &&
     form.adminEmail.trim() &&
@@ -728,7 +802,14 @@ function NewTenantDialog({ onClose, onSaved }) {
           // admin never touched, which is the omitted-vs-null distinction the
           // API is careful about at the other end.
           ...(form.industry.trim() ? { industry: form.industry.trim() } : {}),
-          ...(form.region.trim() ? { region: form.region.trim() } : {}),
+          // `region` stores the country NAME, taken from the branch locations
+          // the picker produced — they all carry it, so the two can never
+          // disagree about which country this tenant is in.
+          ...(form.locations[0]?.country_name
+            ? { region: form.locations[0].country_name }
+            : {}),
+          ...(form.locations.length > 0 ? { locations: form.locations } : {}),
+          ...(form.jobLevels.length > 0 ? { jobLevels: form.jobLevels } : {}),
           ...(form.plan ? { plan: form.plan } : {}),
           ...(form.billingCycle ? { billingCycle: form.billingCycle } : {}),
           ...(form.contractStart ? { contractStart: form.contractStart } : {}),
@@ -774,12 +855,14 @@ function NewTenantDialog({ onClose, onSaved }) {
             </Field>
           </Box>
           <Box className="grid gap-3 sm:grid-cols-2">
-            <Field label="Industry">
-              <Input value={form.industry} onChange={(e) => set("industry", e.target.value)} placeholder="e.g. Logistics" />
-            </Field>
-            <Field label="Region">
-              <Input value={form.region} onChange={(e) => set("region", e.target.value)} placeholder="e.g. India · North" />
-            </Field>
+            <IndustryField value={form.industry} onChange={(v) => set("industry", v)} />
+            <BranchLocationFields
+              country={form.country}
+              onCountryChange={(v) => setForm((p) => ({ ...p, country: v, locations: [] }))}
+              locations={form.locations}
+              onLocationsChange={(v) => set("locations", v)}
+            />
+            <JobLevelFields value={form.jobLevels} onChange={(v) => set("jobLevels", v)} />
           </Box>
 
           <Section>First admin</Section>

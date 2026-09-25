@@ -16,102 +16,110 @@ import { requestMoreSeats } from "@/services/api/admin/admin-api";
 import { cn } from "@/lib/utils";
 
 /**
- * Licensed seats, as the tenant's admin sees them.
+ * The Seat Licence panel, at the top of Manage Users.
  *
- * A seat is an ACTIVE LEARNER — admins, managers and trainers are not seats,
- * and a deactivated learner frees one. Both facts are stated on the panel,
- * because the obvious move for an admin at the cap is to deactivate somebody
- * and they should not have to test whether that works.
+ * A seat is an ACTIVE LEARNER. Admins and trainers are shown in the legend
+ * but do NOT consume one, and the panel says so in words.
  *
- * The limit is set only by Edstellar. What this screen can do is ask, and
- * then show the answer — which is why a replied request keeps its note here
- * rather than vanishing once it is no longer pending.
+ * That last part is load-bearing. The reference mock adds admin + trainer +
+ * learners together into its "20 of 50 used" figure; this does not, because
+ * `0028_seat_limits.sql` records why — an organization should never have to
+ * choose between an extra trainer and an extra learner. Two readings of the
+ * same panel is exactly the kind of ambiguity that gets a customer billed
+ * wrongly, so the headline counts learners, the legend marks the other two
+ * "no seat", and the footnote repeats it.
+ *
+ * The allowance itself is set by Edstellar at onboarding and is not editable
+ * here. What this screen can do is ask — and then show the answer, which is
+ * why a replied request stays on screen rather than vanishing once it is no
+ * longer pending.
  */
 export function SeatUsagePanel({ state, onChanged }) {
   const [open, setOpen] = useState(false);
 
-  // No limit configured — the panel would be a row saying "unlimited of
-  // unlimited". Say it once, quietly, and take up no more room than that.
   if (!state) return null;
   const { seats, requests = [] } = state;
+  const breakdown = seats.breakdown ?? { admins: 0, trainers: 0, learners: seats.used };
 
   const pending = requests.find((r) => r.status === "pending");
   const lastAnswered = requests.find((r) => r.status !== "pending");
 
+  // No limit configured — a meter reading "unlimited of unlimited" is noise.
   if (seats.limit === null) {
     return (
-      <Box className="mb-4 flex items-center gap-2.5 border border-line bg-surface px-4 py-2.5">
+      <Box className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 border border-line bg-surface px-4 py-2.5">
         <InfinityIcon className="size-4 shrink-0 text-text-3" />
         <Text as="p" className="text-[12px] text-text-2">
           <Text as="span" className="font-semibold text-ink">{seats.used}</Text> active
           learners · no seat limit is set on this account.
         </Text>
+        <Roster breakdown={breakdown} muted />
       </Box>
     );
   }
 
   const pct = seats.limit > 0 ? Math.min(100, (seats.used / seats.limit) * 100) : 0;
-  const tone = seats.is_full ? "danger" : seats.is_near_limit ? "warning" : "accent";
-  const bar =
-    tone === "danger" ? "bg-danger" : tone === "warning" ? "bg-warning" : "bg-accent-blue";
+  const tone = seats.is_full ? "danger" : seats.is_near_limit ? "warning" : "success";
+  const fill =
+    tone === "danger" ? "bg-danger" : tone === "warning" ? "bg-warning" : "bg-success";
+  const remainingTone =
+    tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-success";
+  // A left rule in the state's colour, the way the reference marks the panel.
   const edge =
-    tone === "danger" ? "border-danger/40" : tone === "warning" ? "border-warning/40" : "border-line";
+    tone === "danger" ? "border-l-danger" : tone === "warning" ? "border-l-warning" : "border-l-success";
 
   return (
-    <Box className={cn("mb-4 border bg-surface", edge)}>
-      <Box className="flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3">
-        <Box className="flex items-center gap-2.5">
-          <Box className={cn("flex size-8 shrink-0 items-center justify-center",
-            tone === "danger" ? "tile-rust" : tone === "warning" ? "tile-warning" : "tile-accent")}>
-            <Users className="size-4" />
-          </Box>
-          <Box>
-            <Text as="p" className="text-[17px] font-bold leading-none text-ink">
-              {seats.used}
-              <Text as="span" className="text-[13px] font-semibold text-text-3"> / {seats.limit}</Text>
-            </Text>
-            <Text as="p" className="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-text-3">
-              Seats used
-            </Text>
-          </Box>
-        </Box>
-
-        <Box className="min-w-[160px] flex-1">
-          <Box className="h-1.5 w-full bg-surface-3">
-            <Box className={cn("h-full transition-all", bar)} style={{ width: `${pct}%` }} />
-          </Box>
-          <Text as="p" className="mt-1.5 text-[11.5px] text-text-2">
-            {seats.is_full ? (
-              <>
-                <Text as="span" className="font-semibold text-danger">No seats left.</Text>{" "}
-                Deactivate a learner to free one, or ask for more.
-              </>
-            ) : (
-              <>
-                <Text as="span" className="font-semibold text-ink">{seats.remaining}</Text>{" "}
-                remaining. Only active learners count — admins and trainers do not.
-              </>
-            )}
+    <Box className={cn("mb-4 border border-line border-l-2 bg-surface", edge)}>
+      <Box className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 pt-3">
+        <Box className="min-w-0">
+          <Text as="p" className="text-[13px] font-bold text-ink">
+            Seat Licence — {seats.used} of {seats.limit} seats used
           </Text>
+          {seats.onboarded_at && (
+            <Text as="p" className="mt-0.5 text-[11px] text-text-3">
+              onboarded {formatOnboarded(seats.onboarded_at)}
+            </Text>
+          )}
         </Box>
 
-        {pending ? (
-          <Box className="flex items-center gap-2 border border-warning/40 bg-[color-mix(in_oklab,var(--spectra-warning)_8%,transparent)] px-3 py-1.5">
-            <Clock className="size-3.5 shrink-0 text-warning" />
-            <Text as="span" className="text-[11.5px] text-ink">
-              Waiting on Edstellar — you asked for{" "}
-              <Text as="span" className="font-bold">{pending.requested_seats}</Text>
+        <Box className="flex shrink-0 flex-col items-end gap-1.5">
+          <Text as="p" className={cn("text-[12.5px] font-bold", remainingTone)}>
+            {seats.is_full
+              ? "No seats remaining"
+              : `${seats.remaining} seat${seats.remaining === 1 ? "" : "s"} remaining`}
+          </Text>
+          {pending ? (
+            <Text as="span" className="inline-flex items-center gap-1.5 border border-warning/40 bg-[color-mix(in_oklab,var(--spectra-warning)_8%,transparent)] px-2 py-1 text-[11px] text-ink">
+              <Clock className="size-3 shrink-0 text-warning" />
+              Awaiting Edstellar — asked for {pending.requested_seats}
             </Text>
-          </Box>
-        ) : (
-          <Button
-            onClick={() => setOpen(true)}
-            className="h-8 cursor-pointer gap-1.5 rounded-none bg-navy px-3 text-[12px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
-          >
-            <UserPlus className="size-3.5" />Request more seats
-          </Button>
-        )}
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex cursor-pointer items-center gap-1 border border-line bg-surface px-2.5 py-1 text-[11.5px] font-semibold text-text-2 transition-colors hover:bg-accent-blue hover:text-white"
+            >
+              <UserPlus className="size-3" />Request more seats
+            </button>
+          )}
+        </Box>
       </Box>
+
+      <Box className="px-4 pt-2.5">
+        <Box className="h-1.5 w-full bg-surface-3">
+          <Box className={cn("h-full transition-all", fill)} style={{ width: `${pct}%` }} />
+        </Box>
+      </Box>
+
+      <Box className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-2.5">
+        <Roster breakdown={breakdown} />
+      </Box>
+
+      <Text as="p" className="px-4 pb-3 pt-1.5 text-[11px] text-text-3">
+        Your seat allowance is set by Edstellar during onboarding. To change it,
+        request more seats above. Only active learners use a seat — deactivating
+        one frees it.
+      </Text>
 
       {/* The answer to the last ask stays on screen. An approval that silently
           changed a number would leave the admin guessing whether it landed. */}
@@ -144,6 +152,49 @@ export function SeatUsagePanel({ state, onChanged }) {
       )}
     </Box>
   );
+}
+
+/**
+ * The legend.
+ *
+ * Admins and trainers are grouped under ONE "no seat" qualifier rather than
+ * listed beside the learners as equals. Listed flat — "20 learners · 1 admin ·
+ * 1 trainer" — the three read as a sum, which is the reference mock's
+ * arithmetic and not this product's rule; and a trailing qualifier after the
+ * last item looks like it applies only to that item.
+ */
+function Roster({ breakdown, muted = false }) {
+  const exempt = [
+    breakdown.admins ? `${breakdown.admins} admin${breakdown.admins === 1 ? "" : "s"}` : null,
+    breakdown.trainers ? `${breakdown.trainers} trainer${breakdown.trainers === 1 ? "" : "s"}` : null,
+  ].filter(Boolean);
+
+  return (
+    <>
+      <Text as="span" className="inline-flex items-center gap-1.5 text-[11.5px] text-text-2">
+        <Text as="span" className="size-2.5 shrink-0 bg-success" />
+        <Text as="span" className="font-semibold text-ink">
+          {breakdown.learners} learner{breakdown.learners === 1 ? "" : "s"}
+        </Text>
+        {!muted && "using seats"}
+      </Text>
+
+      {exempt.length > 0 && (
+        <Text as="span" className="inline-flex items-center gap-1.5 text-[11.5px] text-text-3">
+          <Text as="span" className="size-2.5 shrink-0 border border-line-strong bg-surface-3" />
+          {exempt.join(" and ")} — no seat used
+        </Text>
+      )}
+    </>
+  );
+}
+
+/** "12 Jan 2024", the reference's format. */
+function formatOnboarded(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? null
+    : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function RequestSeatsDialog({ seats, onClose, onSaved }) {

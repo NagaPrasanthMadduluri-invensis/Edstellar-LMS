@@ -12,13 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, Building2, KeyRound, LogOut, User } from "lucide-react";
+import { Building2, KeyRound, LogOut, User } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { MyProfileDialog } from "@/components/shared/my-profile-dialog";
 // In `shared/`, not `admin/`: this shell is rendered by all four portals, and
 // TASTE §1.2 forbids portal-specific imports reaching across. Only a tenant
@@ -77,15 +78,9 @@ export function TopNav() {
       </Box>
 
       <Box className="flex shrink-0 items-center gap-1 sm:gap-2">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5 text-white" />
-          <Text
-            as="span"
-            className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground"
-          >
-            3
-          </Text>
-        </Button>
+        {/* Was a hardcoded `3` on a button with no handler — a badge that
+            never moved, in all four portals. Now real. */}
+        <NotificationBell />
 
         <DropdownMenu>
           {/* `render`, not `asChild`. Our menu primitive is Base UI, which
