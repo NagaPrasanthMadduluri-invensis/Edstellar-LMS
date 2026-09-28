@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import { PRODUCT_BY, PRODUCT_NAME } from "@/lib/brand";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,13 @@ function LoginForm() {
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <CardTitle>
-          <Text as="h1" className="text-2xl">Edstellar LMS</Text>
+          <Text as="h1" className="text-2xl leading-none">{PRODUCT_NAME}</Text>
+          <Text
+            as="p"
+            className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.2em] text-text-3"
+          >
+            {PRODUCT_BY}
+          </Text>
         </CardTitle>
         <Text as="p" className="text-muted-foreground text-sm">
           Sign in to your account

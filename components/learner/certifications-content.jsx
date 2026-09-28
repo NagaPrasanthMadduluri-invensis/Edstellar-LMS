@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -182,6 +183,7 @@ function CertificationsSkeleton() {
 /* ── Main component ── */
 export function CertificationsContent() {
   const { user } = useAuth();
+  const params = useSearchParams();
   const [certificates, setCertificates] = useState(null);
   const [error, setError] = useState(null);
   const [viewId, setViewId] = useState(null);
@@ -193,6 +195,22 @@ export function CertificationsContent() {
       .then((d) => setCertificates(d.certificates || []))
       .catch((e) => setError(e.message));
   }, [user]);
+
+  /*
+   * `?certificate=<id>` opens that one straight away.
+   *
+   * The Certificate button on a completed course card sends the learner here
+   * to SEE a particular certificate, not to hunt for it in a list — somebody
+   * with eleven of them would otherwise arrive and have to scan. It waits for
+   * the fetch and checks the id is really in their list, so a stale or
+   * hand-typed id lands on the page rather than opening an empty dialog.
+   */
+  useEffect(() => {
+    if (!certificates) return;
+    const wanted = Number(params.get("certificate"));
+    if (!wanted) return;
+    if (certificates.some((c) => Number(c.id) === wanted)) setViewId(wanted);
+  }, [certificates, params]);
 
   const sorted = useMemo(() => {
     if (!certificates) return [];

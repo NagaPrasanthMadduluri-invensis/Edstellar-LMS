@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Layers, TrendingUp, CheckCircle2, Award, AlertTriangle, Calendar,
   Clock, Flag, BookOpen, Map, ArrowRight, CalendarDays,
-  Play, GraduationCap, Users, Brain, RefreshCcw, Shield,
+  GraduationCap, Users, Brain, RefreshCcw, Shield,
   BarChart3, Target, ChevronRight, Search, X,
   MapPin, Video, UserCircle,
 } from "lucide-react";
@@ -272,14 +272,37 @@ function CourseCard({ c }) {
           )}
         </Box>
 
-        {/* CTA */}
-        <Box className="mt-auto pt-1">
-          <Link href={`/my-courses/${c.course.id}`} className="block">
-            <Button className={cn("w-full h-10 text-sm font-semibold gap-2", st.btnCls)}>
+        {/* CTA.
+            A second button appears ONLY when a certificate actually exists for
+            this course — `certificateId` is null for a session training, which
+            never auto-issues one (§10.7), and for a revoked one. "Completed"
+            does not imply a certificate, so keying the button off the status
+            would send a learner to a page their course is not on. */}
+        <Box className="mt-auto flex items-stretch gap-2 pt-1">
+          {/* Side by side when there is a certificate, full width when not.
+              `flex-1 min-w-0` on both, so the pair splits the card evenly and
+              neither label is pushed out — a fixed width would break the
+              moment a status label got longer than "Review Course". */}
+          <Link href={`/my-courses/${c.course.id}`} className="block min-w-0 flex-1">
+            <Button className={cn("h-10 w-full gap-2 text-sm font-semibold", st.btnCls)}>
               {st.btnLabel}
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4 shrink-0" />
             </Button>
           </Link>
+          {c.certificateId && (
+            <Link
+              href={`/certifications?certificate=${c.certificateId}`}
+              className="block min-w-0 flex-1"
+            >
+              <Button
+                variant="outline"
+                className="h-10 w-full gap-2 border-navy/25 text-sm font-semibold text-navy hover:bg-paper-cream"
+              >
+                <Award className="h-4 w-4 shrink-0" />
+                Certificate
+              </Button>
+            </Link>
+          )}
         </Box>
       </Box>
     </Card>
@@ -387,14 +410,6 @@ const STATUS_TABS = [
   { key: "failed",      label: "Failed"      },
 ];
 
-const TYPE_TABS = [
-  { key: "all",     label: "All Types" },
-  { key: "VIDEO",   label: "Video",    icon: <Play className="h-2.5 w-2.5 fill-current" /> },
-  { key: "SCORM",   label: "SCORM"     },
-  { key: "SESSION", label: "Live session" },
-  { key: "Doc",     label: "Doc"       },
-];
-
 /* ── Main component ── */
 export function MyCoursesContent() {
   const { user } = useAuth();
@@ -402,7 +417,6 @@ export function MyCoursesContent() {
   const [error, setError]         = useState(null);
   const [view, setView]           = useState("courses");
   const [statusFilter, setStatus] = useState("all");
-  const [typeFilter, setType]     = useState("all");
   const [search, setSearch]       = useState("");
 
   useEffect(() => {
@@ -417,11 +431,10 @@ export function MyCoursesContent() {
     const q = search.trim().toLowerCase();
     return data.courses.filter((c) => {
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
-      if (typeFilter   !== "all" && c.contentType !== typeFilter) return false;
       if (q && !c.course.name.toLowerCase().includes(q) && !(c.category || "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [data, statusFilter, typeFilter, search]);
+  }, [data, statusFilter, search]);
 
   if (error) return (
     <Card className="p-8 text-center">
@@ -442,7 +455,7 @@ export function MyCoursesContent() {
     failed: ov.failed,
   };
 
-  const activeFilterCount = (statusFilter !== "all" ? 1 : 0) + (typeFilter !== "all" ? 1 : 0) + (search ? 1 : 0);
+  const activeFilterCount = (statusFilter !== "all" ? 1 : 0) + (search ? 1 : 0);
 
   const overviewCards = [
     { icon: Layers,        iconBg: "bg-paper-cream",  iconColor: "text-navy",  circleBg: "bg-paper-cream",  value: ov.totalAssigned, label: "Total Assigned",  sub: `${ov.assigned} yet to start`              },
@@ -556,30 +569,6 @@ export function MyCoursesContent() {
                 ))}
               </Box>
 
-              {/* Divider */}
-              <Box className="hidden sm:block w-px h-5 bg-paper-cream shrink-0" />
-
-              {/* Type filters */}
-              <Box className="flex items-center gap-1.5 flex-wrap">
-                <Text as="span" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mr-1 shrink-0">
-                  Type
-                </Text>
-                {TYPE_TABS.map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => setType(t.key)}
-                    className={cn(
-                      "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border",
-                      typeFilter === t.key
-                        ? "bg-navy text-white border-navy/20 shadow-sm"
-                        : "bg-white border-border text-ink/70 hover:border-navy/20 hover:text-navy"
-                    )}
-                  >
-                    {t.icon}{t.label}
-                  </button>
-                ))}
-              </Box>
             </Box>
 
             {/* Result count + clear */}
@@ -591,7 +580,7 @@ export function MyCoursesContent() {
               {activeFilterCount > 0 && (
                 <button
                   type="button"
-                  onClick={() => { setStatus("all"); setType("all"); setSearch(""); }}
+                  onClick={() => { setStatus("all"); setSearch(""); }}
                   className="flex items-center gap-1 text-xs text-navy hover:text-navy font-semibold"
                 >
                   <X className="h-3 w-3" />

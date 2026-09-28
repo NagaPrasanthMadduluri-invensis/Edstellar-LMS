@@ -21,7 +21,8 @@ import { YoutubePlayer, isYouTubeUrl, extractYouTubeId } from "@/components/lear
 import { LocalVideoPlayer, isVideoFile } from "@/components/learner/local-video-player";
 
 /* These chips sit on the navy panel below, so the light-surface fill weights do
-   not apply: on a dark surface the heaviest state is lime on navy, and the
+   not apply: on a dark surface the heaviest state is the accent on navy, and
+   the
    lighter states are paper at decreasing opacity. */
 const SESSION_STATE = {
   upcoming: {
@@ -71,19 +72,19 @@ function SessionLessonView({ session }) {
 
   const rows = [
     {
-      icon: <CalendarDays className="h-4 w-4 shrink-0 text-lime" />,
+      icon: <CalendarDays className="h-4 w-4 shrink-0 text-accent-soft" />,
       label: "When",
       value: [session.date_label, timeRange].filter(Boolean).join(" · "),
     },
     {
       icon: isVirtual
-        ? <Video className="h-4 w-4 shrink-0 text-lime" />
-        : <MapPin className="h-4 w-4 shrink-0 text-lime" />,
+        ? <Video className="h-4 w-4 shrink-0 text-accent-soft" />
+        : <MapPin className="h-4 w-4 shrink-0 text-accent-soft" />,
       label: isVirtual ? "Joining link" : "Venue",
       value: session.venue,
     },
     {
-      icon: <UserCircle className="h-4 w-4 shrink-0 text-lime" />,
+      icon: <UserCircle className="h-4 w-4 shrink-0 text-accent-soft" />,
       label: "Trainer",
       value: session.trainer,
     },
@@ -96,7 +97,7 @@ function SessionLessonView({ session }) {
     <Card className="overflow-hidden border-0 p-0">
       <Box className="surface-dark p-8 space-y-6">
         <Box className="flex items-center gap-3 flex-wrap">
-          <Users className="h-5 w-5 text-lime shrink-0" />
+          <Users className="h-5 w-5 text-accent-soft shrink-0" />
           <Text as="span" className="font-mono text-[11px] uppercase tracking-widest text-paper/60">
             {isVirtual ? "Virtual session" : "In-person session"}
           </Text>
@@ -217,7 +218,7 @@ function DocumentLessonView({ lesson, media }) {
     <Card className="p-0 overflow-hidden">
       <Box className="surface-dark p-8 flex items-center gap-5 flex-wrap">
         <Box className="w-14 h-14 rounded-xl bg-paper/10 flex items-center justify-center shrink-0">
-          <FileText className="h-6 w-6 text-lime" />
+          <FileText className="h-6 w-6 text-accent-soft" />
         </Box>
         <Box className="flex-1 min-w-0">
           <Text as="p" className="text-base font-bold text-paper truncate">

@@ -14,7 +14,7 @@ import { Award, Download, Hash } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { apiClient } from "@/lib/api-client";
-import { BRAND } from "@/lib/brand";
+import { BRAND, PRODUCT_FULL } from "@/lib/brand";
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -67,7 +67,7 @@ function printCertificate(cert) {
 </head>
 <body>
   <div class="cert">
-    <div class="eyebrow">Edstellar LMS</div>
+    <div class="eyebrow">${escapeHtml(cert.organizationName || PRODUCT_FULL)}</div>
     <div class="title">Certificate of Completion</div>
     <div class="subtitle">This is to certify that</div>
     <div class="name-wrap"><span class="name">${escapeHtml(cert.learnerName || "Learner")}</span></div>
@@ -146,8 +146,19 @@ export function CertificatePrintView({ certificateId, open, onClose }) {
               <Box className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-paper-cream">
                 <Award className="h-7 w-7 text-navy" />
               </Box>
+              {/* THE ORGANISATION, not the product.
+                  A certificate is issued by the employer who put the person
+                  through the training — that is whose name belongs at the top
+                  of it. The platform authored the material, which is a
+                  different claim and not one this document makes.
+                  `PRODUCT_FULL` is the fallback only: an older certificate
+                  read before the API carried the org would otherwise render a
+                  blank line where its issuer should be.
+                  One line, not the stacked treatment the chrome uses: this
+                  eyebrow is uppercase at 0.4em tracking, and a byline under
+                  it would read as a second heading on a formal document. */}
               <Text as="p" className="text-[11px] uppercase tracking-[0.4em] text-muted-foreground">
-                Edstellar LMS
+                {cert.organizationName || PRODUCT_FULL}
               </Text>
               <Text as="h2" className="mt-2 text-2xl font-bold text-navy">
                 Certificate of Completion

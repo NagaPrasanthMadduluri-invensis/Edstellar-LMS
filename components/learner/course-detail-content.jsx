@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { fetchCourseDetail } from "@/services/api/learner/learner-api";
 import { CourseArt } from "@/components/shared/course-art";
 import { CourseRewardHeroLine } from "@/components/learner/course-reward";
+import { CourseFeedbackCard } from "@/components/learner/course-feedback-card";
 
 
 /**
@@ -199,7 +200,7 @@ export function CourseDetailContent({ courseId }) {
           <Text as="span" className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper/55">
             {completedLessons} of {totalLessons} lesson{totalLessons !== 1 ? "s" : ""} complete
           </Text>
-          <Text as="span" className="font-mono text-sm text-lime tabular-nums">{progress}%</Text>
+          <Text as="span" className="font-mono text-sm text-accent-soft tabular-nums">{progress}%</Text>
         </Box>
       </Box>
 
@@ -535,6 +536,12 @@ export function CourseDetailContent({ courseId }) {
           </Box>
         </Box>
       )}
+
+      {/* ── Feedback ──
+          Under the assessments, and deliberately OUTSIDE the block above: a
+          course with no assessment still asks for feedback. The card renders
+          nothing at all when this course asks for none. */}
+      <CourseFeedbackCard courseId={courseId} />
     </Box>
   );
 }

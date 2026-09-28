@@ -7,7 +7,7 @@
    Ported from the Spectra LMS reference. Flat, square, hairline-ruled.
 
    Canvas      — #EDECE9 warm grey, panels float on it in white
-   Navy        — #0F1923 chrome (sidebar, topbar, primary buttons)
+   Navy        — #1E2D40 chrome (sidebar, topbar, primary buttons)
    Accent      — #3B6FD4 the one interactive blue
    Status      — green #1A5E3A · ochre #8A6200 · rust #B04A00 · red #C94040
    Geometry    — radius 0, no shadows, 1px borders carry every edge
@@ -129,12 +129,24 @@
   --spectra-border: #d8d8d4;
   --spectra-border-2: #c8c8c4;
 
-  /* Navy chrome — sidebar, topbar, primary buttons. */
-  --spectra-navy: #0f1923;
-  --spectra-navy-mid: #162030;
-  --spectra-navy-deep: #0a1219;
-  --spectra-navy-border: #1e3050;
-  --spectra-navy-hover: #131e2a;
+  /* Navy chrome — sidebar, topbar, primary buttons, every .surface-dark.
+     
+     LIFTED from the original scale, which started at #0f1923 and read as
+     black rather than navy: a dark panel dominated whatever page it sat on,
+     and the accent figure it carried had to fight it. The whole family moved
+     by the same offset, so `deep < navy < hover < mid` still step the way
+     they did and nothing that relied on the ordering changed.
+     
+     Contrast was not the constraint — the old scale passed AA comfortably and
+     so does this one. On the new navy: body text 10.95:1, the on-navy-3
+     eyebrow 5.48:1, accent-soft 8.94:1, all AA for normal text. The change is
+     about how heavy the chrome FEELS, which is a judgement made by looking at
+     it rather than by reading a number. */
+  --spectra-navy: #1e2d40;
+  --spectra-navy-mid: #25344d;
+  --spectra-navy-deep: #192636;
+  --spectra-navy-border: #2d446d;
+  --spectra-navy-hover: #223247;
 
   /* The one interactive accent, plus its on-dark and on-light tints. */
   --spectra-accent: #3b6fd4;

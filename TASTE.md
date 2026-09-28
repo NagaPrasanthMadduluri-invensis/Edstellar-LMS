@@ -349,9 +349,9 @@ is the *darkest* of the light surfaces, not because anything casts a shadow.
 | `surface-3` | `#EFEEEB` | Progress tracks, code, small highlighted areas |
 | `line` | `#D8D8D4` | Every border — this is what replaced shadows |
 | `line-strong` | `#C8C8C4` | Border on hover, dashed empty states |
-| `navy` | `#0F1923` | Chrome: sidebar, topbar, primary buttons. Also primary text |
-| `navy-soft` | `#162030` | Active nav item, hover on navy |
-| `navy-deep` | `#0A1219` | Deepest navy, when a third step is needed |
+| `navy` | `#1E2D40` | Chrome: sidebar, topbar, primary buttons |
+| `navy-soft` | `#25344D` | Active nav item, hover on navy |
+| `navy-deep` | `#192636` | Deepest navy, when a third step is needed |
 | `accent-blue` | `#3B6FD4` | **The one interactive accent** — links, focus rings, active markers, first chart series |
 | `accent-soft` | `#BDD0F0` | Accent ON navy: emphasis text and button labels on the dark chrome |
 | `accent-tint` | `#F0F5FC` | Accent on light: tinted tiles and thumbnails |
@@ -362,6 +362,27 @@ is the *darkest* of the light surfaces, not because anything casts a shadow.
 | `ink` | `#0F1923` | Primary text |
 | `text-2` | `#555555` | Secondary text |
 | `text-3` | `#888888` | Tertiary text, placeholders, "not started" |
+
+**The navy scale was LIFTED**, from `#0F1923` to `#1E2D40`. The original read
+as black with a hint of blue rather than as navy: a dark panel dominated
+whatever page it sat on, and the accent figure it carried had to fight it.
+Every step moved by the same offset, so `deep < navy < hover < soft` still
+order the way they did.
+
+Contrast was never the constraint — the old scale passed AA and so does this
+one (body text 10.95:1, the on-navy-3 eyebrow 5.48:1, `accent-soft` 8.94:1).
+The change is about how heavy the chrome FEELS, which is judged by looking at
+it. If it moves again, move the whole family by one offset and keep the
+ordering.
+
+**`ink` stays `#0F1923`, and that is not an oversight.** Primary text on a
+light surface and the navy chrome merely shared a hex; they are different
+roles. Lifting the text along with the chrome would have washed out every
+paragraph in the product.
+
+**`lib/brand.js` mirrors these and must move with them.** A chart series drawn
+from the JS mirror sits beside chrome painted from the CSS token, and the two
+disagreeing is visible on one screen.
 
 **Rules**
 - Those are all the hues. No purple, teal, pink or gradient fills.
@@ -382,6 +403,29 @@ now resolve to Spectra values: `lime` → `accent-blue`, `lime-soft` →
 `surface-3`. **Write new code against the Spectra names.** Note the reversal
 that follows: `paper-warm` and `paper-cream` are now *lighter* than the page
 background, not darker.
+
+**`text-lime` on a navy surface is the alias trap, and it shipped.** In the old
+system lime was a BRIGHT colour and navy was its natural field, so `text-lime`
+on `surface-dark` was correct everywhere it appeared. The migration remapped it
+to `accent-blue`, which is a DARK colour for light surfaces — so every one of
+those call sites silently became dark-on-dark. Measured against `navy`:
+
+| Colour | Contrast on navy | |
+|---|---|---|
+| `accent-blue` (what `lime` became) | 3.73:1 | murky — the defect |
+| `accent-soft` | **11.36:1** | what belongs there |
+| `success` | 2.29:1 | fails outright |
+| `warning` / `rust` | 3.23:1 | *worse* than the defect |
+
+That last row is worth keeping: a green or an amber reads as the obvious choice
+for a positive figure like points earned, and both are **less** legible on navy
+than the blue being replaced. Spectra's greens and ochres are dark inks for
+light fields. On dark chrome the only light tint in the palette is
+`accent-soft`, which is exactly what it is for.
+
+Fixed in `course-reward.jsx`, `lesson-content.jsx` and the course hero's
+progress figure. `bg-lime text-navy` was left alone — navy ON accent-blue is
+the readable direction — as was `.cta-lime`, which is its own component class.
 
 ### 10.2 Typography
 
@@ -405,6 +449,49 @@ data-forward interface, and a page that sets its own larger base is fighting it.
 Headlines are **sentence case**. Use `components/shared/page-header.jsx` for every
 page: it encodes eyebrow → title → emphasis → summary so the rule is not
 re-decided per page. Avoid excessive bolding, underlining or decorative type.
+
+### 10.2.1 The product is Spectra LMS, by Edstellar
+
+The name appears in four places — the top bar, the login card, the browser
+title and the certificate — and it lives in ONE constant, `PRODUCT_NAME` /
+`PRODUCT_BY` in `lib/brand.js`. It was written out four times before, and a
+rename that misses one leaves the old name on the document a learner keeps
+forever.
+
+**Name and byline are separate strings, not one sentence.** They are set at
+different sizes and weights wherever both appear, and a single "Spectra LMS by
+Edstellar" cannot be styled in two parts. `PRODUCT_FULL` exists for the places
+where only a flat string fits.
+
+- **Top bar**: two lines inside the 56px header, both `leading-none` so the
+  byline fits without growing the chrome. The byline takes `accent-soft`, not
+  `accent-blue` — §10.1's rule for accent on navy, and the reason the smaller
+  line stays readable against the dark chrome.
+
+  **The byline is TRACKED OUT to the name's exact width**, so the two lines
+  are flush left and right — the standard logo lockup. Three things that took
+  a wrong turn first, worth not repeating:
+
+  - `text-align-last: justify` is the WRONG tool. With a two-word string it
+    spreads the single word gap and gives "By&nbsp;&nbsp;&nbsp;&nbsp;Edstellar"
+    — the space opens between the words, not between the letters.
+  - `truncate` silently disables it either way: it sets `white-space: nowrap`,
+    and nowrap text cannot be justified or spread.
+  - **letter-spacing adds a gap after the LAST character too.** Without a
+    matching negative `margin-right` the box overhangs the name by one gap and
+    the lines stop being flush. `-mr-[0.45em]` beside `tracking-[0.45em]`.
+
+  The values are MEASURED, not guessed: at 18px the name renders 105.86px and
+  the byline 56.4px, so 11 gaps need 4.50px = 0.45em. The name is responsive
+  (`text-base` → `sm:text-lg`), so there are two values — one tracking cannot
+  match two name widths. Verified flush to **0.00px at both breakpoints**.
+  Retune if either string changes.
+- **Login card**: the byline is uppercase at wide tracking in `text-3`, which
+  reads as a maker's mark rather than a subtitle competing with the heading.
+- **Certificate**: ONE line, `PRODUCT_FULL`. The eyebrow there is uppercase at
+  0.4em tracking, and a byline stacked under it would read as a second heading
+  on a formal document. Edstellar's name stays on the certificate because
+  Edstellar is who issues it.
 
 ### 10.3 Status
 
@@ -1158,6 +1245,275 @@ offset that `new Date()` rejects, so every Last active cell rendered `—` while
 the API was sending a real date. Only the date is displayed, so take
 `slice(0, 10)` and build from the parts. Worth knowing before adding another
 date column to any screen that reads a raw row.
+
+### 10.3.1.19 The Course Catalogue
+
+What a learner may add to their own learning, in one page — courses and live
+sessions together, because they are the same decision from the learner's side.
+
+**It sits beside Dashboard, not under My Learnings.** Nothing in it is theirs
+until they press the button; the moment they do, it appears in My Courses or
+My Sessions like anything else. Filing browsing under "my learning" would put
+things somebody has not chosen next to things they have.
+
+**A course card and a session card are deliberately NOT the same card**, and
+four things separate them rather than one — the eyebrow word (COURSE / LIVE
+SESSION), the stripe colour, what the body reports, and what the button says.
+One difference alone is a detail a reader skims past.
+
+| | Course | Live session |
+|---|---|---|
+| stripe | the category hue (§10.3.1.3) | the delivery mode: accent-blue in person, navy virtual |
+| body | lessons, total duration, how many are on it | date, time, venue, trainer, and a seat meter |
+| button | "Add to my learning" | "Book my place" |
+| once joined | "Already yours — open it" | "Booked — see My Sessions", plus "Give up my place" |
+
+**Nothing on the page decides whether something is joinable.** `is_enrolled`,
+`is_full`, `seats_left` and `waitlist_position` all arrive derived from the
+API, which is also what enforces them. A browser recomputing "full" from
+capacity and headcount would be a second definition of full, free to disagree
+with the button it sits next to — the rule §10.3.1.11 states for
+`contract_state` and §10.3 for `display_status`.
+
+**A full session offers the waitlist, and says so BEFORE the click.** The
+button reads "Join the waitlist" in `warning`, with *"This session is full.
+You will be enrolled if a place frees up"* under it. Discovering from the
+confirmation that you queued rather than booked is the control-that-lies
+failure with an extra step.
+
+**The queue position is shown, not just the fact of queuing.** "Number 2 on
+the waitlist" — the list carries `waitlist_position`, so a refresh does not
+downgrade it to "you are waiting".
+
+**Leave exists for a session and not for a course, and the absence is the
+honest part.** Leaving a course would delete lesson completions the learner
+genuinely earned, so there is no control for it anywhere — not a disabled one.
+The session control is a quiet text link rather than a button, because giving
+up a place is the rare path, and it disappears once attendance is marked (the
+API refuses it then, with a sentence naming who can help).
+
+**After any action the page REFETCHES rather than patching the row.**
+Enrolling moves a seat count and a queue position that other people also
+move; a locally patched card would quietly disagree with what the next person
+sees.
+
+**The empty state names where the assigned work already is.** "Nothing is open
+to join yet" plus links to My Courses and My Sessions — an empty catalogue is
+not an empty product, and a learner should be able to tell those apart
+(§10.3.1.11's rule about telling zero from failed-to-load).
+
+#### The admin's two toggles
+
+**One switch on the course form, one on the session form — no third screen.**
+Which things are open is a property of the thing, not a list somebody
+maintains separately.
+
+- **On a course** it sits under the feedback block and says self-enrolment is
+  *additive*: "You can still assign it as well." An admin who thinks the
+  toggle replaces assignment will stop assigning.
+- **On a session** it sits directly under Capacity, because the two only mean
+  something together — opening a session to everyone without knowing how many
+  seats it has is how a waitlist takes the whole organization.
+
+**Both say what Save will send, before Save.** "Saving notifies every learner
+who does not already have this course. It is announced once, not on every
+edit." A fan-out to the whole organization is not something to discover from
+the bell afterwards, and the second sentence is there because an admin who
+fears re-announcing will avoid editing the course at all.
+
+**A draft course says the quiet part**: "Draft courses are not in the
+catalogue. Learners are notified when you publish it." The toggle is not
+ignored, it is waiting — and a toggle that looks live while doing nothing is
+the thing §10.3.1.2 exists to prevent.
+
+### 10.3.1.18 Surveys & Feedback
+
+Three forms per organization — standard, technical, compliance — editable by
+the admin at `/admin/surveys`, and asked of the learner on the course page.
+
+**The first thing every surface says is that it does not count.** The card
+under the assessments is headed "optional — it does not affect completion",
+the dialog's navy header says nothing here affects progress, hours or the
+certificate, and the course form's switch says the same. That repetition is
+deliberate, the same way the seat panel says three times what a seat is
+(§10.3.1.11): a form sitting directly under the assessments is otherwise read
+as the last thing between somebody and their certificate, and a learner who
+believes that fills it in to get past it — which is the opposite of what
+feedback is for.
+
+**A course's CATEGORY picks its form, and the course can override it.**
+Technical → the Technical form, Compliance → the Compliance form, everything
+else → Standard. The course dialog shows what the category already decided
+("Courses in Compliance use *Compliance course feedback*") beside a dropdown
+that can change it, and "Follow the category" is one option in that same list
+rather than a separate unlink control — the same gesture-symmetry the lesson
+placement select uses (§10.3.1.4).
+
+**The mapping is fetched, never mirrored.** `GET /admin/surveys/options`
+returns `category_templates` already resolved. A copy of the rule in
+`lib/feedback-questions.js` would be free to drift from the form the learner
+is actually shown, so the file says so where the map would have been.
+
+**The three built-in forms show a padlock and a disabled delete that says
+why.** They are looked up by key, so deleting one would leave every course in
+its category resolving to nothing. Everything else about them is editable —
+that is the feature, not a concession.
+
+**A card that renders nothing is better than an empty one.** The learner's
+card is absent, not disabled, when the course asks for no feedback: feedback
+switched off, or a session's companion training, which is rated through the
+session instead. A failed fetch also renders nothing — this is the one
+genuinely optional thing on the page, and a red banner over it would be
+louder than the feature is important. §10.3.1.13 makes the same call for the
+session feedback control.
+
+**Save says why it is off.** "Answer the 2 starred questions to save", and
+re-opening loads what was actually saved so revising starts from the existing
+answer, with "This replaces your earlier answer." in the footer. Identical to
+the session feedback form, because it is the same promise.
+
+**An open text question cannot be marked required**, and its switch is
+disabled with the reason in its title rather than simply absent. A mandatory
+essay is how a form gets abandoned; the API refuses it too.
+
+**The admin's responses read names, and the page says why that is fine.**
+"named, because an admin is the only person who sees these" — the opposite of
+the trainer's feedback page, which states its anonymity for the same reason:
+a reader who is unsure who can see what reads the comments differently.
+
+**An answer whose question has been rewritten reads as one.** The editor
+replaces the whole question set, so old answers keep the old ids; the admin's
+view pairs what it can and lists the rest as "a question that has since been
+changed" rather than re-labelling them with the new wording.
+
+### 10.3.1.17 Sessions left the course lists and got their own modules
+
+Sessions are gone from BOTH course lists — the learner's My Courses and the
+admin's Course Library. They live in **My Sessions** and **Sessions &
+Attendance** instead.
+
+**A session is still a course assignment underneath** (§10.7) — that is what
+credits attendance, hours, the leaderboard and certificates, and none of it
+changed. What changed is only which LIST it appears in.
+
+**Why it never belonged in either list.** For the learner, a session's only
+honest progress was "wait for the day": they cannot move the bar, the trainer
+marks them present. For the admin, the companion training course is an
+implementation detail — created and renamed by the session, refused by the
+course editor, not publishable, assignable or archivable on its own. Six of
+the eleven rows in the demo library were these, each offering an admin a row
+where almost every control was refused.
+
+**Learning Hours is untouched, by construction.** That service reads
+`user_lesson_completions` directly (§10.4), never either list, so which module
+a session appears in cannot change what an hour is worth. Measured on the demo
+learner: **29.1 hours total, of which 18.0 come from session lessons.** Had
+the split broken hours she would read 11.1. My Sessions says this in words
+too, because a learner who watches sessions leave My Courses has every reason
+to assume their hours left with them.
+
+**The learner filter is in the SERVICE, not the repository.**
+`assignedCourses` has four callers — `courses`, `dashboard`, `progress` and
+`courseDetail` — and a session is still part of what somebody was assigned.
+Narrowing the query would have silently dropped sessions out of the dashboard
+and progress totals too, and made the dashboard disagree with Learning Hours.
+
+**The admin filter also moved the archived COUNT.** `archivedCount` carries
+the same `session_id IS NULL` predicate as the list, or the toggle's badge
+promises rows the toggle will not show.
+
+#### My Sessions, to the reference
+
+Four tiles — Total sessions, Upcoming, Attended, Attendance rate — then
+Upcoming and Past as separate card grids. A card carries its training course's
+art (§10.10, no second column), a type pill, an attendance pill on past cards
+only, trainer / date+time+duration / venue, and ONE action:
+
+| State | Action |
+|---|---|
+| upcoming, virtual with a link | **Join →** |
+| upcoming, in person | "In-person session" |
+| past, eligible and unrated | **Give feedback** — the §10.20 dialog |
+| past, already rated | "Feedback submitted" |
+| past, absent or unmarked | says which, offers nothing |
+
+That last row matters: eligibility comes from the feedback endpoint, not from
+the status, so the button is ABSENT where the API would refuse rather than
+present and refused (§10.3.1.2).
+
+**Attendance rate renders `—` when nothing has finished**, never 0% — "nothing
+has completed yet" and "you attended none of them" are different facts.
+
+**Two things in the reference are deliberately NOT built.** The mock's "Open
+Sessions — Join Now" lets a learner self-enrol; there is no learner
+self-enrolment endpoint in this product, so a Register button would be a
+control that does nothing. And the mock's emoji are lucide components here
+(§10.3.1.6).
+
+#### Sessions & Attendance, on the admin side
+
+Six KPI tiles (Total Sessions, Upcoming, Completed, Total Registered, Avg
+Attendance, Need Attention) and the toolbar already matched the reference.
+The CARDS did not, and were rebuilt: wide list rows became a **three-up grid**,
+which is what the reference is.
+
+- **A 3px top rule in the delivery-mode colour**, and a matching type pill —
+  accent-blue for in-person, navy for virtual, success for webinar. Three
+  values, all already in the palette: §10.1's closed-hue rule is not bent to
+  carry this.
+- **Art, with the controls over it.** The selection box sits top-left in a
+  white square, the type pill beside it, the status badge top-right as a SOLID
+  block in the status hue. The 12% chips go muddy over a photograph, which is
+  the same reason §10.3 gives for not using them on navy.
+- **The enrolment mode is said on EVERY card** — Admin-assigned / Self-enrol /
+  Webinar — where the old card showed a chip only for self-enrol. Three modes
+  with different consequences, and "how do people get on this?" is the first
+  thing an admin reading a roster figure needs to know.
+- **The count block is pinned to the bottom of the body** (`mt-auto`), so
+  cards in a row line their meters up however long the titles are.
+- **An icon action bar across the foot**, full width and divided. Six text
+  buttons do not fit a third of a row; every cell carries `title` AND
+  `aria-label` because an icon has no name (§10.3.1.2), and hover FILLS rather
+  than tints for the reason that section gives.
+
+**One deliberate divergence: which actions appear.** The reference always
+offers Roster and Edit; ours hides them on a completed session and adds Mark
+completed, because that is what our API permits — editing a session whose
+attendance has already credited learners is refused (§10.7). The mock has no
+API to disagree with, so it can afford a uniform bar. A card with two cells
+looks sparser than the reference and is telling the truth about what is left
+to do.
+
+§10.3.1.10 records why the grid IS the page. The nav says "Sessions &
+Attendance"; the reference HTML calls the same screen "Live Sessions".
+
+### 10.3.1.16 My Courses: the certificate button, and no type filter
+
+**The Certificate button is keyed off a CERTIFICATE, not off the status.** A
+completed course does not imply one exists — a session training never
+auto-issues (§10.7), and a revoked one should not be linked to. So the API
+returns `certificateId` per course and the button renders only when it is set.
+The live data makes the point: the demo learner has **six completed courses and
+two certificates**, because four of the six are session trainings. Keying the
+button off `status === "completed"` would have sent them to a page their course
+is not listed on — §10.3.1.2's screen that lies, one click further along.
+
+**It deep-links.** `/certifications?certificate=<id>` opens that certificate
+directly rather than dropping the learner on a list to scan. The page checks
+the id is really in their own fetched list before opening, so a stale or
+hand-typed id lands on the page instead of opening an empty dialog.
+
+**The two buttons sit SIDE BY SIDE**, each `flex-1 min-w-0`, so the pair splits
+the card evenly and a card with no certificate keeps one full-width button. A
+fixed width would break the moment a status label grew longer than "Review
+Course".
+
+**The Type filter was removed.** It offered Video / SCORM / Live session / Doc,
+which is how content is AUTHORED, not how a learner looks for it: somebody
+returning to My Courses is looking for a course by name or by whether they have
+finished it, and the search box and the status tabs already answer both. Status
+tabs stay, and `activeFilterCount` now counts only status and search — a
+"Clear filters (2)" that included a filter nobody set would misreport.
 
 ### 10.3.2 Descriptions
 

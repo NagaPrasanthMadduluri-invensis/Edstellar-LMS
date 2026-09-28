@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -49,17 +50,24 @@ const EMPTY_FORM = {
   title: "", session_type: "ILT", department: "", course_id: "",
   capacity: 20, trainer: "", trainer_user_id: "", venue_url: "", date: "",
   start_time: "", end_time: "", description: "", status: "upcoming",
+  // 'assigned' (an admin books people) or 'self' (learners book themselves
+  // from the Course Catalogue, and queue when it is full). The column has
+  // existed since 0025; until 0035 nothing in the product set it.
+  enroll_mode: "assigned",
 };
 
 /* Four states, in the fill weights the design system defines: not started is
    the lightest, complete is the heaviest, failure is the only colour.
    `in_progress` is derived from the clock by the API (display_status) rather
    than stored — see server/src/modules/sessions/session-status.util.ts. */
+/* `solid` is the card's badge over the artwork — a filled block in the status
+   hue with white on it, because a 12% tint has nothing to sit against there
+   (§10.3 says the chips go muddy off a light field). */
 const STATUS_CFG = {
-  upcoming:    { label: "Upcoming",    cls: "bg-paper-warm text-ink/60 border-border", chip: "chip-idle"     },
-  in_progress: { label: "In progress", cls: "bg-paper-cream text-ink border-navy/25",  chip: "chip-progress" },
-  completed:   { label: "Completed",   cls: "bg-navy text-paper border-navy",          chip: "chip-complete" },
-  cancelled:   { label: "Cancelled",   cls: "bg-error/10 text-error border-error/30",  chip: "chip-error"    },
+  upcoming:    { label: "Upcoming",    cls: "bg-paper-warm text-ink/60 border-border", chip: "chip-idle",     solid: "bg-warning" },
+  in_progress: { label: "In progress", cls: "bg-paper-cream text-ink border-navy/25",  chip: "chip-progress", solid: "bg-accent-blue" },
+  completed:   { label: "Completed",   cls: "bg-navy text-paper border-navy",          chip: "chip-complete", solid: "bg-success" },
+  cancelled:   { label: "Cancelled",   cls: "bg-error/10 text-error border-error/30",  chip: "chip-error",    solid: "bg-danger" },
 };
 
 /** The status to show. Falls back to the stored one if the API is older. */
@@ -69,10 +77,13 @@ function displayOf(session) {
 
 /* Labels come from lib/session-types so the list, both calendars and the form
    all say the same thing. Only the icon and chip live here. */
+/* `border` is the card's 3px top rule and `text` its type pill — the reference
+   colours a card by delivery mode. Three values, all already in the palette
+   (§10.1): no new hue is introduced to carry this. */
 const TYPE_CFG = {
-  ILT:     { label: SESSION_TYPE_LABEL.ILT,     cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: MapPin },
-  Virtual: { label: SESSION_TYPE_LABEL.Virtual, cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: Video  },
-  Webinar: { label: SESSION_TYPE_LABEL.Webinar, cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: Video  },
+  ILT:     { label: SESSION_TYPE_LABEL.ILT,     cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: MapPin, border: "border-t-accent-blue", text: "text-accent-blue" },
+  Virtual: { label: SESSION_TYPE_LABEL.Virtual, cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: Video,  border: "border-t-navy",        text: "text-navy" },
+  Webinar: { label: SESSION_TYPE_LABEL.Webinar, cls: "bg-paper-cream text-navy border-0", chip: "chip-idle", icon: Video,  border: "border-t-success",     text: "text-success" },
 };
 
 const ATTENDANCE_STATUS_CFG = {
@@ -707,7 +718,7 @@ function SessionsTab({
           </Text>
         </Card>
       ) : (
-        <Box className="space-y-3">
+        <Box className="grid items-stretch gap-3.5 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((s) => (
             <SessionCard
               key={s.id}
@@ -841,98 +852,140 @@ function SessionCard({
     ? `${batchCaps[0]} per batch`
     : `${batchCaps.reduce((a, c) => a + c, 0)} across ${batches.length} batches`;
 
+  /** How the enrolment mode reads. Only ever one of three, so it is a map. */
+  const modeChip = isSelf
+    ? { label: "Self-enrol", cls: "bg-success/10 text-success" }
+    : s.session_type === "Webinar"
+      ? { label: "Webinar", cls: "bg-success/10 text-success" }
+      : { label: "Admin-assigned", cls: "bg-accent-blue/10 text-accent-blue" };
+
+  const isVirtual = s.session_type !== "ILT";
+  const joinUrl =
+    typeof s.venue_url === "string" && /^https?:\/\//i.test(s.venue_url)
+      ? s.venue_url
+      : null;
+
   return (
-    <Box
+    <Card
       ref={cardRef}
       className={cn(
-        "border bg-surface transition-colors",
-        selected ? "border-accent-blue" : "border-line hover:border-line-strong",
+        "flex h-full flex-col gap-0 overflow-hidden p-0 border-t-[3px] transition-colors",
+        typeCfg.border ?? "border-t-accent-blue",
+        selected ? "ring-2 ring-accent-blue ring-inset" : "",
         highlighted && "ring-2 ring-accent-blue/40",
       )}
     >
-      <Box className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:px-5">
-        <Checkbox
-          checked={selected}
-          onCheckedChange={onToggle}
-          aria-label={`Select ${s.title}`}
-          className="mt-1 shrink-0 cursor-pointer"
+      {/* ── Art, with the selection box, type and status over it ── */}
+      <Box className="relative h-[110px] shrink-0 bg-surface-3">
+        <CourseArt
+          thumbnailUrl={s.thumbnail_url}
+          contentType="session"
+          alt=""
+          scrim="light"
+          sizes="(max-width: 768px) 100vw, 33vw"
+          className="h-full w-full"
         />
-
-        {s.thumbnail_url && (
-          <CourseArt
-            thumbnailUrl={s.thumbnail_url}
-            alt={s.title}
-            scrim="light"
-            sizes="64px"
-            className="size-16 shrink-0 border border-line"
+        <Box className="absolute left-2 top-2 z-10 flex size-[22px] items-center justify-center border border-line bg-white">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={onToggle}
+            aria-label={`Select ${s.title}`}
+            className="size-3.5 cursor-pointer"
           />
-        )}
+        </Box>
+        <Text
+          as="span"
+          className={cn(
+            "absolute left-[38px] top-2 inline-flex items-center gap-1 bg-white/92 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+            typeCfg.text ?? "text-accent-blue",
+          )}
+        >
+          <TypeIcon className="size-3" />
+          {typeCfg.label}
+        </Text>
+        <Text
+          as="span"
+          className={cn(
+            "absolute right-2 top-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white",
+            statusCfg.solid ?? "bg-text-3",
+          )}
+        >
+          {statusCfg.label}
+        </Text>
+      </Box>
 
-        {/* ── Left ── */}
-        <Box className="min-w-0 flex-1 basis-[14rem] space-y-2">
-          <Box className="flex flex-wrap items-center gap-2">
-            <Text as="span" className={cn("chip inline-flex items-center gap-1", typeCfg.chip)}>
-              <TypeIcon className="size-3" />{typeCfg.label}
+      <Box className="flex min-w-0 flex-1 flex-col">
+        <Box className="flex flex-1 flex-col px-4 pt-3.5">
+          {/* How people get on it. Said on every card, unlike the old chip
+              that appeared only for self-enrol — three modes with different
+              consequences, and "which is this?" is the first thing an admin
+              looking at a roster figure needs to know. */}
+          <Box className="mb-2 flex flex-wrap items-center gap-1.5">
+            <Text as="span" className={cn("px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wide", modeChip.cls)}>
+              {modeChip.label}
             </Text>
-            <Text as="span" className={cn("chip", statusCfg.chip)}>{statusCfg.label}</Text>
-            {/* Only said when it is NOT the default — a chip on every card
-                saying "Admin assigned" is noise, not information. */}
-            {isSelf && <Text as="span" className="chip chip-progress">Self enrolment</Text>}
             {isMultiBatch && (
-              <Text as="span" className="chip chip-idle">{batches.length} batches</Text>
-            )}
-            {s.course_name && (
-              <Text as="span" className="chip chip-idle inline-flex items-center gap-1">
-                <BookOpen className="size-3" />{s.course_name}
-              </Text>
+              <Text as="span" className="chip chip-idle text-[10px]">{batches.length} sittings</Text>
             )}
           </Box>
 
-          <Text as="h3" className="text-[15px] font-bold leading-snug text-ink">{s.title}</Text>
+          <Text as="h3" className="mb-2 line-clamp-2 min-h-[2.4rem] text-[15px] font-bold leading-snug text-ink">
+            {s.title}
+          </Text>
 
-          <Box className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-text-2">
-            <Text as="span" className="inline-flex items-center gap-1.5">
-              <UserCircle className="size-3.5 shrink-0 text-text-3" />{s.trainer}
-            </Text>
-            {/* A multi-batch session has no single date of its own — saying
-                one would name whichever sitting happened to be first. */}
-            <Text as="span" className="inline-flex items-center gap-1.5">
-              <CalendarDays className="size-3.5 shrink-0 text-text-3" />
-              {isMultiBatch ? `${batches.length} sittings` : formatDate(s.date)}
-            </Text>
-            {!isMultiBatch && (
-              <Text as="span" className="inline-flex items-center gap-1.5">
-                <Clock className="size-3.5 shrink-0 text-text-3" />
-                {s.start_time}–{s.end_time} IST
-              </Text>
-            )}
-            <Text as="span" className="inline-flex min-w-0 items-center gap-1.5">
-              {s.session_type === "Virtual"
-                ? <Video className="size-3.5 shrink-0 text-text-3" />
-                : <MapPin className="size-3.5 shrink-0 text-text-3" />}
-              <Text as="span" className="truncate">{s.venue_url}</Text>
-            </Text>
-          </Box>
-
-          {s.description && (
-            <Text as="p" className="line-clamp-2 text-[12px] leading-relaxed text-text-2">
-              {s.description}
+          {s.course_name && (
+            <Text as="p" className="mb-2 inline-flex items-center gap-1 text-[11px] text-text-3">
+              <BookOpen className="size-3 shrink-0" />
+              <Text as="span" className="truncate">{s.course_name}</Text>
             </Text>
           )}
 
-          {/* ── Fill meter. Segmented per batch when there is more than one,
-                  so an admin can see at a glance which sitting still has room.
-                  A pending batch is hatched rather than filled: it has no date,
-                  so its bar would otherwise claim a scheduled sitting. ── */}
-          <Box className="pt-1">
-            <Box className="flex items-baseline justify-between gap-2">
-              <Text as="span" className="text-[11px] text-text-3">
-                Registered
+          <Box className="space-y-1.5 text-[11.5px] text-text-2">
+            <Box className="flex items-center gap-1.5">
+              <UserCircle className="size-3.5 shrink-0 text-text-3" />
+              <Text as="span" className="truncate">{s.trainer}</Text>
+            </Box>
+            <Box className="flex items-center gap-1.5">
+              <CalendarDays className="size-3.5 shrink-0 text-text-3" />
+              {/* A multi-batch session has no single date of its own —
+                  naming one would name whichever sitting happened to be
+                  first. */}
+              <Text as="span" className="truncate">
+                {isMultiBatch
+                  ? `${batches.length} sittings`
+                  : `${formatDate(s.date)} · ${s.start_time}–${s.end_time} IST`}
               </Text>
-              <Text as="span" className="text-[12.5px] font-bold text-ink">
+            </Box>
+            <Box className="flex items-start gap-1.5">
+              {isVirtual
+                ? <Video className="mt-0.5 size-3.5 shrink-0 text-text-3" />
+                : <MapPin className="mt-0.5 size-3.5 shrink-0 text-text-3" />}
+              <Text as="span" className="min-w-0 flex-1 truncate">{s.venue_url}</Text>
+              {joinUrl && (
+                <a
+                  href={joinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0 bg-accent-blue/10 px-2 py-0.5 text-[10.5px] font-bold text-accent-blue"
+                >
+                  Join →
+                </a>
+              )}
+            </Box>
+          </Box>
+
+          {/* ── The count block is pinned to the bottom of the body, so cards
+                in a row line their meters up however long the titles are. ── */}
+          <Box className="mt-auto border-t border-line pt-2.5">
+            <Box className="mb-1.5 flex items-baseline justify-between gap-2">
+              <Text as="span" className="shrink-0 text-[11px] text-text-3">
+                {isSelf ? "Registered" : "Assigned"}
+              </Text>
+              <Text as="span" className="text-right text-[12.5px] font-bold text-ink">
                 {roster}
-                <Text as="span" className="font-normal text-[11px] text-text-3">
-                  {isMultiBatch ? ` / ${batchCapacityLabel}` : ` / ${capacity}`}
+                <Text as="span" className="text-[11px] font-normal text-text-3">
+                  {isMultiBatch ? ` · ${batchCapacityLabel}` : ` / ${capacity}`}
                 </Text>
                 {isCompleted && roster > 0 && (
                   <Text
@@ -950,55 +1003,57 @@ function SessionCard({
                 {pending.length} batch{pending.length === 1 ? "" : "es"} awaiting a date
               </Text>
             )}
+            {!isCompleted && !isCancelled && roster > 0 && (
+              <Text as="p" className="mt-1 text-[10.5px] text-text-3">
+                {marked > 0
+                  ? `Attendance marked for ${marked} of ${roster}`
+                  : "Attendance not marked yet"}
+              </Text>
+            )}
+            {waiting > 0 && (
+              <button
+                type="button"
+                onClick={onWaitlist}
+                className="mt-1 cursor-pointer text-[10.5px] font-semibold text-warning underline-offset-2 hover:underline"
+              >
+                {waiting} waiting
+              </button>
+            )}
           </Box>
-
-          {!isCompleted && !isCancelled && roster > 0 && (
-            <Text as="p" className="text-[11px] text-text-3">
-              {marked > 0
-                ? `Attendance marked for ${marked} of ${roster}`
-                : "Attendance not marked yet"}
-            </Text>
-          )}
         </Box>
 
-        {/* ── Right: actions ── */}
-        <Box className="ml-auto flex w-full shrink-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
-          {waiting > 0 && (
-            <button
-              type="button"
-              onClick={onWaitlist}
-              className="cursor-pointer text-[11.5px] font-semibold text-warning underline-offset-2 hover:underline"
-            >
-              {waiting} waiting
-            </button>
+        {/* ── Action bar: full width, divided, one row. Icons with names,
+              because five text buttons did not fit a third of a row and an
+              icon with no accessible name is an unlabelled control
+              (§10.3.1.2). ── */}
+        <Box className="mt-3 flex border-t border-line">
+          {!isCancelled && (
+            <CardAction
+              icon={Layers}
+              label={pending.length ? `Batches — ${pending.length} need a date` : "Batches"}
+              badge={pending.length || null}
+              onClick={onBatches}
+            />
           )}
-
-          <Box className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-            {!isCompleted && (
-              <CardBtn onClick={onRoster}>Roster</CardBtn>
-            )}
-            {/* Shown for a completed session too: its sittings are still
-                worth looking at, and the dialog is where an admin sees who
-                was in which batch. Only a cancelled session hides it. */}
-            {!isCancelled && (
-              <CardBtn onClick={onBatches} icon={Layers}>
-                {batches.length ? `Batches (${batches.length})` : "Batches"}
-              </CardBtn>
-            )}
-            <CardBtn onClick={onAttendance} icon={UserCheck}>
-              {isCompleted ? "View attendance" : "Mark attendance"}
-            </CardBtn>
-            {!isCompleted && <CardBtn onClick={onEdit} icon={Pencil}>Edit</CardBtn>}
-            {!isCompleted && !isCancelled && (
-              <CardBtn primary onClick={onComplete} icon={CheckCircle2}>Mark completed</CardBtn>
-            )}
-            {isUpcoming && <CardBtn danger onClick={onCancel}>Cancel</CardBtn>}
-          </Box>
+          {!isCompleted && <CardAction icon={Users} label="Roster" onClick={onRoster} />}
+          {!isCancelled && (
+            <CardAction
+              icon={UserCheck}
+              label={isCompleted ? "View attendance" : "Mark attendance"}
+              onClick={onAttendance}
+            />
+          )}
+          {!isCompleted && <CardAction icon={Pencil} label="Edit session" onClick={onEdit} />}
+          {!isCompleted && !isCancelled && (
+            <CardAction icon={CheckCircle2} label="Mark completed" onClick={onComplete} accent />
+          )}
+          {isUpcoming && <CardAction icon={X} label="Cancel session" onClick={onCancel} danger />}
         </Box>
       </Box>
-    </Box>
+    </Card>
   );
 }
+
 
 /**
  * The fill bar.
@@ -1043,6 +1098,41 @@ function BatchMeter({ batches, roster, capacity }) {
     </Box>
   );
 }
+
+/**
+ * One cell of the card's action bar.
+ *
+ * Icon-only to fit six of them across a third of a row, so `title` AND
+ * `aria-label` are mandatory — a bare glyph in a button has no name
+ * (§10.3.1.2). Hover FILLS rather than tints, for the reason that section
+ * gives: a 10% wash on one of six was impossible to tell from its neighbour.
+ */
+function CardAction({ icon: Icon, label, onClick, badge, accent, danger }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={cn(
+        "flex flex-1 cursor-pointer items-center justify-center gap-1 border-r border-line py-2.5 transition-colors last:border-r-0",
+        danger
+          ? "text-text-2 hover:bg-danger hover:text-white"
+          : accent
+            ? "text-accent-blue hover:bg-accent-blue hover:text-white"
+            : "text-text-2 hover:bg-accent-blue hover:text-white",
+      )}
+    >
+      <Icon className="size-3.5" />
+      {badge ? (
+        <Text as="span" className="bg-warning px-1 text-[9px] font-bold leading-[14px] text-white">
+          {badge}
+        </Text>
+      ) : null}
+    </button>
+  );
+}
+
 
 function CardBtn({ children, onClick, icon: Icon, primary = false, danger = false, disabled = false }) {
   return (
@@ -1864,6 +1954,7 @@ export function AdminSessionsContent() {
       end_time:     s.end_time     || "",
       description:  s.description  || "",
       status:       s.status       || "upcoming",
+      enroll_mode:  s.enroll_mode  || "assigned",
     });
     setThumbnailFile(null);
     setThumbnailCleared(false);
@@ -2166,6 +2257,40 @@ export function AdminSessionsContent() {
                 <Label className="text-sm font-medium">Capacity</Label>
                 <Input type="number" min={1} max={500} value={form.capacity} onChange={set("capacity")} className="h-10" />
               </Box>
+            </Box>
+
+            {/* Self-enrolment sits directly under Capacity on purpose: the two
+                only mean something together. Opening a session to everyone
+                without knowing how many seats it has is how a waitlist takes
+                the whole organization. */}
+            <Box className="border border-line bg-surface-2">
+              <Box className="flex items-center justify-between px-3 py-2.5">
+                <Box>
+                  <Text as="p" className="text-[13px] font-semibold text-ink">
+                    Open to self-enrolment
+                  </Text>
+                  <Text as="p" className="text-[11px] text-text-3">
+                    Learners book their own place from the Course Catalogue.
+                    You can still add people to the roster yourself.
+                  </Text>
+                </Box>
+                <Switch
+                  checked={form.enroll_mode === "self"}
+                  onCheckedChange={(v) =>
+                    setForm((p) => ({ ...p, enroll_mode: v ? "self" : "assigned" }))
+                  }
+                />
+              </Box>
+              {form.enroll_mode === "self" && (
+                <Box className="border-t border-line px-3 py-2">
+                  <Text as="p" className="text-[11px] text-text-2">
+                    Saving notifies every learner who is not already on this
+                    roster — once, not on every edit. Past the {form.capacity || 0}
+                    {" "}places they join a waitlist, and you promote them from the
+                    roster screen.
+                  </Text>
+                </Box>
+              )}
             </Box>
 
             <Box className="space-y-2">

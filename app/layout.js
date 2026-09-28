@@ -1,4 +1,5 @@
 import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { PRODUCT_FULL } from "@/lib/brand";
 import "./globals.css";
 
 /* Two typefaces, each with one job — the Spectra pairing.
@@ -23,8 +24,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata = {
-  title: "Edstellar LMS",
-  description: "Edstellar Learning Management System",
+  title: PRODUCT_FULL,
+  description: "Spectra LMS — a learning management system by Edstellar",
   robots: {
     index: false,
     follow: false,

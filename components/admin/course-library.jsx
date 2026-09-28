@@ -28,6 +28,7 @@ import {
 import { CourseArt } from "@/components/shared/course-art";
 import { DescriptionField } from "@/components/shared/description-field";
 import { ThumbnailField } from "@/components/admin/thumbnail-field";
+import { fetchSurveyOptions } from "@/services/api/surveys-api";
 import { useAuth } from "@/hooks/use-auth";
 import {
   bulkCourseAction, createCourse, deleteCourse, discardCourseThumbnail,
@@ -43,6 +44,7 @@ import { cn } from "@/lib/utils";
 const EMPTY_FORM = {
   name: "", description: "", is_active: false,
   category: "", is_mandatory: false, expiry_months: "", tags: "",
+  feedback_enabled: true, feedback_template_id: "", self_enrol: false,
 };
 
 function formatDuration(minutes) {
@@ -243,6 +245,22 @@ export function CourseLibrary() {
       is_mandatory: Boolean(course.is_mandatory),
       expiry_months: course.expiry_months ? String(course.expiry_months) : "",
       tags: course.tags ?? "",
+      // The LIST row comes from `SELECT c.*` and carries 1/0; the detail read
+      // is shaped and carries true/false. `Number()` accepts both, which
+      // matters because `0 !== false` is true and the switch would have shown
+      // "on" for every course that had it off — the §10.10 shape seam, seen
+      // from the browser's side.
+      feedback_enabled:
+        course.feedback_enabled === undefined || course.feedback_enabled === null
+          ? true
+          : Boolean(Number(course.feedback_enabled)),
+      // "" is the override being unset — the course follows its category.
+      feedback_template_id: course.feedback_template_id
+        ? String(course.feedback_template_id)
+        : "",
+      // Same 1/0-vs-boolean coercion as the flag above: the list row is raw
+      // SQL and the detail read is shaped.
+      self_enrol: Boolean(Number(course.self_enrol ?? 0)),
     });
     setThumbnailFile(null);
     setFormError(null);
@@ -275,6 +293,13 @@ export function CourseLibrary() {
             ? Number(form.expiry_months)
             : null,
         tags: form.tags.trim() || null,
+        feedback_enabled: form.feedback_enabled,
+        // Null clears the override and returns the course to the form its
+        // category implies — a working state, not an absence.
+        feedback_template_id: form.feedback_template_id
+          ? Number(form.feedback_template_id)
+          : null,
+        self_enrol: form.self_enrol,
         ...(uploadedUrl ? { thumbnail_url: uploadedUrl } : {}),
       };
       if (editing) await updateCourse({ courseId: editing.id, data: payload });
@@ -859,6 +884,7 @@ function CourseDialog({
   thumbnailFile, setThumbnailFile, saving, error, onSave,
 }) {
   const compliance = form.category === COMPLIANCE_CATEGORY;
+  const survey = useSurveyOptions(open);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -964,6 +990,44 @@ function CourseDialog({
             />
           </Box>
 
+          <FeedbackBlock
+            form={form}
+            setForm={setForm}
+            survey={survey}
+            category={form.category}
+          />
+
+          <Box className="border border-line bg-surface-2">
+            <Box className="flex items-center justify-between px-3 py-2.5">
+              <Box>
+                <Text as="p" className="text-[13px] font-semibold text-ink">
+                  Open to self-enrolment
+                </Text>
+                <Text as="p" className="text-[11px] text-text-3">
+                  Every learner sees it in their Course Catalogue and can add it
+                  themselves. You can still assign it as well.
+                </Text>
+              </Box>
+              <Switch
+                checked={form.self_enrol}
+                onCheckedChange={(v) => setForm((p) => ({ ...p, self_enrol: v }))}
+              />
+            </Box>
+            {form.self_enrol && (
+              <Box className="border-t border-line px-3 py-2">
+                {/* Said before Save, because a fan-out to the whole
+                    organization is not something to discover from the bell
+                    afterwards. It fires once, on the transition — editing the
+                    course again will not repeat it. */}
+                <Text as="p" className="text-[11px] text-text-2">
+                  {form.is_active
+                    ? "Saving notifies every learner who does not already have this course. It is announced once, not on every edit."
+                    : "Draft courses are not in the catalogue. Learners are notified when you publish it."}
+                </Text>
+              </Box>
+            )}
+          </Box>
+
           <Box className="flex items-center justify-between border border-line bg-surface-2 px-3 py-2.5">
             <Box>
               <Text as="p" className="text-[13px] font-semibold text-ink">Published</Text>
@@ -996,5 +1060,98 @@ function CourseDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── Feedback, on the course form ────────────────────────────────────────── */
+
+/**
+ * The templates this org has, and which one each CATEGORY implies.
+ *
+ * Fetched once per dialog open rather than with the library: eleven courses
+ * on screen do not need a template list until one of them is being edited.
+ * The category mapping is the API's answer, never recomputed here — a second
+ * copy of the resolution rule would be free to disagree with the form a
+ * learner is actually shown.
+ */
+function useSurveyOptions(open) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!open || data) return;
+    let cancelled = false;
+    fetchSurveyOptions()
+      .then((res) => { if (!cancelled) setData(res); })
+      // A failed fetch leaves the block in its "could not load" state rather
+      // than hiding it: the switch still works, and hiding the control would
+      // make a course silently keep a setting nobody could see.
+      .catch(() => { if (!cancelled) setData({ templates: [], category_templates: {} }); });
+    return () => { cancelled = true; };
+  }, [open, data]);
+
+  return data;
+}
+
+function FeedbackBlock({ form, setForm, survey, category }) {
+  const implied = category
+    ? survey?.category_templates?.[category]
+    : survey?.default_template;
+  const templates = survey?.templates ?? [];
+  const chosen = templates.find((t) => String(t.id) === form.feedback_template_id);
+
+  return (
+    <Box className="border border-line bg-surface-2">
+      <Box className="flex items-center justify-between px-3 py-2.5">
+        <Box>
+          <Text as="p" className="text-[13px] font-semibold text-ink">Ask for feedback</Text>
+          <Text as="p" className="text-[11px] text-text-3">
+            Optional for the learner, and never part of finishing the course.
+          </Text>
+        </Box>
+        <Switch
+          checked={form.feedback_enabled}
+          onCheckedChange={(v) => setForm((p) => ({ ...p, feedback_enabled: v }))}
+        />
+      </Box>
+
+      {form.feedback_enabled && (
+        <Box className="space-y-1.5 border-t border-line px-3 py-2.5">
+          <Label className="text-[12px]">Form</Label>
+          <Select
+            value={form.feedback_template_id || "auto"}
+            onValueChange={(v) =>
+              setForm((p) => ({ ...p, feedback_template_id: v === "auto" ? "" : v }))
+            }
+          >
+            <SelectTrigger>
+              {/* SelectValue prints the raw value without children, and every
+                  value here is an id. */}
+              <SelectValue>
+                {form.feedback_template_id
+                  ? (chosen?.name ?? "Chosen form")
+                  : implied
+                    ? `Follow the category — ${implied.name}`
+                    : "Follow the category"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">
+                {implied ? `Follow the category — ${implied.name}` : "Follow the category"}
+              </SelectItem>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Text as="p" className="text-[11px] text-text-3">
+            {form.feedback_template_id
+              ? "This course asks the form above, whatever its category says."
+              : category
+                ? `Courses in ${category} use ${implied ? `"${implied.name}"` : "the standard form"}. Edit its questions in Surveys & Feedback.`
+                : "A course with no category uses the standard form."}
+          </Text>
+        </Box>
+      )}
+    </Box>
   );
 }

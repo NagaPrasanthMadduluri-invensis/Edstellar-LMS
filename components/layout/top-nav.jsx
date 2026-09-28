@@ -1,5 +1,7 @@
 "use client";
 
+import { PRODUCT_BY, PRODUCT_NAME } from "@/lib/brand";
+
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -69,12 +71,41 @@ export function TopNav() {
       <Box className="flex min-w-0 items-center gap-2 sm:gap-3">
         <SidebarTrigger className="shrink-0 bg-transparent hover:bg-transparent" />
         <Separator orientation="vertical" className="hidden h-6 text-white sm:block" />
-        <Text
-          as="h2"
-          className="truncate text-base font-semibold leading-none tracking-tight text-background select-none sm:text-lg"
-        >
-          Edstellar LMS
-        </Text>
+        {/* Two lines in the height of one: the topbar is 14 units tall and
+            the byline sits under the name without growing it. `leading-none`
+            on both is what makes that fit.
+
+            THE BYLINE IS TRACKED OUT TO THE NAME'S WIDTH — letter-spacing, so
+            the gap opens between every letter rather than only between the two
+            words. `text-align-last: justify` was tried first and is the wrong
+            tool: with a two-word string it spreads the single word gap and
+            leaves "By          Edstellar".
+
+            The values are MEASURED, not guessed. At 18px "Spectra LMS" renders
+            105.8px and "By Edstellar" 56.4px at 10px, so 11 gaps need
+            (105.8 - 56.4) / 11 = 4.50px = 0.45em. The name is responsive
+            (`text-base` then `sm:text-lg`), which is why there are two values —
+            one tracking cannot match two name widths.
+
+            The negative margin-right cancels the trailing letter-space CSS adds
+            after the LAST character; without it the box overhangs the name by
+            one gap and the two lines stop being flush on the right.
+
+            Retune both numbers if either string changes. */}
+        <Box className="w-fit select-none">
+          <Text
+            as="h2"
+            className="whitespace-nowrap text-base font-semibold leading-none tracking-tight text-background sm:text-lg"
+          >
+            {PRODUCT_NAME}
+          </Text>
+          <Text
+            as="p"
+            className="mt-1 whitespace-nowrap text-[10px] font-medium leading-none text-accent-soft tracking-[0.343em] -mr-[0.343em] sm:tracking-[0.45em] sm:-mr-[0.45em]"
+          >
+            {PRODUCT_BY}
+          </Text>
+        </Box>
       </Box>
 
       <Box className="flex shrink-0 items-center gap-1 sm:gap-2">
