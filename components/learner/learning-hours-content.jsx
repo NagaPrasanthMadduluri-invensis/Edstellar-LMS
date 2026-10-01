@@ -1,393 +1,442 @@
 "use client";
 
 import { apiClient } from "@/lib/api-client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ResponsiveContainer, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  PieChart, Pie, Cell,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, ReferenceLine,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
-  Clock, TrendingUp, TrendingDown, Target, Trophy,
-  ArrowUp, ArrowDown, Minus, Lightbulb,
+  ArrowDown, ArrowUp, Clock, Lightbulb, Minus, Target, Trophy, Users,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { seriesColor, BRAND, HAIRLINE } from "@/lib/brand";
+import {
+  BRAND, HAIRLINE, LEARNING_TYPES, LEARNING_TYPE_ORDER, goalTone,
+} from "@/lib/brand";
 
-/* Department series colours follow the brand ramp: lime-soft → lime → navy.
-   Assigned by position so any set of departments stays distinguishable. */
-let deptOrder = [];
-function deptColor(dept) {
-  if (!deptOrder.includes(dept)) deptOrder = [...deptOrder, dept];
-  return seriesColor(deptOrder.indexOf(dept));
-}
+/* One control, four granularities — the same set My Progress offers, so a
+   learner moving between the two pages keeps the same vocabulary. */
+const GRANULARITIES = [
+  { key: "weekly",    label: "Weekly",    one: "week",    per: "this week" },
+  { key: "monthly",   label: "Monthly",   one: "month",   per: "this month" },
+  { key: "quarterly", label: "Quarterly", one: "quarter", per: "this quarter" },
+  { key: "yearly",    label: "Yearly",    one: "year",    per: "this year" },
+];
 
-/* ── status badge ── */
-const STATUS_CFG = {
-  "On Track": { cls: "bg-navy text-paper border-navy" },
-  "Close":    { cls: "bg-paper-cream text-ink border-navy/25"    },
-  "Behind":   { cls: "bg-paper-warm text-ink/60 border-border"      },
-  "Goal Reached!": { cls: "bg-paper-cream text-navy border-navy/20" },
-  "Almost There":  { cls: "bg-paper-cream  text-ink/70  border-border"    },
-  "On Track":      { cls: "bg-navy text-paper border-navy"     },
-  "Behind":        { cls: "bg-paper-warm text-ink/60 border-border"      },
-};
+const AXIS = { fontSize: 10, fill: BRAND.text3 };
 
-/* ── medal helpers ── */
-function Medal({ rank }) {
-  if (rank === 1) return <Text as="span" className="text-base">🥇</Text>;
-  if (rank === 2) return <Text as="span" className="text-base">🥈</Text>;
-  if (rank === 3) return <Text as="span" className="text-base">🥉</Text>;
-  return <Text as="span" className="text-xs text-muted-foreground font-semibold">{rank}</Text>;
-}
+/* ── Primitives ──────────────────────────────────────────────────────── */
 
-/* ── Skeleton ── */
 function LHSkeleton() {
   return (
     <Box className="space-y-4">
-      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</Box>
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4"><Skeleton className="h-56 rounded-xl" /><Skeleton className="h-56 rounded-xl" /></Box>
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4"><Skeleton className="h-52 rounded-xl" /><Skeleton className="h-52 rounded-xl" /></Box>
-      <Skeleton className="h-64 rounded-xl" />
-      <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</Box>
+      <Box className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+      </Box>
+      <Skeleton className="h-44" />
+      <Skeleton className="h-64" />
+      <Box className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Skeleton className="h-64" /><Skeleton className="h-64" />
+      </Box>
     </Box>
   );
 }
 
+function SegmentedControl({ value, onChange, options }) {
+  return (
+    <Box className="flex border border-line">
+      {options.map((o) => (
+        <Button
+          key={o.key}
+          variant="ghost" size="sm"
+          className={cn(
+            "h-7 cursor-pointer px-2.5 text-[11px] font-medium",
+            value === o.key ? "bg-navy text-white hover:bg-navy" : "hover:bg-surface-2",
+          )}
+          onClick={() => onChange(o.key)}
+        >
+          {o.label}
+        </Button>
+      ))}
+    </Box>
+  );
+}
+
+function CardHead({ title, sub, right }) {
+  return (
+    <Box className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
+      <Box className="min-w-0">
+        <Text as="h3" className="text-sm font-semibold leading-tight">{title}</Text>
+        {sub && <Text as="p" className="mt-0.5 text-[11px] text-text-3">{sub}</Text>}
+      </Box>
+      {right}
+    </Box>
+  );
+}
+
+function Th({ children, className }) {
+  return (
+    <th className={cn(
+      "whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-text-3",
+      className,
+    )}>{children}</th>
+  );
+}
+
+function Dash() { return <Text as="span" className="text-text-3">—</Text>; }
+
+function BandChip({ label }) {
+  return (
+    <Text as="span" className={cn("px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", goalTone(label).chip)}>
+      {label}
+    </Text>
+  );
+}
+
+/** A stat tile. `tone` colours the figure when the figure is a verdict. */
+function StatTile({ icon: Icon, iconTone, value, valueTone, label, sub }) {
+  return (
+    <Box className="bg-surface px-4 py-3">
+      <Icon className={cn("mb-1.5 h-3.5 w-3.5", iconTone)} />
+      <Text as="p" className={cn("text-lg font-bold leading-none", valueTone)}>{value}</Text>
+      <Text as="p" className="mt-1 text-[11px] text-text-3">{label}</Text>
+      {sub && <Text as="p" className="mt-0.5 text-[10px] text-text-3">{sub}</Text>}
+    </Box>
+  );
+}
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <Box className="border border-line bg-surface px-3 py-2">
+      <Text as="p" className="mb-1 text-[11px] font-semibold">{label}</Text>
+      {payload.map((p) => (
+        <Box key={p.dataKey} className="flex items-center gap-2">
+          <Box className="h-2 w-2" style={{ background: p.color || p.fill }} />
+          <Text as="span" className="text-[11px] text-text-2">{p.name}</Text>
+          <Text as="span" className="ml-auto text-[11px] font-semibold tabular-nums">{p.value}h</Text>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function ChartNote({ rows }) {
+  return (
+    <Box className="flex h-[220px] items-center justify-center px-6">
+      <Text as="p" className="text-center text-xs text-text-3">
+        {rows === 0
+          ? "No learning hours recorded yet."
+          : `Only ${rows} period${rows === 1 ? "" : "s"} of activity at this granularity — too few to draw a trend. Try a finer one.`}
+      </Text>
+    </Box>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────── */
+
 export function LearningHoursContent() {
   const { user } = useAuth();
-  const [data, setData]   = useState(null);
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [grain, setGrain] = useState("monthly");
 
   useEffect(() => {
     if (!user) return;
-    apiClient("/api/learner/learning-hours")
-      .then(setData)
-      .catch((e) => setError(e.message));
+    apiClient("/api/learner/learning-hours").then(setData).catch((e) => setError(e.message));
   }, [user]);
+
+  const rows = useMemo(() => data?.hoursByPeriod?.[grain] ?? [], [data, grain]);
+  const meta = GRANULARITIES.find((g) => g.key === grain);
 
   if (error) return (
     <Card className="p-8 text-center">
-      <Text as="p" className="text-error text-sm">{error}</Text>
-      <Button size="sm" variant="outline" className="mt-3" onClick={() => window.location.reload()}>Retry</Button>
+      <Text as="p" className="text-sm text-danger">{error}</Text>
+      <Button size="sm" variant="outline" className="mt-3 cursor-pointer" onClick={() => window.location.reload()}>
+        Retry
+      </Button>
     </Card>
   );
   if (!data) return <LHSkeleton />;
 
-  const { summary, weeklyTrend, depts, modeBreakdown, deptPeers, orgOverview } = data;
-  const s = summary;
+  const s = data.summary;
 
-  /* ── 6 stat cards ── */
-  const statCards = [
-    {
-      icon: Clock, iconBg: "bg-paper-cream", iconColor: "text-navy", circleBg: "bg-paper-cream",
-      value: `${s.thisMonth}h`, label: "This Month", sub: `Goal: ${s.goal}h`,
-    },
-    {
-      icon: s.diff >= 0 ? TrendingUp : TrendingDown,
-      iconBg: s.diff >= 0 ? "bg-paper-cream" : "bg-paper-cream",
-      iconColor: s.diff >= 0 ? "text-navy" : "text-ink/70",
-      circleBg: s.diff >= 0 ? "bg-paper-cream" : "bg-paper-cream",
-      value: `${s.lastMonth}h`, label: "Last Month",
-      sub: s.diff > 0 ? `+${s.diff}h more` : s.diff < 0 ? `${s.diff}h less` : "Same as now",
-    },
-    {
-      icon: TrendingUp, iconBg: "bg-paper-cream", iconColor: "text-navy", circleBg: "bg-paper-cream",
-      value: `${s.allTime}h`, label: "All-Time Total", sub: "Cumulative",
-    },
-    {
-      icon: Target, iconBg: "bg-paper-cream", iconColor: "text-ink/70", circleBg: "bg-paper-cream",
-      value: `${s.goalPct}%`, label: "Monthly Goal",
-      sub: s.remaining > 0 ? `${s.remaining}h remaining` : "Goal reached!",
-    },
-    {
-      icon: Trophy, iconBg: "bg-paper-cream", iconColor: "text-ink/70", circleBg: "bg-paper-cream",
-      value: `#${s.deptRank}`, label: "Dept Rank",
-      sub: `${s.dept} · ${s.deptTotal} learners`,
-    },
-    {
-      icon: s.gapToFirst > 0 ? ArrowUp : Trophy,
-      iconBg: "bg-paper-cream", iconColor: "text-navy", circleBg: "bg-paper-cream",
-      value: `${s.gapToFirst}h`, label: s.gapToFirst > 0 ? "Gap to #1" : "You're #1!",
-      sub: s.gapToFirst > 0 ? "Behind rank" : "Keep it up",
-    },
-  ];
+  /* The period in view is the LAST bucket on the axis. That is the current
+     one when the learner has been active in it, and their most recent
+     otherwise — which is the honest thing to lead with either way, as long
+     as the label says which (below). */
+  const latest = rows[rows.length - 1] ?? null;
+  const previous = rows.length > 1 ? rows[rows.length - 2] : null;
+  const delta = latest && previous ? Math.round((latest.total - previous.total) * 10) / 10 : 0;
+  const DeltaIcon = delta > 0 ? ArrowUp : delta < 0 ? ArrowDown : Minus;
+  const deltaTone = delta > 0 ? "text-success" : delta < 0 ? "text-danger" : "text-text-3";
 
-  /* ── tips message ── */
-  const sessionsNeeded = s.remaining > 0 ? Math.ceil(s.remaining / 0.4) : 0;
-
-  /* ── goal bar status class ── */
-  const barColor = s.goalPct >= 100 ? BRAND.success : s.goalPct >= 50 ? BRAND.accent : BRAND.danger;
+  const tone = latest ? goalTone(latest.statusLabel) : goalTone("Behind");
 
   return (
     <Box className="space-y-4">
 
-      {/* ── 6 stat cards ── */}
-      <Box className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {statCards.map((sc) => (
-          <Card key={sc.label} className="gap-0 relative overflow-hidden p-4">
-            <Box className={cn("w-9 h-9 rounded-lg flex items-center justify-center mb-2", sc.iconBg)}>
-              <sc.icon className={cn("h-4 w-4", sc.iconColor)} />
-            </Box>
-            <Text as="h2" className="text-2xl font-extrabold leading-none">{sc.value}</Text>
-            <Text as="p" className="text-xs text-muted-foreground mt-0.5">{sc.label}</Text>
-            <Text as="p" className="text-[10px] text-muted-foreground/70 mt-0.5">{sc.sub}</Text>
-            <Box className={cn("absolute -right-4 -top-4 w-16 h-16 rounded-full opacity-40", sc.circleBg)} />
-          </Card>
-        ))}
+      {/* ── The control that drives the page ─────────────────────────── */}
+      <Box className="flex flex-wrap items-center justify-between gap-3 border border-line bg-surface px-4 py-2.5">
+        <Box className="flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5 text-accent-blue" />
+          <Text as="p" className="text-xs text-text-2">
+            Everything below is shown{" "}
+            <Text as="span" className="font-semibold text-ink">{meta.label.toLowerCase()}</Text>
+            {" — the goal scales with the period."}
+          </Text>
+        </Box>
+        <SegmentedControl value={grain} onChange={setGrain} options={GRANULARITIES} />
       </Box>
 
-      {/* ── Row 1: Monthly Goal Progress + Weekly Trend ── */}
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Monthly Goal Progress */}
-        <Card className="gap-0 p-5">
-          <Box className="flex items-center justify-between mb-4">
-            <Box>
-              <Text as="h3" className="text-base font-semibold">Monthly Goal Progress</Text>
-              <Text as="p" className="text-xs text-muted-foreground mt-0.5">
-                {s.thisMonth} of {s.goal}h target · June 2026
-              </Text>
-            </Box>
-            <Badge variant="outline" className={cn("text-xs shrink-0", STATUS_CFG[s.statusLabel]?.cls || "bg-paper-warm text-ink/70")}>
-              {s.statusLabel}
-            </Badge>
-          </Box>
-
-          {/* Progress bar */}
-          <Box className="mb-3">
-            <Box className="h-3 bg-muted rounded-full overflow-hidden">
-              <Box className="h-full rounded-full transition-all" style={{ width: `${s.goalPct}%`, background: barColor }} />
-            </Box>
-            <Box className="flex justify-between mt-1.5">
-              <Text as="span" className="text-[10px] text-muted-foreground">0h</Text>
-              <Text as="span" className="text-[10px] font-bold" style={{ color: barColor }}>{s.goalPct}% complete</Text>
-              <Text as="span" className="text-[10px] text-muted-foreground">{s.goal}h</Text>
-            </Box>
-          </Box>
-
-          {/* This month vs last month */}
-          <Box className="flex items-center gap-4 py-4 px-4 bg-muted/30 rounded-xl mb-4">
-            <Box className="flex-1 text-center">
-              <Text as="h2" className="text-2xl font-extrabold text-navy">{s.thisMonth}h</Text>
-              <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mt-0.5">This Month</Text>
-            </Box>
-            <Box className="flex flex-col items-center text-muted-foreground">
-              {s.diff > 0 ? <ArrowUp className="h-4 w-4 text-navy" /> : s.diff < 0 ? <ArrowDown className="h-4 w-4 text-error" /> : <Minus className="h-4 w-4" />}
-            </Box>
-            <Box className="flex-1 text-center">
-              <Text as="h2" className="text-2xl font-extrabold text-muted-foreground">{s.lastMonth}h</Text>
-              <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mt-0.5">Last Month</Text>
-            </Box>
-          </Box>
-
-          {/* Tip */}
-          {s.remaining > 0 && (
-            <Box className="flex items-start gap-2 bg-paper-cream border border-border rounded-lg px-3 py-2.5">
-              <Lightbulb className="h-3.5 w-3.5 text-ink/70 shrink-0 mt-0.5" />
-              <Text as="p" className="text-xs text-ink/70">
-                You need <Text as="span" className="font-bold">{s.remaining}h more</Text> to reach your {s.goal}h monthly goal.
-                That&apos;s about {sessionsNeeded} session{sessionsNeeded !== 1 ? "s" : ""} of ~0.4h each.
-              </Text>
-            </Box>
-          )}
-          {s.remaining === 0 && (
-            <Box className="flex items-start gap-2 bg-paper-cream border border-navy/20 rounded-lg px-3 py-2.5">
-              <Text as="span" className="text-navy text-xs font-medium">🎉 You&apos;ve hit your monthly goal! Outstanding work.</Text>
-            </Box>
-          )}
+      {rows.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Clock className="mx-auto mb-3 h-8 w-8 text-line-strong" />
+          <Text as="p" className="text-sm font-semibold">No learning hours yet</Text>
+          <Text as="p" className="mt-1 text-xs text-text-2">
+            Hours are credited as you finish lessons, and for a live session once your trainer marks you present.
+          </Text>
         </Card>
-
-        {/* Weekly Trend */}
-        <Card className="p-5">
-          <Box className="flex items-center justify-between mb-4">
-            <Text as="h3" className="text-base font-semibold">Weekly Trend</Text>
-            <Text as="p" className="text-xs text-muted-foreground">Your department · June 2026</Text>
+      ) : (
+        <>
+          {/* ── Four figures for the period in view ───────────────────── */}
+          <Box className="grid grid-cols-2 gap-px border border-line bg-line lg:grid-cols-4">
+            <StatTile
+              icon={Clock} iconTone="text-accent-blue"
+              value={`${latest.total}h`} valueTone={tone.fg}
+              label={latest.is_current ? `This ${meta.one} so far` : `Latest ${meta.one} · ${latest.label}`}
+              sub={`Goal ${latest.goal}h`}
+            />
+            <StatTile
+              icon={DeltaIcon} iconTone={deltaTone}
+              value={previous ? `${previous.total}h` : "—"}
+              label={`Previous ${meta.one}`}
+              sub={previous
+                ? delta > 0 ? `${delta}h more now` : delta < 0 ? `${Math.abs(delta)}h less now` : "No change"
+                : "Nothing before this"}
+            />
+            <StatTile
+              icon={Target} iconTone={tone.fg}
+              value={`${latest.goalPct}%`} valueTone={tone.fg}
+              label="Of the goal"
+              sub={latest.remaining > 0 ? `${latest.remaining}h to go` : "Goal reached"}
+            />
+            <StatTile
+              icon={Trophy} iconTone="text-rust"
+              value={`${s.allTime}h`} label="All time" sub="Every period" />
           </Box>
-          <ResponsiveContainer width="100%" height={190}>
-            <LineChart data={weeklyTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={HAIRLINE} />
-              <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} unit="h" />
-              <Tooltip formatter={(v) => `${v}h`} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              {depts.map((dept) => (
-                <Line
-                  key={dept}
-                  type="monotone"
-                  dataKey={dept}
-                  stroke={deptColor(dept)}
-                  strokeWidth={dept === summary.dept ? 2.5 : 1.5}
-                  dot={{ r: dept === summary.dept ? 4 : 2 }}
-                  strokeOpacity={dept === summary.dept ? 1 : 0.5}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
-      </Box>
 
-      {/* ── Section: Hours by Training Mode ── */}
-      <Box>
-        <Text as="p" className="text-[10px] font-bold tracking-[0.18em] uppercase text-muted-foreground mb-3">
-          Your Hours by Training Mode
-        </Text>
-        <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          {/* Breakdown by Delivery Format */}
-          <Card className="p-5">
-            <Box className="flex items-center justify-between mb-4">
-              <Text as="h3" className="text-base font-semibold">Breakdown by Delivery Format</Text>
-              <Text as="p" className="text-xs text-muted-foreground">This month · {s.thisMonth}h total</Text>
-            </Box>
-
-            {modeBreakdown.length === 0 ? (
-              <Box className="py-8 text-center">
-                <Text as="p" className="text-sm text-muted-foreground">No learning hours recorded this month.</Text>
-              </Box>
-            ) : (
-              <Box className="space-y-3">
-                {modeBreakdown.map((m, i) => (
-                  <Box key={m.mode} className="flex items-center gap-3">
-                    <Box className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: seriesColor(i) }} />
-                    <Text as="p" className="text-xs text-muted-foreground w-36 shrink-0">{m.mode}</Text>
-                    <Box className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <Box className="h-full rounded-full" style={{ width: `${m.pct}%`, background: seriesColor(i) }} />
-                    </Box>
-                    <Text as="span" className="text-[11px] text-muted-foreground w-6 text-right shrink-0">{m.pct}%</Text>
-                    <Text as="span" className="text-[11px] font-bold w-7 text-right shrink-0">{m.hours}h</Text>
-                  </Box>
-                ))}
-              </Box>
-            )}
-          </Card>
-
-          {/* Mode Distribution donut */}
-          <Card className="p-5">
-            <Box className="flex items-center justify-between mb-2">
-              <Text as="h3" className="text-base font-semibold">Mode Distribution</Text>
-              <Text as="p" className="text-xs text-muted-foreground">How you learn · at a glance</Text>
-            </Box>
-
-            {modeBreakdown.length === 0 ? (
-              <Box className="py-8 text-center">
-                <Text as="p" className="text-sm text-muted-foreground">No data yet.</Text>
-              </Box>
-            ) : (
-              <Box className="flex items-center gap-4">
-                <Box className="relative shrink-0" style={{ width: 160, height: 160 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={modeBreakdown}
-                        dataKey="hours"
-                        nameKey="mode"
-                        cx="50%" cy="50%"
-                        innerRadius={48} outerRadius={70}
-                        paddingAngle={2}
-                      >
-                        {modeBreakdown.map((m, i) => (
-                          <Cell key={m.mode} fill={seriesColor(i)} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  {/* center label */}
-                  <Box className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <Text as="p" className="text-lg font-extrabold leading-none">{s.thisMonth}h</Text>
-                    <Text as="p" className="text-[9px] text-muted-foreground uppercase tracking-wide mt-0.5">TOTAL</Text>
-                  </Box>
+          {/* ── The meter ─────────────────────────────────────────────── */}
+          <Card className="gap-0 overflow-hidden p-0">
+            <CardHead
+              title={`Goal for ${latest.is_current ? meta.per : latest.label}`}
+              sub={latest.is_current
+                ? `Measured against the part of the ${meta.one} that has happened so far`
+                : `The whole ${meta.one}`}
+              right={<BandChip label={latest.statusLabel} />}
+            />
+            <Box className="space-y-3 px-4 py-4">
+              <Box>
+                <Box className="h-2.5 overflow-hidden bg-surface-3">
+                  <Box className={cn("h-full", tone.bg)} style={{ width: `${latest.goalPct}%` }} />
                 </Box>
+                <Box className="mt-1 flex items-center justify-between">
+                  <Text as="span" className="text-[10px] text-text-3">0h</Text>
+                  <Text as="span" className={cn("text-[11px] font-semibold", tone.fg)}>
+                    {latest.total}h of {latest.goal}h · {latest.goalPct}%
+                  </Text>
+                  <Text as="span" className="text-[10px] text-text-3">{latest.goal}h</Text>
+                </Box>
+              </Box>
 
-                <Box className="space-y-2 flex-1">
-                  {modeBreakdown.map((m, i) => (
-                    <Box key={m.mode} className="flex items-center gap-2">
-                      <Box className="w-2 h-2 rounded-full shrink-0" style={{ background: seriesColor(i) }} />
-                      <Text as="p" className="text-[11px] text-muted-foreground flex-1 truncate">{m.mode.split(" – ")[0]}</Text>
-                      <Text as="span" className="text-[11px] font-bold shrink-0">{m.hours}h</Text>
+              <Box className="flex items-start gap-2 border border-line bg-accent-tint px-3 py-2">
+                <Lightbulb className="mt-px h-3.5 w-3.5 shrink-0 text-accent-blue" />
+                <Text as="p" className="text-[11px] text-text-2">
+                  {latest.remaining > 0 ? (
+                    <>
+                      <Text as="span" className="font-semibold text-ink">{latest.remaining}h more</Text>
+                      {` to reach the ${meta.one}'s ${latest.goal}h goal`}
+                      {latest.is_current ? " at this point in it." : "."}
+                    </>
+                  ) : (
+                    <>Goal met for this {meta.one}. Everything from here is ahead of it.</>
+                  )}
+                </Text>
+              </Box>
+            </Box>
+          </Card>
+
+          {/* ── Every period, in full ─────────────────────────────────── */}
+          <Card className="gap-0 overflow-hidden p-0">
+            <CardHead
+              title={`Every ${meta.one}`}
+              sub="Hours by kind of learning, against the goal for each one"
+            />
+            <Box className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-surface-2">
+                  <tr>
+                    <Th className="pl-4">{meta.one}</Th>
+                    {LEARNING_TYPE_ORDER.map((k) => <Th key={k}>{LEARNING_TYPES[k].label}</Th>)}
+                    <Th>Total</Th>
+                    <Th>Goal</Th>
+                    <Th className="w-32">Vs goal</Th>
+                    <Th className="pr-4">Standing</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...rows].reverse().map((r) => {
+                    const t = goalTone(r.statusLabel);
+                    return (
+                      <tr key={r.period} className="border-t border-line">
+                        <td className="whitespace-nowrap py-2.5 pl-4 pr-3 font-semibold">
+                          {r.label}
+                          {r.is_current && <Text as="span" className="ml-1 font-normal text-text-3">(so far)</Text>}
+                        </td>
+                        {LEARNING_TYPE_ORDER.map((k) => (
+                          <td key={k} className="px-3 py-2.5 font-medium tabular-nums"
+                              style={{ color: LEARNING_TYPES[k].flat }}>
+                            {r[k] > 0 ? `${r[k]}h` : <Dash />}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2.5 font-bold tabular-nums">{r.total}h</td>
+                        <td className="px-3 py-2.5 tabular-nums text-text-2">{r.goal}h</td>
+                        <td className="w-32 px-3 py-2.5">
+                          <Box className="flex items-center gap-2">
+                            <Box className="h-1.5 flex-1 overflow-hidden bg-surface-3">
+                              <Box className={cn("h-full", t.bg)} style={{ width: `${r.goalPct}%` }} />
+                            </Box>
+                            <Text as="span" className={cn("w-9 shrink-0 text-right text-[11px] font-bold tabular-nums", t.fg)}>
+                              {r.goalPct}%
+                            </Text>
+                          </Box>
+                        </td>
+                        <td className="py-2.5 pl-3 pr-4"><BandChip label={r.statusLabel} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Box>
+          </Card>
+
+          {/* ── Two charts ────────────────────────────────────────────── */}
+          <Box className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card className="gap-0 overflow-hidden p-0">
+              <CardHead title="Hours over time" sub={`Your total per ${meta.one}, against the goal line`} />
+              <Box className="px-2 pb-2 pt-4">
+                {rows.length < 3 ? <ChartNote rows={rows.length} /> : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={rows} margin={{ top: 4, right: 12, left: -18, bottom: 0 }}>
+                      <CartesianGrid stroke={HAIRLINE} vertical={false} />
+                      <XAxis dataKey="label" tick={AXIS} axisLine={{ stroke: HAIRLINE }} tickLine={false} />
+                      <YAxis tick={AXIS} axisLine={false} tickLine={false} unit="h" width={44} />
+                      <Tooltip content={<ChartTooltip />} />
+                      {/* The goal, drawn where it belongs — on the chart the
+                          learner is reading, not only in a tile above it. */}
+                      <ReferenceLine
+                        y={Math.round(10 * (rows[rows.length - 1]?.goal ?? 0)) / 10}
+                        stroke={BRAND.warning} strokeDasharray="4 3"
+                        label={{ value: "goal", position: "right", fontSize: 9, fill: BRAND.warning }}
+                      />
+                      <Area
+                        type="monotone" dataKey="total" name="Hours"
+                        stroke={BRAND.accent} fill={BRAND.accent} fillOpacity={0.12} strokeWidth={2}
+                        dot={{ r: 2.5, fill: BRAND.accent, strokeWidth: 0 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </Box>
+            </Card>
+
+            <Card className="gap-0 overflow-hidden p-0">
+              <CardHead title="Where the hours came from" sub="The same hours, split by kind of learning" />
+              <Box className="px-2 pb-2 pt-4">
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={rows} margin={{ top: 4, right: 12, left: -18, bottom: 0 }}>
+                    <CartesianGrid stroke={HAIRLINE} vertical={false} />
+                    <XAxis dataKey="label" tick={AXIS} axisLine={{ stroke: HAIRLINE }} tickLine={false} />
+                    <YAxis tick={AXIS} axisLine={false} tickLine={false} unit="h" width={44} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
+                    {LEARNING_TYPE_ORDER.map((k) => (
+                      <Bar key={k} dataKey={k} name={LEARNING_TYPES[k].label}
+                           stackId="hours" fill={LEARNING_TYPES[k].chart} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+                <Box className="flex items-center justify-center gap-4 pb-2 pt-1">
+                  {LEARNING_TYPE_ORDER.map((k) => (
+                    <Box key={k} className="flex items-center gap-1.5">
+                      <Box className="h-2.5 w-2.5" style={{ background: LEARNING_TYPES[k].chart }} />
+                      <Text as="span" className="text-[10px] text-text-2">{LEARNING_TYPES[k].label}</Text>
                     </Box>
                   ))}
                 </Box>
               </Box>
-            )}
-          </Card>
-        </Box>
-      </Box>
-
-      {/* ── Dept Peers table ── */}
-      <Card className="gap-0 p-5">
-        <Box className="flex items-center justify-between mb-1">
-          <Box>
-            <Text as="h3" className="text-base font-semibold">Your Department — {s.dept}</Text>
-            <Text as="p" className="text-xs text-muted-foreground mt-0.5">Peer ranking by learning hours this month</Text>
+            </Card>
           </Box>
-          <Badge variant="outline" className="text-xs border-navy/20 text-navy bg-paper-cream shrink-0">
-            #{s.deptRank} of {s.deptTotal}
-          </Badge>
-        </Box>
+        </>
+      )}
 
-        <Box className="overflow-x-auto -mx-5 mt-4">
+      {/* ── Department, this month ────────────────────────────────────── */}
+      <Card className="gap-0 overflow-hidden p-0">
+        <CardHead
+          title={`Your department — ${s.dept}`}
+          /* Deliberately NOT period-aware, and it says so. The comparison is
+             against colleagues whose figures the API only computes for the
+             current month; bucketing it the four ways would mean four
+             org-wide passes to answer a question nobody asked of a quarter.
+             Labelling it beats silently showing monthly numbers under a
+             "Yearly" toggle. */
+          sub="This month only — the rest of this page follows the control above"
+          right={
+            <Text as="span" className="whitespace-nowrap text-[11px] text-text-3">
+              #{s.deptRank} of {s.deptTotal}
+            </Text>
+          }
+        />
+        <Box className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left font-semibold text-muted-foreground py-2 pl-5 pr-3 w-8">#</th>
-                <th className="text-left font-semibold text-muted-foreground py-2 px-3">LEARNER</th>
-                <th className="text-right font-semibold text-muted-foreground py-2 px-3">THIS MONTH</th>
-                <th className="text-right font-semibold text-muted-foreground py-2 px-3">LAST MONTH</th>
-                <th className="text-left font-semibold text-muted-foreground py-2 px-3 w-36">GOAL PROGRESS</th>
-                <th className="text-right font-semibold text-muted-foreground py-2 px-3">ALL TIME</th>
-                <th className="text-left font-semibold text-muted-foreground py-2 pl-3 pr-5">STATUS</th>
+            <thead className="bg-surface-2">
+              <tr>
+                <Th className="pl-4">Learner</Th><Th>This month</Th><Th>Last month</Th>
+                <Th>All time</Th><Th className="w-28">Vs goal</Th><Th className="pr-4">Standing</Th>
               </tr>
             </thead>
             <tbody>
-              {deptPeers.map((peer, i) => {
-                const scfg = STATUS_CFG[peer.status] || {};
-                const barCol = peer.goalPct >= 100 ? BRAND.success : peer.goalPct >= 60 ? BRAND.accent : BRAND.danger;
+              {data.deptPeers.length === 0 ? (
+                <tr><td colSpan={6} className="py-8 text-center">
+                  <Text as="p" className="text-xs text-text-3">Nobody else in your department yet.</Text>
+                </td></tr>
+              ) : data.deptPeers.map((p) => {
+                const t = goalTone(p.status);
                 return (
-                  <tr key={peer.id} className={cn("border-b last:border-0", peer.isYou && "bg-paper-cream")}>
-                    <td className="py-3 pl-5 pr-3 w-8">
-                      <Medal rank={i + 1} />
+                  <tr key={p.id} className={cn("border-t border-line", p.isYou && "bg-accent-tint")}>
+                    <td className="py-2.5 pl-4 pr-3 font-medium">
+                      {p.name}
+                      {p.isYou && <Text as="span" className="ml-1.5 text-[10px] font-semibold text-accent-blue">you</Text>}
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="px-3 py-2.5 font-semibold tabular-nums">{p.thisMonth}h</td>
+                    <td className="px-3 py-2.5 tabular-nums text-text-2">{p.lastMonth}h</td>
+                    <td className="px-3 py-2.5 tabular-nums text-text-2">{p.allTime}h</td>
+                    <td className="w-28 px-3 py-2.5">
                       <Box className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7 shrink-0">
-                          <AvatarFallback className="text-[10px] bg-paper-cream text-navy">
-                            {peer.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <Box>
-                          <Box className="flex items-center gap-1.5">
-                            <Text as="p" className="font-semibold">{peer.name}</Text>
-                            {peer.isYou && (
-                              <Badge className="text-[9px] px-1.5 py-0 bg-navy text-white border-0">You</Badge>
-                            )}
-                          </Box>
-                          <Text as="p" className="text-muted-foreground">{peer.dept}</Text>
+                        <Box className="h-1.5 flex-1 overflow-hidden bg-surface-3">
+                          <Box className={cn("h-full", t.bg)} style={{ width: `${p.goalPct}%` }} />
                         </Box>
+                        <Text as="span" className={cn("w-8 shrink-0 text-right text-[11px] font-bold tabular-nums", t.fg)}>
+                          {p.goalPct}%
+                        </Text>
                       </Box>
                     </td>
-                    <td className="py-3 px-3 text-right font-bold">{peer.thisMonth}h</td>
-                    <td className="py-3 px-3 text-right text-muted-foreground">{peer.lastMonth}h</td>
-                    <td className="py-3 px-3">
-                      <Box className="flex items-center gap-2">
-                        <Box className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <Box className="h-full rounded-full" style={{ width: `${peer.goalPct}%`, background: barCol }} />
-                        </Box>
-                        <Text as="span" className="text-[11px] font-semibold w-8 text-right shrink-0">{peer.goalPct}%</Text>
-                      </Box>
-                    </td>
-                    <td className="py-3 px-3 text-right text-muted-foreground">{peer.allTime}h</td>
-                    <td className="py-3 pl-3 pr-5">
-                      <Badge variant="outline" className={cn("text-[10px]", scfg.cls)}>{peer.status}</Badge>
-                    </td>
+                    <td className="py-2.5 pl-3 pr-4"><BandChip label={p.status} /></td>
                   </tr>
                 );
               })}
@@ -396,42 +445,27 @@ export function LearningHoursContent() {
         </Box>
       </Card>
 
-      {/* ── Org Overview ── */}
-      <Box>
-        <Box className="flex items-center justify-between mb-3">
-          <Text as="h3" className="text-base font-semibold">Organisation Overview</Text>
-          <Text as="p" className="text-xs text-muted-foreground">Learning hours by department this month</Text>
+      {/* ── Organisation, this month ─────────────────────────────────── */}
+      <Card className="gap-0 overflow-hidden p-0">
+        <CardHead
+          title="Across the organisation"
+          sub="This month only · average hours per person in each department"
+          right={<Users className="h-3.5 w-3.5 text-text-3" />}
+        />
+        <Box className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4">
+          {data.orgOverview.map((d) => (
+            <Box key={d.dept} className={cn("bg-surface px-4 py-3", d.isYourDept && "bg-accent-tint")}>
+              <Text as="p" className="truncate text-[11px] font-semibold">{d.dept}</Text>
+              <Text as="p" className="mt-1 text-base font-bold leading-none">{d.avgHours}h</Text>
+              <Text as="p" className="mt-1 text-[10px] text-text-3">
+                avg · {d.onTrack > 0
+                  ? <Text as="span" className="text-success">{d.onTrack} of {d.total} at goal</Text>
+                  : <Text as="span" className="text-text-3">none at goal yet</Text>}
+              </Text>
+            </Box>
+          ))}
         </Box>
-        <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {orgOverview.map((d) => {
-            const col = deptColor(d.dept);
-            return (
-              <Card key={d.dept} className={cn("gap-0 p-4 relative overflow-hidden border-l-4")} style={{ borderLeftColor: col }}>
-                <Box className="flex flex-wrap items-center gap-2 mb-2">
-                  <Text as="h4" className="text-sm font-bold basis-full sm:basis-auto" style={{ color: col }}>{d.dept}</Text>
-                  {d.isYourDept && (
-                    <Badge className="text-[9px] px-1.5 py-0 border-0" style={{ background: col + "22", color: col }}>Your dept</Badge>
-                  )}
-                </Box>
-                <Text as="h2" className="text-2xl font-extrabold">{d.totalHours}h</Text>
-                <Text as="p" className="text-[11px] text-muted-foreground mt-0.5">
-                  Avg {d.avgHours}h · {d.onTrack}/{d.total} on track
-                </Text>
-                <Box className="mt-3 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <Box
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${d.total > 0 ? Math.round((d.onTrack / d.total) * 100) : 0}%`,
-                      background: col,
-                    }}
-                  />
-                </Box>
-              </Card>
-            );
-          })}
-        </Box>
-      </Box>
-
+      </Card>
     </Box>
   );
 }

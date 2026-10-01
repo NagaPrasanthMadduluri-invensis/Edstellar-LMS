@@ -125,7 +125,12 @@ export function CourseFeedbackCard({ courseId }) {
   );
 }
 
-function FeedbackDialog({ courseId, form, onClose, onSaved }) {
+/**
+ * Exported so the Surveys module opens the SAME form the course page does.
+ * Two copies would drift on the one thing that must not — what a learner is
+ * asked and what gets saved.
+ */
+export function FeedbackDialog({ courseId, form, onClose, onSaved }) {
   const [answers, setAnswers] = useState(() => ({ ...(form.my_answers || {}) }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);

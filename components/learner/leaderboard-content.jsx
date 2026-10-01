@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Zap, Target } from "lucide-react";
+import { Trophy, Zap, Target, Star, Info } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
@@ -66,10 +66,99 @@ function LBSkeleton() {
   );
 }
 
+/**
+ * What actually earns points, straight from the API.
+ *
+ * The rules are NOT written here. They arrive from
+ * `modules/leaderboard/points.ts`, which is the same file the board pays
+ * out with — so the table and the arithmetic cannot drift. A hardcoded
+ * price list beside a live formula is the screen that lies (§10.3.1.2),
+ * and it fails worst here: a learner who reads a value they never receive
+ * stops believing the whole board.
+ *
+ * THREE ROWS, NOT ELEVEN. The reference design lists top score, perfect
+ * score, finished early, session attended and four community actions. This
+ * product awards none of them — there is no community feature, no
+ * early-completion bonus, and a session pays through the lesson its
+ * attendance completes. They are absent rather than shown at zero, which
+ * is the same call §10.3.1.21 makes for the webinar column.
+ */
+function HowPointsWork({ rules = [], notes = [] }) {
+  return (
+    <Card className="gap-0 overflow-hidden p-0">
+      <Box className="border-b border-line px-4 py-3">
+        <Text as="h3" className="text-sm font-semibold">How you earn points</Text>
+        <Text as="p" className="mt-0.5 text-[11px] text-text-3">
+          Your total across these is what places you on the board.
+        </Text>
+      </Box>
+
+      <Box className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-surface-2">
+            <tr>
+              <th className="px-3 py-2 pl-4 text-left text-[10px] font-semibold uppercase tracking-wider text-text-3">Activity</th>
+              <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-text-3">What earns it</th>
+              <th className="px-3 py-2 pr-4 text-right text-[10px] font-semibold uppercase tracking-wider text-text-3">Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map((r) => (
+              <tr key={r.key} className="border-t border-line align-top">
+                <td className="py-3 pl-4 pr-3 font-semibold whitespace-nowrap">{r.activity}</td>
+                <td className="px-3 py-3 text-text-2">
+                  {r.earnedBy}
+                  {/* The surprising half of a rule belongs beside it, not in
+                      a footnote nobody reaches — "you already passed this"
+                      is the single most common reason a score does not move. */}
+                  {r.note && (
+                    <Text as="p" className="mt-1 text-[11px] text-text-3">{r.note}</Text>
+                  )}
+                </td>
+                <td className="py-3 pl-3 pr-4 text-right whitespace-nowrap">
+                  {r.points === null ? (
+                    <Text as="span" className="text-[11px] font-medium text-text-2">
+                      {r.pointsLabel || "varies"}
+                    </Text>
+                  ) : (
+                    <Text as="span" className="text-sm font-bold text-accent-blue">+{r.points}</Text>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {rules.length === 0 && (
+              <tr><td colSpan={3} className="py-8 text-center text-xs text-text-3">
+                Point rules are unavailable right now.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </Box>
+
+      {notes.length > 0 && (
+        <Box className="space-y-1.5 border-t border-line bg-surface-2 px-4 py-3">
+          {notes.map((n) => (
+            <Box key={n} className="flex items-start gap-2">
+              <Info className="mt-px h-3 w-3 shrink-0 text-text-3" />
+              <Text as="p" className="text-[11px] text-text-2">{n}</Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Card>
+  );
+}
+
+const LB_TABS = [
+  { key: "rankings", label: "Rankings", icon: Trophy },
+  { key: "points", label: "How Points Work", icon: Star },
+];
+
 export function LeaderboardContent() {
   const { user } = useAuth();
   const [data, setData]   = useState(null);
   const [error, setError] = useState(null);
+  const [tab, setTab]         = useState("rankings"); // rankings | points
   const [period, setPeriod]   = useState("alltime"); // alltime | month
   const [deptFilter, setDeptFilter] = useState("All Departments");
 
@@ -102,13 +191,38 @@ export function LeaderboardContent() {
   return (
     <Box className="space-y-5">
 
+      {/* ── Tabs. Rankings is the page as it was; the second answers the
+             question the first one provokes. ── */}
+      <Box className="flex border-b border-line">
+        {LB_TABS.map(({ key, label, icon: Icon }) => (
+          <Button
+            key={key}
+            variant="ghost" size="sm"
+            onClick={() => setTab(key)}
+            className={cn(
+              "-mb-px h-9 cursor-pointer gap-1.5 border-b-2 px-4 text-xs font-medium",
+              tab === key
+                ? "border-accent-blue text-accent-blue hover:bg-transparent"
+                : "border-transparent text-text-2 hover:bg-surface-2",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />{label}
+          </Button>
+        ))}
+      </Box>
+
+      {tab === "points" ? (
+        <HowPointsWork rules={data.pointRules} notes={data.pointNotes} />
+      ) : (
+      <>
+
       {/* ── Hero banner ── */}
       <Box className="rounded-xl bg-navy px-6 py-5 flex items-center gap-4">
         <Trophy className="h-10 w-10 text-paper shrink-0" />
         <Box>
           <Text as="h1" className="text-xl font-extrabold text-white">Leaderboard &amp; Recognition</Text>
           <Text as="p" className="text-sm text-white/80 mt-0.5">
-            Points are earned by completing courses, passing assessments, taking baselines, giving feedback, and finishing early. Recognition is auto-computed.
+            Points come from finishing lessons, passing assessments and completing learning paths. Recognition is worked out automatically.
           </Text>
         </Box>
       </Box>
@@ -275,6 +389,9 @@ export function LeaderboardContent() {
           </table>
         </Box>
       </Card>
+
+      </>
+      )}
     </Box>
   );
 }

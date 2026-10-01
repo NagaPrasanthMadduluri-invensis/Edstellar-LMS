@@ -427,6 +427,54 @@ Fixed in `course-reward.jsx`, `lesson-content.jsx` and the course hero's
 progress figure. `bg-lime text-navy` was left alone — navy ON accent-blue is
 the readable direction — as was `.cta-lime`, which is its own component class.
 
+### 10.1.1 Learning types are the second coloured axis
+
+Course category is one (§10.3.1.3). This is the other, and it is smaller and
+stricter: **what a piece of learning IS** — a course, a step inside a learning
+path, a live session, a webinar.
+
+| Kind | Token | Resolves to |
+|---|---|---|
+| Courses | `--type-course` | `accent-blue` |
+| Learning Paths | `--type-path` | `warning` |
+| Sessions | `--type-session` | `success` |
+| Webinars | `--type-webinar` | `rust` |
+
+**These are ALIASES, not new hues, and that is what earns them a place.**
+§10.1 closes the palette, and unlike course category — where seven values
+genuinely needed two colours the product did not have — four kinds fit
+exactly into four colours it already carries. What is new is the MEANING. The
+mapping from kind to hue had no name before, so it was re-decided per screen,
+and a legend, a stacked bar, a column header and a tab could each pick a
+different green for "sessions". Now they read it from one place.
+
+Three weights, because one colour cannot do three jobs:
+
+- **flat** (`text-type-session`, `bg-type-path`) — text, a 3px rule, a legend
+  swatch, a table figure.
+- **-chart** (`bg-type-course-chart`) — the same hue at **80% over white**,
+  for a large filled area. Four full-strength blocks in a stacked bar fight
+  each other; at 80% they sit together and stay distinguishable. The values
+  are DERIVED, `0.8 x hue + 0.2 x white`, so they stay in family if a hue
+  moves — do not hand-pick a replacement.
+- **-tint** (`bg-type-session-tint`) — the 12% wash, matching `.chip-*` and
+  `.tile-*`. `.tile-type-course` and friends exist for the tinted icon tile.
+
+**`lib/brand.js` mirrors them as `LEARNING_TYPES` and must move with them** —
+§10.1's standing rule, and it bites harder here than usual because a Recharts
+series drawn from the JS mirror sits directly above a legend swatch painted
+from the CSS token.
+
+**`webinar` is defined and deliberately unrendered.**
+`sessions.session_type` accepts ILT and Virtual only, so a webinar series
+would be zero on every row for every learner — the empty-column failure
+BACKEND_STRUCTURE §10.12 records. The colour is decided so that the day the
+enum gains it, nobody picks one in a hurry.
+
+**`LEARNING_TYPE_ORDER` is the render order**, and it is the three that can
+carry hours. Iterate it rather than `Object.keys(LEARNING_TYPES)`, or the
+webinar column comes back.
+
 ### 10.2 Typography
 
 | Face | Class | Use |
@@ -1127,6 +1175,36 @@ your earlier answer."
 **Opening the form CLOSES the session dialog** rather than stacking on it.
 Two dialogs deep is a place with two Close buttons and no obvious back.
 
+#### The learner's calendar describes ONE month
+
+Everything under the heading belongs to the month in it — the count, the
+grid and the list. The counts were all-time, so somebody opening a quiet
+month read *"4 sessions enrolled · 1 upcoming"* above an empty grid: two
+numbers for one screen, and the one that did not belong to the heading
+winning. That is the same failure §10.3.1.8 records for KPI tiles reduced
+from a different query than the rows beneath them.
+
+**The list view is scoped with it**, and that is the part worth stating
+because it looks like a loss. A calendar silently listing other months
+underneath its own title is the same disagreement one scroll further down,
+and the whole record already lives in My Sessions (§10.3.1.17), which is
+where a learner goes to see everything at once. The month nav therefore
+renders in BOTH views — hidden in the list, it would strand somebody on
+whatever month they happened to switch view in.
+
+**An empty month offers the nearest one by name** — "Jump to November
+2026" — rather than leaving a learner to click Prev until something
+appears. Ties go FORWARD, because that is the session they can still turn
+up to.
+
+**"0 upcoming" is not said.** On a month already past it is noise rather
+than a figure, so the clause renders only when the count is non-zero — the
+same rule the sessions grid follows for "Need attention". And the
+no-sessions-at-all empty state is left exactly as it was: *"Nothing
+scheduled in September"* and *"You haven't been enrolled in any sessions
+yet"* are different facts, and a learner has to be able to tell a quiet
+month from an empty account (§10.3.1.11).
+
 ### 10.3.1.14 Roles in Manage Users, and the trainer a session needs
 
 The session form's Trainer picker was correct and permanently empty: nothing
@@ -1245,6 +1323,487 @@ offset that `new Date()` rejects, so every Last active cell rendered `—` while
 the API was sending a real date. Only the date is displayed, so take
 `slice(0, 10)` and build from the parts. Worth knowing before adding another
 date column to any screen that reads a raw row.
+
+### 10.3.1.23 Learning Hours is period-driven, and colour is the verdict
+
+One control at the top — Weekly · Monthly · Quarterly · Yearly — and it
+drives **everything beneath it**: the four figures, the goal meter, the table
+of every period, and both charts. The strip says so in words, because a
+control that silently governs half a page is a control people stop trusting.
+
+**Green when the goal is in reach, ochre while it is plausible, red when it
+is not.** Four bands, decided by the API and mapped to the palette by
+`goalTone()` in `lib/brand.js`. Nothing in the browser re-derives a
+threshold — the API scored the number, so the API says which band it is
+(§10.3.1.18's rule for the feedback category map, applied to a scale).
+
+| Band | Colour |
+|---|---|
+| Goal Reached! (100%) | `success` |
+| Almost There (80–99%) | `success` |
+| On Track (50–79%) | `warning` |
+| Behind (<50%) | `danger` |
+
+This is the one place `danger` colours something that is not a failure or a
+destruction, and it is a deliberate reading of §10.1 rather than a hole in
+it: being behind on a goal you set IS the bad outcome this page exists to
+surface, and an ochre "Behind" beside an ochre "On Track" would make the two
+indistinguishable at a glance — which is the whole job of the colour.
+
+**The goal scales with the period, and the CURRENT one is pro-rated.** A
+quarter nine days old is measured against nine days of target, and the card
+says "measured against the part of the quarter that has happened so far". A
+full-quarter target against nine days would print "Behind" every January and
+mean nothing.
+
+**The page leads with the CURRENT period, even at zero.** The axis reaches
+today rather than stopping at the learner's last activity — "you have done
+nothing this month" is the single most useful thing a goal page can say, and
+a headline two months stale is worse than an honest zero.
+
+**"Every period" is the table the request was actually about.** One row per
+bucket, with the hours split by learning type in their own colours
+(§10.1.1), the goal, a bar, the percentage and the band. It reads
+newest-first, because the period somebody wants is nearly always the recent
+one.
+
+**The goal is drawn ON the trend chart**, as a dashed `warning` reference
+line, not only stated in a tile above it. A trend without its target is a
+shape; with it, it is an answer.
+
+**The department panels are NOT period-aware, and they say so** — "This
+month only — the rest of this page follows the control above". The comparison
+is against colleagues whose figures the API computes for the current month;
+bucketing it four ways means four org-wide passes to answer a question
+nobody asked of a quarter. Labelling it beats silently showing monthly
+numbers under a "Yearly" toggle, which is the screen that lies.
+
+### 10.3.1.28 Analytics charts are WARM — no blue, no navy
+
+`CHART_SERIES` leads with accent-blue and navy, which is right for a chart
+sitting alone on a light page. The Analytics page is eight charts stacked in
+one scroll, and in those two colours they read as one undifferentiated
+block: every series on every chart the same blue, so nothing distinguishes a
+mode from a department from a month.
+
+`WARM_SERIES` in `lib/brand.js` is the ramp that page uses — the three
+palette hues that are not blue (`success`, `rust`, `warning`), each at full
+strength and at the 80%-over-white weight §10.1.1 already derives. Six
+slots, alternating deep and mid so adjacent series never sit at the same
+weight. **No new hues**: §10.1 stays closed.
+
+**`danger` is deliberately out of it.** Red is reserved for genuine failure,
+and a categorical slot landing on red would say a department was in trouble
+for no reason beyond its position in a list.
+
+**Two series get a MEANING rather than a slot.** On "Enrolments vs
+completions", completions take the green and enrolments the ochre: one is
+the outcome and the other the input, and the pair is read as the gap between
+them. Giving them arbitrary ramp positions would throw that away.
+
+**This is the chart ramp for this page, not a palette change.** The learner
+pages keep accent-blue — one chart on a page has no neighbours to be
+confused with. Verified by reading every painted fill and stroke on
+Analytics: seven values, all from the warm ramp, no `#3B6FD4` and no
+`#1E2D40`.
+
+The page HEADING keeps its accent-blue emphasis (§10.2) and the neutral
+StatTile figures keep theirs (§10.3.1.27) — those are type and status, not
+chart series.
+
+### 10.3.1.27 Admin metrics carry how they are DOING
+
+**This reverses a stated rule.** `kpi-strip.jsx` used to say a tone "says
+which KPI this is, not how it is doing — a green tile is *completion*, not
+*completion is good*". That spent the reader's only colour budget on a label
+they could already read. A strip of six tiles has to be scannable: the one
+that needs somebody today should be the one the eye lands on.
+
+**One definition, three pages.** `metricTone()` in `lib/brand.js` is read by
+the dashboard, analytics and reports, so they cannot disagree about what
+green means. Two directions, because the product has both kinds of number:
+
+| | bands |
+|---|---|
+| higher is better — completion, pass rate, a score | ≥75 green · ≥50 ochre · else red |
+| lower is better — overdue, at risk, unmarked | 0 green · ≤ `warnAbove` ochre · else red |
+
+**NEUTRAL IS A REAL ANSWER, and the commonest one.** Total learners, hours
+recorded, certificates issued, in progress — no good direction, so they stay
+accent. Painting them would spend attention on figures that are not asking
+for it and make the two that ARE asking harder to find. A page where
+everything is coloured has no emphasis at all.
+
+**Zero problems is GREEN, not red.** "Overdue: 0" was a flat rust tile that
+could not tell "none" from "twelve". §10.3.1.8 already said a red zero is a
+false alarm; the bands now encode it, and the hint says "Nothing overdue".
+
+**The value takes the tone, not only the icon.** A red tile beside a black
+number reads as a category. And an icon takes the same tone as the number it
+labels — two colours on one tile makes the reader pick which to believe.
+
+**`.tile-danger` is the fifth tinted tile** (§10.4 listed four). A figure
+that is genuinely bad needs the same weight as the other four, or it reads
+as a fourth category rather than as a problem.
+
+#### Insight cards are toned at the SOURCE
+
+`InsightPanel` colours each card's icon and left edge from a `tone` the API
+sends with the sentence — because "hours grew 40%" and "hours fell 40%" are
+the same shape and opposite news, and only the place that wrote the sentence
+knows which. A `bad` card also gets a faint `danger` wash: it is the one
+card meant to be visible from across the room, and a 16px icon cannot do
+that alone.
+
+The tones are chosen by what the sentence CLAIMS, not by its headline
+figure. "X leads at 90%; Y is furthest behind at 20%" is scored on Y — the
+leader is context, the laggard is the reason to read it.
+
+#### Reports tone percentages only
+
+The builder sends `{ label, value }` already formatted, and a percentage is
+the only shape with an unambiguous good direction. "112 enrolments" is
+neither good nor bad without a target nobody has set, so counts stay in ink
+rather than being guessed at from their label.
+
+### 10.3.1.26 The admin dashboard points at Analytics, and one tile has a period
+
+**"Assigned" left the KPI strip.** Five tiles, not six: the count of
+assignments made is an input, not an outcome, and the row beside it is about
+where learners have got to. Completion, in progress and overdue all describe
+the same population it did, better.
+
+**"See full analytics" sits in the Key Insights header**, dark, on the right.
+`InsightPanel` already reserved that slot with a `justify-between` and never
+filled it. The dashboard says what is true NOW and Analytics says how it got
+there (BACKEND_STRUCTURE §10.12) — a reader who has just been told something
+is wrong wants the trend behind it, and until now had to find it in the
+sidebar. It is a link, so the panel stays a Server Component.
+
+**The Engagement snapshot has a W · M · Q · Y control, and only one tile
+moves.** Five of its six figures are all-time; exactly one is period-scoped,
+and it used to be hardcoded to "Hours this month". The control sits on the
+PANEL and names its effect on the TILE ("Hours this quarter"), because a
+selector sitting over figures it cannot change is the control that lies
+(§10.3.1.2).
+
+All four values arrive in one payload, so switching costs no request — and
+they come from the same per-learner sum the month always came from, so
+switching cannot switch which definition of an hour is in play.
+
+**Analytics gained Weekly** beside Monthly, Quarterly, Half-yearly and
+Yearly. Its labels lead with the day (`28 Sep`) so a week is never mistaken
+for a month (`Sep 2026`) — the same disambiguation §10.3.1.23 makes on the
+learner side.
+
+**The dashboard has no other period control, deliberately.** Its remaining
+panels — completion status, department progress, action required, recent
+activity — are all "what is true now". A selector over them would need every
+figure re-scoped, which is what Analytics already is.
+
+### 10.3.1.25 Surveys & Feedback is an inbox, not a form
+
+One page collecting everything a learner has been ASKED — which is why it
+sits beside Dashboard and Course Catalogue rather than under My Learnings.
+It is not a thing they are learning, and it has to be findable once the
+dashboard prompt has scrolled past.
+
+Three sections, each absent when empty: **pending course feedback**
+(`warning` rule), **session feedback to give** (`accent-blue` rule), and
+**already submitted** (`success` rule). The kind is carried three ways — the
+left rule, the chip and the icon — because one signal alone is a detail a
+reader skims past (§10.3.1.19 makes the same argument for catalogue cards).
+
+**Two kinds, kept apart on purpose.** Course feedback is whatever form the
+admin wrote (§10.24); session feedback is three fixed ratings read
+anonymously by the trainer (§10.20). Different tables, different audiences,
+different questions. Flattening them into one list would mean the list
+lying about one of them — so the session rows carry *"your trainer never
+sees your name"* in their own meta line, where the promise belongs.
+
+**"Optional", never "Required".** The reference marks pending course
+feedback Required. It is not: feedback never affects completion, and every
+other surface in this product says so (§10.3.1.18). A Required chip here
+would contradict the card on the course page one click away.
+
+**THE ORGANISATION SURVEY IS NOT BUILT.** The reference's middle section is
+"Q3 Employee Engagement Pulse — Organisation survey · 5 questions". There is
+no such feature — no table, no admin authoring, no distribution — so that
+section is not rendered. A heading reading "Surveys to do" that can never
+contain anything is the empty-column failure §10.3.1.21 records, and worse
+here: it implies the organization sent something and this page lost it. The
+slot is used by session feedback, which is real and was previously reachable
+only from inside a calendar dialog.
+
+**Both forms are the EXISTING ones**, reused rather than rebuilt —
+`FeedbackDialog` from the course page and `SessionFeedbackDialog` from the
+calendar. Two copies would drift on the one thing that must not: what a
+learner is asked and what gets saved.
+
+**A submitted row offers Change.** The API upserts (§10.24, §10.20), so
+revising is allowed; leaving it to be guessed would make the page look
+read-only when it is not.
+
+### 10.3.1.24 The leaderboard says how points work
+
+Two tabs: **Rankings** — the board exactly as it was — and **How Points
+Work**, because the first provokes the question and nothing on the page
+answered it.
+
+**The rules are FETCHED, never written in the browser.** `pointRules` and
+`pointNotes` come from `modules/leaderboard/points.ts`, which is the same
+file the board pays out with. A price list typed into a component beside a
+live formula is the screen that lies (§10.3.1.2) and it fails worst here: a
+learner who reads a value they never receive stops believing the whole
+board. Same rule §10.3.1.18 states for the feedback category map.
+
+**THREE ROWS, NOT ELEVEN.** The reference design lists top score, perfect
+score, finished early, session attended and four community actions. This
+product awards none of them — there is no community feature, no
+early-completion bonus, and a live session pays through the lesson its
+attendance completes (§10.7) rather than as a line of its own. They are
+absent rather than shown at zero, the same call §10.3.1.21 makes for the
+webinar column. What a session DOES pay is stated in the notes, because it
+is the question learners actually ask.
+
+**A path's bonus reads "set per path", not a number.** Each carries its own
+`points_bonus`, so naming one would be wrong for every path but that one.
+
+**The surprising half of a rule sits beside it**, not in a footnote — "you
+have already passed this one" is the commonest reason a score does not move,
+and a learner should meet it in the row rather than hunt for it.
+
+**The hero's own sentence was wrong and was fixed in the same change.** It
+claimed points came from "taking baselines, giving feedback, and finishing
+early" — three things that pay nothing here. A page explaining the rules
+directly beneath a banner misstating them would have been worse than either
+alone.
+
+### 10.3.1.22 My Learning Paths
+
+**The "Learning Journey" tab is gone from My Courses, and it was never a
+learning journey.** It numbered whatever courses happened to be assigned to
+you 1..N, called the completed fraction a journey percentage, and put both
+behind a toggle at the top of the page. There was no order anybody chose and
+no relation to the paths an admin actually builds — an arbitrary list dressed
+as a deliberate sequence. Two things called a journey, one of them not one,
+is how a learner stops believing either.
+
+The functionality it gestured at — a numbered sequence you can read at a
+glance — is here instead, over a real path, where the order on screen is the
+order somebody meant. `journeyPct` went with it.
+
+
+Its own module in the learner sidebar, between My Courses and My Sessions —
+not a tab inside My Courses, and the reason is the same one that moved
+sessions out (§10.3.1.17). **A path is an ORDER somebody chose.** A course
+only becomes the next one once the previous is done, and that sequence is the
+entire feature; listed among courses it reads as five more cards with the one
+thing that makes it a path thrown away.
+
+The API resource stays `journeys` and the admin route stays `/admin/journeys`
+— renaming either breaks bookmarks and disagrees with the table names
+(§10.15 made the same call). Only what a reader is shown says "learning path".
+
+**Two views, one page: a list of cards, and a detail behind a click.** The
+detail is state rather than a route, because it is reached only from the card
+above it and a learner arriving at a deep link with no list behind them has
+nowhere to press Back to.
+
+#### The card
+
+Reference order, kept: art with a completion badge over it, then pills, title,
+meta, description, skills, three counts, a segmented bar, and the way in.
+
+**The accent is the LEARNING-TYPE colour (§10.1.1), not a category hue.** The
+reference paints each path in the category colour of its first course, which
+makes two paths built from Technical courses look like the same thing and
+makes a path change colour when somebody reorders its steps. Olive is what
+"learning path" already means in this product — the My Progress column, the
+yearly table, the stacked chart — so the module and the figure agree.
+
+**The bar is SEGMENTED, because a path has three states.** Green for finished,
+accent for started, the track for untouched. One accent fill would say a
+half-finished course counts for nothing, which is exactly what a learner
+halfway through step two would disagree with.
+
+**The counts come from the API and count EVERY course**, not only the required
+ones progress is measured against. A card saying "5 courses" above six chips
+would be two numbers disagreeing on one card.
+
+**The SEQUENCE is on the card, not only behind the click.** A row of
+numbered chips joined by arrows — the tick replacing the number once a step
+is done, the current step in accent and bold, the rest grey. This is the
+part that makes a path a path rather than a bundle of courses, so it belongs
+where somebody decides whether to open it. It is also, precisely, what the
+old My Courses tab was reaching for.
+
+The chips read the same four states as the step rows in the detail, from the
+same `progress_status` the API derives once — so a chip and the step card it
+links to can never disagree about whether a course has been started.
+
+**"All required" is said only when it is true.** A pill on every card
+claiming something that varies between paths is noise.
+
+**No "More paths coming" placeholder.** The reference fills the second grid
+cell with a dashed box saying more may arrive. It would be on screen forever,
+saying the same thing to somebody with one path and somebody with six — the
+furniture §10.3.1.20 warns about. An empty grid cell is quieter and just as
+true.
+
+#### The sequence
+
+A numbered rail down the left, one card per step, and the number is replaced
+by a tick when done, a cross when failed and a padlock when locked.
+
+**The gate and the progress are two different fields, and the UI needs both.**
+`status` is locked / open / complete and is what the API enforces; a step that
+is merely `open` may be untouched or 60% finished. Offering "Start" to
+somebody two-thirds of the way through is §10.3.1.2's screen that lies, so
+`progress_status` says which, and the button reads Start / Continue / Review /
+Retake accordingly.
+
+**A locked step offers NOTHING and says why** — "Finish the step before this
+one to unlock it." The API refuses it (§10.11), so a button there would 403 on
+click. Absent beats disabled here because there is a useful sentence to put in
+its place.
+
+**A step can be open out of order, and that is correct.** A course an admin
+assigned directly is never gated — only its position inside a path is
+(§10.11) — so a learner who already had step three sees it open while step two
+is still outstanding. Nothing in the UI recomputes the gate; it renders what
+the API sends, the same rule §10.3.1.19 states for `is_full`.
+
+**"Not passed", not "Failed", on a score.** A course whose lessons are done
+but whose quiz is outstanding is in progress, not failed, and only an actual
+unsuccessful attempt earns the red.
+
+#### The empty state
+
+Most organizations have no learning paths yet, so this is the state most
+learners will meet first. It says what a learning path IS, that L&D creates
+them, and that steps unlock in order — and links to My Courses. An empty
+module that only says "nothing here" is indistinguishable from a broken one
+(§10.3.1.11), and this one also has to explain a feature the reader has never
+seen.
+
+### 10.3.1.21 My Progress
+
+One page, six blocks, and every one of them is about the same set of hours
+seen a different way: the strip counts them, Learning History lists what
+produced them, Learning Hours measures them against the goal, the yearly
+table splits them by kind, and the two charts draw them over time.
+
+**Learning History is three tabs, not one list** — Courses, Learning Paths,
+Sessions. They are genuinely different things and a single list would have to
+pick one vocabulary and be wrong for two of them, which is the argument
+§10.3.1.17 already made when sessions left My Courses. The columns differ
+accordingly:
+
+| Tab | Columns |
+|---|---|
+| Courses | course · status · progress · score · time spent |
+| Learning Paths | path · status · progress · next step · assigned |
+| Sessions | session · type · status · when · trainer · time spent |
+
+**A SESSION HAS NO PROGRESS BAR**, and its absence is the honest part. A
+learner cannot move it — the trainer marks them present — so a 0% bar reads
+as their own inaction (§10.3.1.17). What a session row shows instead is when
+it is and who is running it, which is what somebody looking at one actually
+wants to know.
+
+**The count rides on the tab**, so an empty tab says so before it is opened
+rather than after. And the two empty states are different sentences on
+purpose: "No sessions booked yet" against "No learning paths assigned yet.
+Your admin builds these from existing courses." A learner whose org has never
+created a path should be able to tell that from a feature that is broken
+(§10.3.1.11).
+
+**An externally-completed course says so on the row.** It is a real completed
+course with real hours (§10.26), and the label is what keeps the row from
+claiming this platform delivered the training.
+
+**The yearly table has no Webinars column** and the charts have no webinar
+series, though the reference design shows four. `sessions.session_type`
+accepts ILT and Virtual only, so it would be zero on every row forever. See
+§10.1.1 — the colour exists, the column does not.
+
+**The two charts read ONE dataset.** `hoursByPeriod[granularity]` carries
+`course`, `path`, `session` and `total` per bucket; the trend draws `total`
+and the stacked bars draw the three. They cannot disagree about a month,
+because there is nothing for them to disagree with. Each keeps its own
+granularity selector — somebody comparing a weekly split while watching a
+monthly trend is doing something reasonable.
+
+**Under two buckets, the trend says so instead of drawing.** Two points are a
+line segment, not a trend — the `sufficient: false` refusal §10.12 records
+for the admin analytics, applied to one person's chart.
+
+**A figure with nothing behind it is an em dash, never a zero** — in the
+score column, the time-spent column and every cell of the yearly table.
+"No score yet" and "scored zero" are different facts, and that rule is
+already load-bearing in four other places on this product.
+
+### 10.3.1.20 External certifications
+
+Three screens for one thing: a learner claims training they did elsewhere, a
+manager confirms it, L&D decides.
+
+**Every surface says what submitting does NOT do.** A form with five
+required fields and an upload looks like it changes something immediately,
+and this one changes nothing until two other people act. The dialog's navy
+header says so before the first field, the section blurb says it, and the
+empty state says it. A learner who discovers it from a status chip
+afterwards reads the feature as broken.
+
+**The submit confirmation names who has it** — "Sent to Temp Approver, your
+manager. Your L&D team has also been told", or "sent to your L&D team —
+there is no manager on your record, so this needs one approval rather than
+two." That sentence comes from the API, because whether there are one or two
+steps depends on a fact captured on the row, not on anything the browser can
+work out. A learner comparing their status to a colleague's and finding a
+different number of steps, with no explanation, would reasonably think one
+of them was wrong.
+
+**"Name as per certificate" explains itself.** Sitting next to a product
+that already knows the learner's name, the field reads as redundant until it
+says why: certificates carry former names, initials and transliterations,
+and the approver is comparing this against the document.
+
+**The manager's step is CONFIRM, not Approve.** Its dialog says "This passes
+it to your L&D team for final approval. Nothing is added to their record
+yet." Labelling it Approve would have the learner — and the manager —
+believing the hours had moved. The learner's own list follows the same rule:
+a manager's yes shows as a step, never as an outcome.
+
+**The admin's dialog states the consequence in full**, because it is the
+irreversible one: "adds this to their My Courses as completed externally and
+puts its hours into their learning total. It counts as a completed course in
+your reports." The last clause matters to an admin who reports on completion
+and would otherwise find the number had moved for a reason nothing on screen
+mentioned.
+
+**Decline is disabled until a reason is typed**, with the reason in words
+under the footer. The API refuses it regardless; the disable means the
+approver hears it while typing (§10.3.1.2).
+
+**Both queues render NOTHING when empty.** They sit inside bigger pages —
+Team Learning and admin Certificates — and a permanent empty panel headed
+"approvals" is how a section becomes furniture. Each is placed ABOVE the
+page's main content, because it is the only part waiting on that person
+today.
+
+**One component serves both approvers.** `components/shared/certification-
+approvals.jsx` takes the fetch, the decision call and the consequence
+sentence. Two copies would drift on exactly the thing that differs — what
+the button does next — which is the one thing neither approver should have
+to infer.
+
+**The certificate opens in a new tab, never inline in the card.** The link
+hits an authenticated route that streams the file with `Content-Disposition:
+inline`, so a PDF lands in the browser's viewer. There is deliberately no
+public URL for it: only the learner, the manager it was sent to, and an
+admin can open one.
 
 ### 10.3.1.19 The Course Catalogue
 

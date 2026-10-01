@@ -18,6 +18,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchDashboard } from "@/services/api/learner/learner-api";
 import { CourseRewardStrip } from "@/components/learner/course-reward";
+import { DashboardUpcomingSessions } from "@/components/learner/dashboard-upcoming-sessions";
+import { DashboardPendingSurveys } from "@/components/learner/dashboard-pending-surveys";
+import { DashboardRecommended } from "@/components/learner/dashboard-recommended";
 import { BRAND } from "@/lib/brand";
 
 /* ── helpers ── */
@@ -180,7 +183,11 @@ export function DashboardContent() {
             <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Badges</Text>
           </Box>
         </Box>
-        <Link href="/certifications">
+        {/* /achievements, not /certifications. The strip beside it reads
+            Points · Rank · Badges — all three live on My Achievements, and a
+            button whose label names one page while landing on another is the
+            §10.3.1.2 failure with the destination rather than the control. */}
+        <Link href="/achievements">
           <Button variant="ghost" className="text-white/90 hover:text-white hover:bg-white/10 text-sm gap-1 shrink-0">
             View achievements <ArrowRight className="h-3.5 w-3.5" />
           </Button>
@@ -338,10 +345,54 @@ export function DashboardContent() {
               </Box>
             )}
           </Card>
+
+          {/* Hours Goal lives in the LEFT column, under Learning Journey.
+              Upcoming Sessions joined the right column and left this one two
+              cards short, so the grid ended with ~300px of dead space beside
+              Recent Activity. Moving one panel across evens the two without
+              reordering anything a reader depends on — Hours Goal is a
+              progress figure, and progress is what this column already is. */}
+          {/* Hours Goal */}
+          <Card className="gap-0 p-5">
+            <Box className="flex items-center justify-between mb-3">
+              <Box>
+                <Text as="h3" className="text-base font-semibold">Hours Goal</Text>
+                <Text as="p" className="text-xs text-muted-foreground">June 2026</Text>
+              </Box>
+              <Link href="/progress" className="text-xs text-navy hover:underline font-medium flex items-center gap-0.5">
+                Details <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </Box>
+            <Box className="flex items-baseline gap-1 mb-3">
+              <Text as="h2" className="text-3xl font-extrabold text-foreground">{stats.hours_this_month ?? 0}h</Text>
+              <Text as="span" className="text-sm text-muted-foreground">/ {stats.hours_goal ?? 10}h goal</Text>
+            </Box>
+            <Box className="relative">
+              <Box className="h-3 bg-muted rounded-full overflow-hidden">
+                <Box
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${hoursGoalPct}%`,
+                    background: hoursGoalPct >= 100 ? BRAND.success : hoursGoalPct >= 60 ? BRAND.accent : BRAND.danger,
+                  }}
+                />
+              </Box>
+              <Box className="flex justify-between mt-1">
+                <Text as="span" className="text-[10px] text-muted-foreground">0h</Text>
+                <Text as="span" className="text-[10px] text-muted-foreground font-medium">{hoursGoalPct}%</Text>
+                <Text as="span" className="text-[10px] text-muted-foreground">{stats.hours_goal ?? 10}h</Text>
+              </Box>
+            </Box>
+          </Card>
         </Box>
 
         {/* RIGHT column */}
         <Box className="space-y-4">
+
+          {/* Upcoming Sessions — top of the right column, so it lands beside
+              Continue Learning: the two answer "what now?" and "what next?",
+              and a learner scanning the fold should see both at once. */}
+          <DashboardUpcomingSessions />
 
           {/* Upcoming Deadlines */}
           <Card className="gap-0 p-5">
@@ -377,38 +428,6 @@ export function DashboardContent() {
             )}
           </Card>
 
-          {/* Hours Goal */}
-          <Card className="gap-0 p-5">
-            <Box className="flex items-center justify-between mb-3">
-              <Box>
-                <Text as="h3" className="text-base font-semibold">Hours Goal</Text>
-                <Text as="p" className="text-xs text-muted-foreground">June 2026</Text>
-              </Box>
-              <Link href="/progress" className="text-xs text-navy hover:underline font-medium flex items-center gap-0.5">
-                Details <ChevronRight className="h-3.5 w-3.5" />
-              </Link>
-            </Box>
-            <Box className="flex items-baseline gap-1 mb-3">
-              <Text as="h2" className="text-3xl font-extrabold text-foreground">{stats.hours_this_month ?? 0}h</Text>
-              <Text as="span" className="text-sm text-muted-foreground">/ {stats.hours_goal ?? 10}h goal</Text>
-            </Box>
-            <Box className="relative">
-              <Box className="h-3 bg-muted rounded-full overflow-hidden">
-                <Box
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${hoursGoalPct}%`,
-                    background: hoursGoalPct >= 100 ? BRAND.success : hoursGoalPct >= 60 ? BRAND.accent : BRAND.danger,
-                  }}
-                />
-              </Box>
-              <Box className="flex justify-between mt-1">
-                <Text as="span" className="text-[10px] text-muted-foreground">0h</Text>
-                <Text as="span" className="text-[10px] text-muted-foreground font-medium">{hoursGoalPct}%</Text>
-                <Text as="span" className="text-[10px] text-muted-foreground">{stats.hours_goal ?? 10}h</Text>
-              </Box>
-            </Box>
-          </Card>
 
           {/* Recent Activity */}
           <Card className="gap-0 p-5">
@@ -440,6 +459,16 @@ export function DashboardContent() {
 
         </Box>
       </Box>
+
+      {/* Surveys — under the two-column grid rather than inside a column, so
+          it spans the full width and is not competing with a panel beside
+          it. It renders nothing when there is nothing pending. */}
+      <DashboardPendingSurveys />
+
+      {/* Recommended courses, last: it is the only block on the page about
+          something the learner has NOT been given, so it sits below
+          everything that is already theirs. */}
+      <DashboardRecommended />
     </Box>
   );
 }

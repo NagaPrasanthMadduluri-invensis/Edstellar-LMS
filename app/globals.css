@@ -39,6 +39,22 @@
   --color-rust: var(--spectra-rust);
   --color-danger: var(--spectra-danger);
 
+  /* Learning types — see the token block below for why these are aliases
+     rather than new hues. Utilities: text-type-session, bg-type-path,
+     border-type-course, bg-type-course-chart, bg-type-session-tint. */
+  --color-type-course: var(--type-course);
+  --color-type-path: var(--type-path);
+  --color-type-session: var(--type-session);
+  --color-type-webinar: var(--type-webinar);
+  --color-type-course-chart: var(--type-course-chart);
+  --color-type-path-chart: var(--type-path-chart);
+  --color-type-session-chart: var(--type-session-chart);
+  --color-type-webinar-chart: var(--type-webinar-chart);
+  --color-type-course-tint: var(--type-course-tint);
+  --color-type-path-tint: var(--type-path-tint);
+  --color-type-session-tint: var(--type-session-tint);
+  --color-type-webinar-tint: var(--type-webinar-tint);
+
   --color-text-2: var(--spectra-text-2);
   --color-text-3: var(--spectra-text-3);
 
@@ -158,6 +174,42 @@
   --spectra-warning: #8a6200;
   --spectra-rust: #b04a00;
   --spectra-danger: #c94040;
+
+  /* ── Learning types ──────────────────────────────────────────────────
+     WHAT a piece of learning IS: a course, a step inside a learning path,
+     a live session, a webinar. Four kinds, four colours, and every screen
+     that splits learning by kind reads them from HERE rather than picking
+     a hue that looked right that day — a legend, a stacked bar, a column
+     header and a tab should all say "sessions" in the same green.
+
+     They are ALIASES of the existing Spectra hues, not new ones. §10.1
+     closes the palette at four status hues plus the accent, and nothing
+     about this axis earns an exception: four kinds fit exactly into four
+     colours the product already carries. What is new is the MEANING — the
+     mapping from kind to hue — which had no name before and so could not
+     be reused.
+
+     -chart is the same hue at 80% over white, which is what a large filled
+     area wants: a stacked bar in full-strength ink reads as four solid
+     blocks fighting each other, while the flat tokens above stay correct
+     for text, a 3px rule or a legend swatch. The values are MEASURED, not
+     eyeballed — 0.8*hue + 0.2*white, so they stay in family if a hue moves.
+
+     -tint is the 12% wash, matching `.chip-*` and `.tile-*`. */
+  --type-course: var(--spectra-accent);
+  --type-path: var(--spectra-warning);
+  --type-session: var(--spectra-success);
+  --type-webinar: var(--spectra-rust);
+
+  --type-course-chart: #628cdd;
+  --type-path-chart: #a18133;
+  --type-session-chart: #487e61;
+  --type-webinar-chart: #c06e33;
+
+  --type-course-tint: rgba(59, 111, 212, 0.12);
+  --type-path-tint: rgba(138, 98, 0, 0.12);
+  --type-session-tint: rgba(26, 94, 58, 0.12);
+  --type-webinar-tint: rgba(176, 74, 0, 0.12);
 
   /* Text ramp — real greys, not ink at opacity. */
   --spectra-text: #0f1923;
@@ -400,4 +452,17 @@
   .tile-success { background: rgba(26, 94, 58, 0.10);   color: var(--spectra-success); }
   .tile-warning { background: rgba(138, 98, 0, 0.12);   color: var(--spectra-warning); }
   .tile-rust    { background: rgba(176, 74, 0, 0.12);   color: var(--spectra-rust); }
+  /* The fifth tile, added when admin metrics started carrying how they are
+     DOING rather than only what they are. A figure that is genuinely bad
+     needs the same weight as the four above, or it reads as a fourth
+     category rather than as a problem. */
+  .tile-danger  { background: rgba(201, 64, 64, 0.12);  color: var(--spectra-danger); }
+
+  /* The learning-type equivalents. Same shape as the four above; named for
+     the KIND of learning rather than for the hue, so a call site reads
+     "this tile is about sessions" and not "this tile is green". */
+  .tile-type-course  { background: var(--type-course-tint);  color: var(--type-course); }
+  .tile-type-path    { background: var(--type-path-tint);    color: var(--type-path); }
+  .tile-type-session { background: var(--type-session-tint); color: var(--type-session); }
+  .tile-type-webinar { background: var(--type-webinar-tint); color: var(--type-webinar); }
 }

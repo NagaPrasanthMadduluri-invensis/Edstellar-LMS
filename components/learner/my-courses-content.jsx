@@ -10,9 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Layers, TrendingUp, CheckCircle2, Award, AlertTriangle, Calendar,
-  Clock, Flag, BookOpen, Map, ArrowRight, CalendarDays,
+  Clock, Flag, BookOpen, ArrowRight, CalendarDays,
   GraduationCap, Users, Brain, RefreshCcw, Shield,
-  BarChart3, Target, ChevronRight, Search, X,
+  BarChart3, Target, Search, X,
   MapPin, Video, UserCircle,
 } from "lucide-react";
 import Text from "@/components/ui/text";
@@ -22,28 +22,41 @@ import { useAuth } from "@/hooks/use-auth";
 import { CourseArt } from "@/components/shared/course-art";
 import { CourseRewardStrip } from "@/components/learner/course-reward";
 import { BRAND } from "@/lib/brand";
+import { categoryColor, categoryTint } from "@/lib/course-taxonomy";
 
 /* ── Light thumbnail palettes (hash-based) ── */
 /* Thumbnail surfaces. The brand allows variety only across the paper family
    and navy, so the name hash picks a surface rather than inventing a hue. */
-const GRADIENTS = [
-  { bg: BRAND.accentTint, iconColor: BRAND.accent },
-  { bg: BRAND.surface3, iconColor: BRAND.navy },
-  { bg: BRAND.navy, iconColor: BRAND.accentSoft },
-  { bg: BRAND.surface2, iconColor: BRAND.accent },
-];
-
-function getThumbnailGradient(name) {
-  let h = 0;
-  for (const c of (name || "A")) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
-  return GRADIENTS[h % GRADIENTS.length];
+/**
+ * The same chip the admin Course Library uses, so a course reads the same
+ * way on both sides of the product. Colours arrive as values rather than
+ * Tailwind classes because the seven category hues are DATA (§10.3.1.3) and
+ * Tailwind cannot see a class name built by concatenation.
+ */
+function Pill({ children, bg, fg }) {
+  return (
+    <Text
+      as="span"
+      className="shrink-0 whitespace-nowrap px-2 py-0.5 text-[10px] font-bold"
+      style={{ background: bg, color: fg }}
+    >
+      {children}
+    </Text>
+  );
 }
 
-/* ── Status config ── */
+/* ── Status config ──
+   `pillBg` / `pillFg` are the chip on the card's meta row, and they follow
+   §10.3's status vocabulary rather than the navy fills the progress bar uses:
+   grey for not started, accent for in progress, green for complete, danger
+   for failed. The bar is about how far along the work is; the chip is about
+   which of five states it is in, and those are different questions. */
 const STATUS_CFG = {
   assigned: {
     label: "Not Started",
     badgeCls: "bg-paper-warm text-ink/60 border-border border",
+    pillBg: "rgba(136,136,136,.12)",
+    pillFg: "var(--spectra-text-3)",
     barCls: "bg-paper-cream",
     pctCls: "text-ink/60",
     btnCls: "bg-navy hover:bg-navy-soft text-paper",
@@ -52,6 +65,8 @@ const STATUS_CFG = {
   "in-progress": {
     label: "In Progress",
     badgeCls: "bg-paper-cream text-ink border-navy/25 border",
+    pillBg: "rgba(59,111,212,.12)",
+    pillFg: BRAND.accent,
     barCls: "bg-navy-soft",
     pctCls: "text-navy",
     btnCls: "bg-navy hover:bg-navy-soft text-paper",
@@ -60,6 +75,8 @@ const STATUS_CFG = {
   completed: {
     label: "Completed",
     badgeCls: "bg-navy text-paper border-navy border",
+    pillBg: "rgba(26,94,58,.12)",
+    pillFg: BRAND.success,
     barCls: "bg-navy",
     pctCls: "text-navy",
     btnCls: "bg-navy hover:bg-navy-soft text-paper",
@@ -68,6 +85,8 @@ const STATUS_CFG = {
   failed: {
     label: "Failed",
     badgeCls: "bg-error/10 text-error border-error/30 border",
+    pillBg: "rgba(201,64,64,.12)",
+    pillFg: BRAND.danger,
     barCls: "bg-error",
     pctCls: "text-error",
     btnCls: "bg-error hover:bg-error text-white",
@@ -142,12 +161,6 @@ function CourseCard({ c }) {
           className="absolute inset-0"
         />
 
-        {/* Status — kept top right, now over art rather than an empty panel. */}
-        <Box className="absolute top-3 right-3">
-          <Badge className={cn("text-[11px] font-semibold px-2 py-0.5 shadow-sm", st.badgeCls)}>
-            {st.label}
-          </Badge>
-        </Box>
         {c.isMandatory && (
           <Box className="absolute bottom-3 left-3">
             <Badge className="text-[10px] font-bold bg-error text-white border-0 px-1.5 py-0.5 shadow-sm">
@@ -159,12 +172,30 @@ function CourseCard({ c }) {
 
       {/* Card body */}
       <Box className="flex flex-col flex-1 p-5 gap-3 bg-white">
-        {/* Category */}
-        {c.category && (
-          <Text as="span" className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground">
-            {c.category}
-          </Text>
-        )}
+        {/* Category · Modules · Status — the same three facts, in the same
+            order, as the admin Course Library card.
+
+            The third chip is the LEARNER'S status, not the course's publish
+            state. The admin's reads "Published" because an admin can be
+            looking at a draft; a learner only ever sees published courses
+            (`c.is_active = 1` in the query), so the same chip here would say
+            the same word on every card and carry no information. What they
+            need to know is where THEY stand.
+
+            It used to sit over the artwork as a floating badge. Keeping both
+            would print the same word twice on one card, so it moved into the
+            row rather than being duplicated. */}
+        <Box className="flex flex-wrap items-center gap-1.5">
+          {c.category && (
+            <Pill bg={categoryTint(c.category)} fg={categoryColor(c.category)}>
+              {c.category}
+            </Pill>
+          )}
+          <Pill bg="var(--spectra-surface-3)" fg="var(--spectra-text-2)">
+            Modules: {c.modulesCount ?? 0}
+          </Pill>
+          <Pill bg={st.pillBg} fg={st.pillFg}>{st.label}</Pill>
+        </Box>
 
         {/* Title */}
         <Text as="h3" className="text-sm font-bold leading-snug line-clamp-2 -mt-1 text-ink">
@@ -309,67 +340,16 @@ function CourseCard({ c }) {
   );
 }
 
-/* ── Journey view ── */
-function JourneyView({ courses }) {
-  const total     = courses.length;
-  const completed = courses.filter((c) => c.status === "completed").length;
-  const pct       = total > 0 ? Math.round((completed / total) * 100) : 0;
+/* The "Learning Journey" view that used to sit here is GONE, and it was
+   never a learning journey. It numbered whatever courses happened to be
+   assigned to you 1..N and called the completed fraction a journey
+   percentage — an arbitrary list dressed as a deliberate sequence, with no
+   order anybody chose and no relation to the `journeys` an admin actually
+   builds. A real one is a path with steps that unlock in turn, and that
+   lives in My Learning Paths (TASTE §10.3.1.22), where the order on screen
+   is the order somebody meant.
 
-  return (
-    <Box className="space-y-3">
-      <Box className="flex items-center gap-3 mb-4">
-        <Box className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-          <Box className="h-full rounded-full bg-navy" style={{ width: `${pct}%` }} />
-        </Box>
-        <Text as="span" className="text-sm font-bold shrink-0">{pct}% complete</Text>
-      </Box>
-      {courses.map((c, i) => {
-        const isCurrent = c.status === "in-progress";
-        const isDone    = c.status === "completed";
-        const grad      = getThumbnailGradient(c.course.name);
-        return (
-          <Link key={c.enrollmentId} href={`/my-courses/${c.course.id}`}>
-            <Box className={cn("flex items-center gap-4 p-4 rounded-xl border transition-colors hover:bg-muted/20",
-              isCurrent && "border-navy/20 bg-paper-cream",
-              isDone && "border-navy/20 bg-paper-cream",
-              !isCurrent && !isDone && "opacity-60"
-            )}>
-              <Box
-                style={{
-                  background: isDone
-                    ? BRAND.navy
-                    : isCurrent
-                    ? grad.bg
-                    : BRAND.surface3,
-                  width: 36,
-                  height: 36,
-                  border: isCurrent ? `2px solid ${grad.iconColor}` : undefined,
-                }}
-                className="rounded-full flex items-center justify-center shrink-0"
-              >
-                {isDone
-                  ? <CheckCircle2 className="h-5 w-5 text-white" />
-                  : <Text as="span" style={{ color: isCurrent ? grad.iconColor : BRAND.text3, fontWeight: 700, fontSize: 13 }}>{i + 1}</Text>
-                }
-              </Box>
-              <Box className="flex-1 min-w-0">
-                <Text as="p" className="text-sm font-semibold truncate">{c.course.name}</Text>
-                <Text as="p" className="text-xs text-muted-foreground">
-                  {c.session
-                    ? `Live session · ${c.session.date_label}`
-                    : `${c.category || "Course"} · ${c.progressPct}% complete`}
-                </Text>
-              </Box>
-              {isCurrent && <Badge className="bg-navy text-white border-0 text-[10px]">Current</Badge>}
-              {isDone    && <Badge className="bg-paper-cream text-navy border-0 text-[10px]">Done</Badge>}
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            </Box>
-          </Link>
-        );
-      })}
-    </Box>
-  );
-}
+*/
 
 /* ── Skeleton ── */
 function Skeleton_() {
@@ -415,7 +395,6 @@ export function MyCoursesContent() {
   const { user } = useAuth();
   const [data, setData]           = useState(null);
   const [error, setError]         = useState(null);
-  const [view, setView]           = useState("courses");
   const [statusFilter, setStatus] = useState("all");
   const [search, setSearch]       = useState("");
 
@@ -444,7 +423,7 @@ export function MyCoursesContent() {
   );
   if (!data) return <Skeleton_ />;
 
-  const { overview, journeyPct, courses } = data;
+  const { overview, courses } = data;
   const ov = overview;
 
   const counts = {
@@ -469,32 +448,7 @@ export function MyCoursesContent() {
   return (
     <Box className="space-y-5">
 
-      {/* ── View toggle ── */}
-      <Box className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setView("courses")}
-          className={cn("flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors",
-            view === "courses" ? "bg-navy text-white shadow-sm" : "bg-white border text-muted-foreground hover:bg-muted"
-          )}
-        >
-          <BookOpen className="h-4 w-4" /> Courses
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("journey")}
-          className={cn("flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors",
-            view === "journey" ? "bg-navy text-white shadow-sm" : "bg-white border text-muted-foreground hover:bg-muted"
-          )}
-        >
-          <Map className="h-4 w-4" /> Learning Journey {journeyPct}%
-        </button>
-      </Box>
-
-      {view === "journey" ? (
-        <JourneyView courses={courses} />
-      ) : (
-        <>
+      <>
           {/* ── Overview ── */}
           <Box>
             <Text as="p" className="text-[10px] font-bold tracking-[0.18em] uppercase text-muted-foreground mb-3">
@@ -602,8 +556,7 @@ export function MyCoursesContent() {
               {filtered.map((c) => <CourseCard key={c.enrollmentId} c={c} />)}
             </Box>
           )}
-        </>
-      )}
+      </>
     </Box>
   );
 }

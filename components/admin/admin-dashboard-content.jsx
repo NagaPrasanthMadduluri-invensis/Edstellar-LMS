@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Award, BookMarked, CheckCircle2, ChevronRight, Clock, FileText,
-  Percent, Send, TrendingUp, Users, UserCheck, UserPlus, AlertTriangle,
+  ArrowRight, Percent, Send, TrendingUp, Users, UserCheck, UserPlus, AlertTriangle,
   RotateCcw, XCircle, CalendarCheck,
 } from "lucide-react";
 import {
@@ -13,6 +13,7 @@ import {
 } from "recharts";
 
 import Box from "@/components/ui/box";
+import { Button } from "@/components/ui/button";
 import Text from "@/components/ui/text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InsightPanel } from "@/components/admin/insights/insight-panel";
@@ -22,7 +23,7 @@ import {
   fetchAdminDashboard,
   fetchRecentActivity,
 } from "@/services/api/admin/admin-api";
-import { BRAND, HAIRLINE } from "@/lib/brand";
+import { BRAND, HAIRLINE, metricTone, NEUTRAL_TONE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 const STATUS_COLOR = {
@@ -79,8 +80,21 @@ function DashboardSkeleton() {
   );
 }
 
+/**
+ * The one period-scoped figure on this page. All four arrive together from
+ * the same per-learner sum the month always came from (§10.4), so switching
+ * costs no request and cannot switch which definition of an hour is in play.
+ */
+const HOURS_PERIODS = [
+  { key: "weekly", label: "W", noun: "this week" },
+  { key: "monthly", label: "M", noun: "this month" },
+  { key: "quarterly", label: "Q", noun: "this quarter" },
+  { key: "yearly", label: "Y", noun: "this year" },
+];
+
 export function AdminDashboardContent() {
   const [data, setData] = useState(null);
+  const [hoursPeriod, setHoursPeriod] = useState("monthly");
   const [actions, setActions] = useState(null);
   const [activity, setActivity] = useState(null);
   const [error, setError] = useState(null);
@@ -118,13 +132,31 @@ export function AdminDashboardContent() {
   const statusData = (data.statusBreakdown ?? []).filter((s) => s.value > 0);
   const depts = data.deptCompletion ?? [];
 
+  /* WHICH FIGURES CARRY A VERDICT, and which deliberately do not.
+     A learner count and an in-progress count have no good direction —
+     colouring them would spend the reader's attention on something that is
+     not asking for it, and make the two that ARE asking harder to find. */
+  const activePct = h.totalLearners ? Math.round((h.activeLearners / h.totalLearners) * 100) : null;
   const kpis = [
-    { label: "Total learners", value: h.totalLearners ?? 0, icon: Users, tone: "tile-accent" },
-    { label: "Active", value: h.activeLearners ?? 0, icon: UserCheck, tone: "tile-success" },
-    { label: "Assigned", value: h.assigned ?? 0, icon: Send, tone: "tile-accent" },
-    { label: "Completion", value: `${h.completionRate ?? 0}%`, icon: Percent, tone: "tile-success" },
-    { label: "In progress", value: h.inProgress ?? 0, icon: TrendingUp, tone: "tile-accent" },
-    { label: "Overdue", value: h.overdue ?? 0, icon: Clock, tone: "tile-rust" },
+    { label: "Total learners", value: h.totalLearners ?? 0, icon: Users, tone: NEUTRAL_TONE },
+    {
+      label: "Active", value: h.activeLearners ?? 0, icon: UserCheck,
+      hint: activePct !== null ? `${activePct}% of all learners` : undefined,
+      tone: metricTone(activePct, { good: 80, warn: 60 }),
+    },
+    {
+      label: "Completion", value: `${h.completionRate ?? 0}%`, icon: Percent,
+      tone: metricTone(h.completionRate),
+    },
+    { label: "In progress", value: h.inProgress ?? 0, icon: TrendingUp, tone: NEUTRAL_TONE },
+    {
+      label: "Overdue", value: h.overdue ?? 0, icon: Clock,
+      hint: (h.overdue ?? 0) > 0 ? "Needs attention" : "Nothing overdue",
+      /* Zero overdue is genuinely GOOD and says so in green. A red zero is
+         the false alarm §10.3.1.8 warns about, and it is the reason this
+         tile was a flat rust before — it could not tell the two apart. */
+      tone: metricTone(h.overdue ?? 0, { lowerIsBetter: true, warnAbove: 5 }),
+    },
   ];
 
   return (
@@ -134,6 +166,20 @@ export function AdminDashboardContent() {
       <InsightPanel
         insights={data.insights}
         subtitle="What the numbers are telling you right now"
+        /* The dashboard says what is true NOW; Analytics says how it got
+           there (BACKEND_STRUCTURE §10.12). A reader who has just been told
+           something is wrong wants the trend behind it, and until now had to
+           find it in the sidebar. */
+        action={
+          <Link href="/admin/analytics" className="shrink-0">
+            <Button
+              size="sm"
+              className="h-8 cursor-pointer gap-1.5 bg-navy px-3.5 text-xs text-white hover:bg-navy-soft"
+            >
+              See full analytics<ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </Link>
+        }
       />
 
       <Box className="grid gap-4 lg:grid-cols-2">
@@ -198,13 +244,46 @@ export function AdminDashboardContent() {
           </Box>
         </Panel>
 
-        <Panel title="Engagement snapshot" subtitle="Key performance indicators">
+        <Panel
+          title="Engagement snapshot"
+          subtitle="Key performance indicators"
+          /* ONE tile here is period-scoped and the rest are all-time, so
+             the control sits on the panel and its effect is named on the
+             tile it moves. A selector over figures it cannot change would
+             be the control that lies (§10.3.1.2). */
+          action={
+            <Box className="flex border border-line">
+              {HOURS_PERIODS.map((p) => (
+                <Button
+                  key={p.key}
+                  variant="ghost" size="sm"
+                  onClick={() => setHoursPeriod(p.key)}
+                  className={cn(
+                    "h-6 cursor-pointer px-2 text-[10px] font-medium",
+                    hoursPeriod === p.key ? "bg-navy text-white hover:bg-navy" : "hover:bg-surface-2",
+                  )}
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </Box>
+          }
+        >
           <Box className="grid grid-cols-2 gap-2.5 p-4">
-            <StatTile label="Avg assessment score" value={`${e.avgScore ?? 0}%`} hint="Organisation average" icon={Percent} />
-            <StatTile label="Pass rate" value={`${e.passRate ?? 0}%`} hint="Of assessed learners" icon={CheckCircle2} />
+            {/* Two of these six are scored and four are scale. Only the
+                scored ones take a verdict colour. */}
+            <StatTile label="Avg assessment score" value={`${e.avgScore ?? 0}%`} hint="Organisation average" icon={Percent}
+              tone={metricTone(e.avgScore)} />
+            <StatTile label="Pass rate" value={`${e.passRate ?? 0}%`} hint="Of assessed learners" icon={CheckCircle2}
+              tone={metricTone(e.passRate)} />
             <StatTile label="Total learning hours" value={`${e.totalHours ?? 0}h`} hint="All time, org-wide" icon={Clock} />
             <StatTile label="Avg hours / learner" value={`${e.avgHoursPerLearner ?? 0}h`} hint="All time" icon={TrendingUp} />
-            <StatTile label="Hours this month" value={`${e.hoursThisMonth ?? 0}h`} hint="Org-wide" icon={Clock} />
+            <StatTile
+              label={`Hours ${HOURS_PERIODS.find((p) => p.key === hoursPeriod).noun}`}
+              value={`${e.hoursByPeriod?.[hoursPeriod] ?? e.hoursThisMonth ?? 0}h`}
+              hint="Org-wide"
+              icon={Clock}
+            />
             <StatTile label="Certificates issued" value={e.certificatesIssued ?? 0} hint="All time" icon={Award} />
           </Box>
         </Panel>
@@ -226,24 +305,29 @@ export function AdminDashboardContent() {
             short final row would otherwise leave the container's grey showing
             through where the missing cells would have been. */}
         <Box className="grid border-b border-line sm:grid-cols-2 xl:grid-cols-4">
-          {depts.map((d) => (
+          {depts.map((d) => {
+            /* The whole point of this grid is spotting the department that
+               is behind. One accent blue across all of them made that a
+               reading exercise rather than a glance. */
+            const t = metricTone(d.pct);
+            return (
             <Box key={d.dept} className="border-b border-r border-line bg-surface px-4 py-3 last:border-r-0">
               <Text as="p" className="text-[12.5px] font-semibold text-ink">{d.dept}</Text>
-              <Text as="p" className="mt-1 text-2xl font-bold leading-none text-accent-blue">
+              <Text as="p" className={cn("mt-1 text-2xl font-bold leading-none", t.text)}>
                 {d.pct}%
               </Text>
               <Text as="p" className="mt-1 text-[11px] text-text-3">
                 {d.completed}/{d.total} completed
               </Text>
               <Box className="mt-2 h-1.5 w-full bg-surface-3">
-                <Box className="h-full bg-accent-blue" style={{ width: `${d.pct}%` }} />
+                <Box className={cn("h-full", t.bar)} style={{ width: `${d.pct}%` }} />
               </Box>
               <Box className="mt-1.5 flex justify-between text-[10.5px] text-text-3">
                 <Text as="span">{d.in_progress} in progress</Text>
                 <Text as="span">{d.hours_learning}h learning</Text>
               </Box>
             </Box>
-          ))}
+          );})}
         </Box>
 
         {depts.length > 0 && (
@@ -270,6 +354,26 @@ export function AdminDashboardContent() {
         <Panel
           title="Action required"
           subtitle={actions ? `${actions.length} item${actions.length === 1 ? "" : "s"} need attention` : "Loading…"}
+          /* The one panel on the page whose whole reason to exist is that
+             somebody has to do something. The count is stated in its own
+             colour so the panel announces itself from across the page —
+             and goes green at zero rather than red, because "nothing needs
+             attention" is the good outcome, not a missing number. */
+          action={actions ? (
+            <Text
+              as="span"
+              className={cn(
+                "px-2 py-0.5 text-[11px] font-bold",
+                metricTone(actions.length, { lowerIsBetter: true, warnAbove: 3 }).key === "good"
+                  ? "chip-complete"
+                  : metricTone(actions.length, { lowerIsBetter: true, warnAbove: 3 }).key === "warn"
+                    ? "chip-warning"
+                    : "chip-error",
+              )}
+            >
+              {actions.length}
+            </Text>
+          ) : null}
         >
           {!actions ? (
             <Box className="space-y-2 p-4">

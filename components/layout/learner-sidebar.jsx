@@ -17,7 +17,12 @@ export function LearnerSidebar() {
         <SidebarNavGroup items={learnerNav.main} />
         <SidebarNavGroup label="My Learnings" items={learnerNav.myLearnings} />
         <SidebarNavGroup label="My Progress" items={learnerNav.progress} />
-        <SidebarNavGroup label="My Achievements" items={learnerNav.achievements} />
+        {/* "Recognition", not "My Achievements" — the group heading repeated
+            the first item under it verbatim, so the word carried no
+            information. It is also what the admin sidebar already calls the
+            same group. */}
+        <SidebarNavGroup label="Recognition" items={learnerNav.achievements} />
+        <SidebarNavGroup items={learnerNav.feedback} />
         <SidebarNavGroup label="My Team" items={learnerNav.team} />
       </SidebarContent>
       <SidebarSeparator />

@@ -14,10 +14,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { InsightPanel } from "@/components/admin/insights/insight-panel";
 import { StatTile } from "@/components/admin/insights/kpi-strip";
 import { fetchAnalytics } from "@/services/api/admin/admin-api";
-import { BRAND, HAIRLINE } from "@/lib/brand";
+import { BRAND, HAIRLINE, WARM_FILL, WARM_SERIES, warmSeriesColor } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 const GRANULARITIES = [
+  // Weekly is the one axis queried at its own `date_trunc` unit — a week
+  // straddles two months, so it cannot be folded from them like the rest
+  // (BACKEND_STRUCTURE §10.12). Its labels lead with the day ("28 Sep") so
+  // a week can never be misread as a month ("Sep 2026").
+  { key: "weekly", label: "Weekly" },
   { key: "monthly", label: "Monthly" },
   { key: "quarterly", label: "Quarterly" },
   { key: "half-yearly", label: "Half-yearly" },
@@ -37,12 +42,15 @@ const GRANULARITIES = [
  * content the learner works through alone — in both charts.
  */
 const MODE_COLOR = {
-  ILT: BRAND.navy,
-  VILT: "#1E3A6E",
-  eLearning: BRAND.accent,
-  Video: "#6A92D4",
-  Document: BRAND.accentSoft,
-  Assessment: BRAND.text3,
+  // Six modes, six slots of the warm ramp — instructor-led first so the two
+  // classroom modes sit together at the deep end and the self-paced ones
+  // follow. No blue and no navy anywhere on this page (§10.4).
+  ILT: WARM_SERIES[0],
+  VILT: WARM_SERIES[3],
+  eLearning: WARM_SERIES[1],
+  Video: WARM_SERIES[5],
+  Document: WARM_SERIES[2],
+  Assessment: WARM_SERIES[4],
 };
 
 const AXIS = { fontSize: 11, fill: BRAND.text2 };
@@ -243,8 +251,8 @@ export function AdminAnalyticsContent() {
                       <Tooltip contentStyle={TOOLTIP} />
                       <Area
                         type="monotone" dataKey="hours" name="Hours"
-                        stroke={BRAND.accent} strokeWidth={2}
-                        fill={BRAND.accentTint} dot={{ r: 3, fill: BRAND.accent }}
+                        stroke={BRAND.success} strokeWidth={2}
+                        fill={WARM_FILL.green} dot={{ r: 3, fill: BRAND.success }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -262,7 +270,7 @@ export function AdminAnalyticsContent() {
                       <XAxis dataKey="department" tick={AXIS} tickLine={false} axisLine={{ stroke: HAIRLINE }} />
                       <YAxis tick={AXIS} tickLine={false} axisLine={false} unit="h" />
                       <Tooltip cursor={{ fill: BRAND.surface2 }} contentStyle={TOOLTIP} />
-                      <Bar dataKey="hours" name="Hours" fill={BRAND.accent} maxBarSize={44} />
+                      <Bar dataKey="hours" name="Hours" fill={WARM_SERIES[0]} maxBarSize={44} />
                     </BarChart>
                   </ResponsiveContainer>
                 </Box>
@@ -280,8 +288,8 @@ export function AdminAnalyticsContent() {
                     <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} />
                     <Tooltip contentStyle={TOOLTIP} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Line type="monotone" dataKey="active" name="Active" stroke={BRAND.accent} strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="joined" name="New" stroke={BRAND.navy} strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="active" name="Active" stroke={WARM_SERIES[0]} strokeWidth={2} dot={{ r: 3, fill: WARM_SERIES[0] }} />
+                    <Line type="monotone" dataKey="joined" name="New" stroke={WARM_SERIES[1]} strokeWidth={2} dot={{ r: 3, fill: WARM_SERIES[1] }} />
                   </LineChart>
                 </ResponsiveContainer>
               </Box>
@@ -296,8 +304,12 @@ export function AdminAnalyticsContent() {
                     <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} />
                     <Tooltip cursor={{ fill: BRAND.surface2 }} contentStyle={TOOLTIP} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="enrollments" name="Enrolments" fill={BRAND.navy} maxBarSize={22} />
-                    <Bar dataKey="completions" name="Completions" fill={BRAND.accent} maxBarSize={22} />
+                    {/* Completions take the GREEN and enrolments the ochre,
+                        rather than two arbitrary slots: one of these two is
+                        the outcome and the other is the input, and the pair
+                        is read as a gap between them. */}
+                    <Bar dataKey="enrollments" name="Enrolments" fill={WARM_SERIES[2]} maxBarSize={22} />
+                    <Bar dataKey="completions" name="Completions" fill={BRAND.success} maxBarSize={22} />
                   </BarChart>
                 </ResponsiveContainer>
               </Box>
@@ -313,7 +325,7 @@ export function AdminAnalyticsContent() {
                     <XAxis dataKey="period" tick={AXIS} tickLine={false} axisLine={{ stroke: HAIRLINE }} />
                     <YAxis tick={AXIS} tickLine={false} axisLine={false} unit="h" />
                     <Tooltip cursor={{ fill: BRAND.surface2 }} contentStyle={TOOLTIP} />
-                    <Bar dataKey="hours" name="Hours" fill={BRAND.accent} maxBarSize={44} />
+                    <Bar dataKey="hours" name="Hours" fill={WARM_SERIES[0]} maxBarSize={44} />
                   </BarChart>
                 </ResponsiveContainer>
               </Box>
@@ -337,13 +349,13 @@ export function AdminAnalyticsContent() {
                     {(data.series.modes ?? [])
                       .slice()
                       .sort((a, b) => order(a.name) - order(b.name))
-                      .map((m) => (
+                      .map((m, i) => (
                         <Bar
                           key={m.name}
                           dataKey={m.name}
                           name={m.name}
                           stackId="mode"
-                          fill={MODE_COLOR[m.name] ?? BRAND.text3}
+                          fill={MODE_COLOR[m.name] ?? warmSeriesColor(i)}
                           maxBarSize={44}
                         />
                       ))}
@@ -367,8 +379,8 @@ export function AdminAnalyticsContent() {
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   {/* Navy is instructor-led, blue is self-paced — the same
                       rule MODE_COLOR follows in the chart above. */}
-                  <Bar dataKey="Instructor-led" stackId="type" fill={BRAND.navy} maxBarSize={56} />
-                  <Bar dataKey="Self-paced" stackId="type" fill={BRAND.accent} maxBarSize={56} />
+                  <Bar dataKey="Instructor-led" stackId="type" fill={WARM_SERIES[0]} maxBarSize={56} />
+                  <Bar dataKey="Self-paced" stackId="type" fill={WARM_SERIES[1]} maxBarSize={56} />
                 </BarChart>
               </ResponsiveContainer>
             </Box>
@@ -426,7 +438,10 @@ export function AdminAnalyticsContent() {
                       <td className="border-b border-line px-4 py-2.5">
                         <Box className="ml-auto h-1.5 w-[140px] bg-surface-3">
                           <Box
-                            className="h-full bg-accent-blue"
+                            /* The last bar on the page — warm like every
+                               other one, or one row of blue would read as
+                               a different kind of measurement. */
+                            className="h-full bg-success"
                             style={{ width: `${Math.round((l.allTimeHours / maxLearnerHours) * 100)}%` }}
                           />
                         </Box>

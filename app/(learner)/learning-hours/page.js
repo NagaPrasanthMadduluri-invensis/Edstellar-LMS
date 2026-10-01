@@ -9,7 +9,7 @@ export default function LearningHoursPage() {
         eyebrow="My progress"
         title="Learning"
         emphasis="hours"
-        summary="Time you have invested this month, measured against your goal."
+        summary="Time you have invested, by week, month, quarter or year — each measured against the goal for that period."
       />
       <LearningHoursContent />
     </Box>

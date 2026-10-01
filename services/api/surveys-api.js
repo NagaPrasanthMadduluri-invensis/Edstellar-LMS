@@ -69,6 +69,14 @@ export async function fetchCourseSurvey(courseId) {
 
 /* ── Learner ── */
 
+/**
+ * Courses this learner has finished and not yet rated — the dashboard's
+ * prompt. The API decides what counts as pending; this never filters.
+ */
+export async function fetchPendingSurveys() {
+  return apiClient("/api/learner/surveys/pending");
+}
+
 /** The form this course asks, and what I already said. `null` means none. */
 export async function fetchCourseFeedbackForm(courseId) {
   return apiClient(`/api/learner/courses/${courseId}/feedback`);

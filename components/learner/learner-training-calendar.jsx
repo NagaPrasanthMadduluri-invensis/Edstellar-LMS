@@ -122,8 +122,41 @@ export function LearnerTrainingCalendar() {
   const { year, month } = viewDate;
   const daysInMonth   = getDaysInMonth(year, month);
   const firstWeekday  = getFirstWeekday(year, month);
+
+  /* EVERYTHING ON THIS PAGE DESCRIBES THE MONTH IN THE HEADING. The counts
+     were all-time, so a learner opening a quiet month read "7 sessions
+     enrolled · 1 upcoming" above an empty grid — two numbers for one screen,
+     and the one that did not belong to the heading winning. The list view is
+     scoped with them rather than left alone: a calendar silently listing
+     other months underneath its own title is that same disagreement one
+     scroll further down. The whole record lives in My Sessions, which is
+     where a learner goes to see everything at once (TASTE §10.3.1.17). */
   const thisMonth     = (sessions || []).filter((s) => s.year === year && s.month === month);
-  const upcoming      = (sessions || []).filter((s) => displayOf(s) === "upcoming");
+  const monthUpcoming = thisMonth.filter((s) => displayOf(s) === "upcoming");
+
+  /* A learner landing on an empty month should not have to find their own
+     sessions by clicking Prev until something appears. Nearest month that
+     has one; a tie goes FORWARD, because that is the one they can still
+     turn up to. */
+  const nearestMonth = (() => {
+    /* `sessions` is null until the fetch lands — this runs above the
+       skeleton guard, so it cannot assume an array. */
+    if (thisMonth.length || !sessions?.length) return null;
+    const here = year * 12 + month;
+    let best = null;
+    for (const s of sessions) {
+      if (!Number.isFinite(s.year) || !Number.isFinite(s.month)) continue;
+      const delta = s.year * 12 + s.month - here;
+      if (
+        best === null ||
+        Math.abs(delta) < Math.abs(best) ||
+        (Math.abs(delta) === Math.abs(best) && delta > best)
+      ) best = delta;
+    }
+    if (best === null) return null;
+    const idx = here + best;
+    return { year: Math.floor(idx / 12), month: idx % 12 };
+  })();
 
   const prevMonth = () => setViewDate(({ year: y, month: m }) =>
     m === 0 ? { year: y - 1, month: 11 } : { year: y, month: m - 1 }
@@ -161,8 +194,23 @@ export function LearnerTrainingCalendar() {
           <Text as="p" className="text-sm text-muted-foreground mt-0.5">
             {sessions.length === 0
               ? "You haven't been enrolled in any sessions yet."
-              : `${sessions.length} session${sessions.length !== 1 ? "s" : ""} enrolled · ${upcoming.length} upcoming`}
+              : thisMonth.length === 0
+                ? `Nothing scheduled in ${MONTH_NAMES[month]}.`
+                /* "0 upcoming" is said only when it is worth saying — on a
+                   month that has already been and gone it is noise, not a
+                   figure. */
+                : `${thisMonth.length} session${thisMonth.length !== 1 ? "s" : ""} in ${MONTH_NAMES[month]}`
+                  + (monthUpcoming.length ? ` · ${monthUpcoming.length} upcoming` : "")}
           </Text>
+          {nearestMonth && (
+            <Button
+              variant="link" size="sm"
+              className="h-auto p-0 mt-1 text-xs text-accent-blue cursor-pointer"
+              onClick={() => setViewDate(nearestMonth)}
+            >
+              Jump to {MONTH_NAMES[nearestMonth.month]} {nearestMonth.year}
+            </Button>
+          )}
           <Box className="flex items-center gap-4 mt-2">
             {Object.entries(SESSION_TYPES).map(([key, cfg]) => (
               <Box key={key} className="flex items-center gap-1.5">
@@ -192,17 +240,18 @@ export function LearnerTrainingCalendar() {
             </Button>
           </Box>
 
-          {view === "calendar" && (
-            <Box className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 px-3 gap-1" onClick={prevMonth}>
-                <ChevronLeft className="h-4 w-4" />Prev
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 px-4" onClick={goToday}>Today</Button>
-              <Button variant="outline" size="sm" className="h-9 px-3 gap-1" onClick={nextMonth}>
-                Next<ChevronRight className="h-4 w-4" />
-              </Button>
-            </Box>
-          )}
+          {/* Shown in BOTH views. The list is the same month laid out
+              differently, so hiding the way to change months there would
+              strand a learner on whatever month they switched view in. */}
+          <Box className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-9 px-3 gap-1" onClick={prevMonth}>
+              <ChevronLeft className="h-4 w-4" />Prev
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 px-4" onClick={goToday}>Today</Button>
+            <Button variant="outline" size="sm" className="h-9 px-3 gap-1" onClick={nextMonth}>
+              Next<ChevronRight className="h-4 w-4" />
+            </Button>
+          </Box>
         </Box>
       </Box>
 
@@ -272,9 +321,17 @@ export function LearnerTrainingCalendar() {
 
       ) : (
 
-        /* ── List view ── */
+        /* ── List view — the same month, laid out as rows ── */
+        thisMonth.length === 0 ? (
+        <Card className="flex flex-col items-center justify-center py-20 gap-3">
+          <CalendarDays className="h-10 w-10 text-muted-foreground/25" />
+          <Text as="p" className="text-sm text-muted-foreground">
+            Nothing scheduled in {MONTH_NAMES[month]} {year}.
+          </Text>
+        </Card>
+        ) : (
         <Box className="space-y-3">
-          {sessions.map((s) => {
+          {thisMonth.map((s) => {
             const typeCfg   = SESSION_TYPES[s.session_type] || SESSION_TYPES.ILT;
             const statusCfg = STATUS_CFG[displayOf(s)] || STATUS_CFG.upcoming;
             const attCfg    = s.attendance_status ? ATTENDANCE_CFG[s.attendance_status] : null;
@@ -317,6 +374,7 @@ export function LearnerTrainingCalendar() {
             );
           })}
         </Box>
+        )
       )}
 
       {/* ── Session detail dialog ── */}

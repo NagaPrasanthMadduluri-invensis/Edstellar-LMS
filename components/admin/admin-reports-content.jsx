@@ -19,7 +19,7 @@ import {
   exportIndividualReport,
   fetchReportOptions,
 } from "@/services/api/admin/admin-api";
-import { BRAND, HAIRLINE } from "@/lib/brand";
+import { BRAND, HAIRLINE, metricTone, NEUTRAL_TONE, percentValue } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 const SCOPES = [
@@ -124,12 +124,23 @@ function ReportSection({ report }) {
             Summary
           </Text>
           <Box className="grid grid-cols-2 gap-2.5 p-4">
-            {report.kpis.map((k) => (
-              <Box key={k.label} className="border border-line bg-surface-2 px-3 py-2.5">
-                <Text as="p" className="text-xl font-bold leading-none text-ink">{k.value}</Text>
-                <Text as="p" className="mt-1.5 text-[11px] text-text-2">{k.label}</Text>
-              </Box>
-            ))}
+            {report.kpis.map((k) => {
+              /* ONLY PERCENTAGES TAKE A VERDICT. The builder sends values
+                 already formatted, and a percentage is the only shape with
+                 an unambiguous good direction — "112 enrolments" is neither
+                 good nor bad without a target nobody has set. Guessing from
+                 the label would be worse than leaving counts in ink. */
+              const pct = percentValue(k.value);
+              const tone = pct === null ? NEUTRAL_TONE : metricTone(pct);
+              return (
+                <Box key={k.label} className="border border-line bg-surface-2 px-3 py-2.5">
+                  <Text as="p" className={cn("text-xl font-bold leading-none", pct === null ? "text-ink" : tone.text)}>
+                    {k.value}
+                  </Text>
+                  <Text as="p" className="mt-1.5 text-[11px] text-text-2">{k.label}</Text>
+                </Box>
+              );
+            })}
           </Box>
         </Box>
 
