@@ -3,6 +3,14 @@
 > **Every new feature, page, or requirement MUST follow these rules.**
 > Read this before writing any code. If a decision contradicts these rules, update this document first — then code.
 
+> **Where the specs are.** Comments across this codebase cite `specs/rbac.md`,
+> `specs/multi-tenancy.md` and others. Those live in the **server** repository,
+> at `server/specs/`, because the decisions they record — roles, tenancy,
+> journeys, certificates — are enforced by the API and only *rendered* here.
+> They are not in this repo and never were; before they were moved they sat
+> above both repo roots and were committed to neither, so a clone of either one
+> could not read them.
+
 ---
 
 ## 1. Application Structure

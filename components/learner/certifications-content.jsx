@@ -11,7 +11,6 @@ import {
   Download,
   Calendar,
   Hash,
-  Star,
   ShieldCheck,
   ShieldOff,
   GraduationCap,
@@ -48,15 +47,11 @@ function getGradient(name) {
 /* ── Stats bar ── */
 function StatsBar({ certs }) {
   const valid = certs.filter((c) => !c.isRevoked);
-  const scored = valid.filter((c) => c.finalScore !== null && c.finalScore !== undefined);
-  const avgScore = scored.length
-    ? Math.round(scored.reduce((s, c) => s + c.finalScore, 0) / scored.length)
-    : null;
 
   const stats = [
     { label: "Certificates Earned", value: certs.length },
     { label: "Valid Certificates", value: valid.length },
-    { label: "Average Score", value: avgScore !== null ? `${avgScore}%` : "—" },
+    { label: "Revoked", value: certs.length - valid.length },
   ];
 
   return (
@@ -127,15 +122,6 @@ function CertificateCard({ cert, onView }) {
           <Box className="flex items-center gap-1.5 text-muted-foreground">
             <Calendar className="h-3.5 w-3.5 text-navy/70 shrink-0" />
             <Text as="span">Issued: <Text as="span" className="font-medium text-foreground">{formatDate(cert.issuedAt)}</Text></Text>
-          </Box>
-          <Box className="flex items-center gap-1.5 text-muted-foreground">
-            <Star className="h-3.5 w-3.5 text-ink/70 shrink-0" />
-            <Text as="span">
-              Score:{" "}
-              <Text as="span" className="font-semibold text-ink/70">
-                {cert.finalScore !== null && cert.finalScore !== undefined ? `${cert.finalScore}%` : "N/A"}
-              </Text>
-            </Text>
           </Box>
           <Box className="flex items-center gap-1.5 text-muted-foreground">
             <Hash className="h-3.5 w-3.5 text-navy/70 shrink-0" />

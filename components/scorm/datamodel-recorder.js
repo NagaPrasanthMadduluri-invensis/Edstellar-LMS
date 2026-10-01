@@ -19,8 +19,8 @@ import { apiClient } from "@/lib/api-client";
  * cannot carry JSON cross-origin: the request is `no-cors`, which restricts it
  * to a CORS-safelisted content type, so a JSON body would need a preflight the
  * beacon can never send. Since the API is on a different origin
- * (`lms.edstellar.com` -> `lms-api.edstellar.com`) the beacon would have to
- * post `text/plain` and the endpoint would need a second body format. keepalive
+ * (`spectralms.edstellar.com` -> `lms-api.edstellar.com`) the beacon would
+ * have to post `text/plain` and the endpoint would need a second body format. keepalive
  * sends real JSON with real CORS and still survives the document unloading.
  *
  * The cost of that choice is a 64 KB cap on an in-flight keepalive body, which

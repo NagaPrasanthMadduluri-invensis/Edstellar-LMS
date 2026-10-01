@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { PRODUCT_BY, PRODUCT_NAME } from "@/lib/brand";
 import { useSearchParams } from "next/navigation";
@@ -119,7 +120,18 @@ function LoginForm() {
             )}
           </Box>
           <Box className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Box className="flex items-baseline justify-between">
+              <Label htmlFor="password">Password</Label>
+              {/* The way out of the one dead end this form has. Before it
+                  existed the only recovery was asking an admin to set a
+                  password and read it out. */}
+              <Link
+                href="/forgot-password"
+                className="text-[11.5px] text-accent-blue hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </Box>
             <Input
               id="password"
               type="password"

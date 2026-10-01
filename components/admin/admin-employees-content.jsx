@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -33,7 +34,7 @@ import {
   FileSpreadsheet, AlertCircle, BookOpen, ClipboardList,
   CheckCircle2, XCircle, Clock, Trophy, TrendingUp,
   ChevronDown, ChevronUp, CalendarDays, FileArchive, MinusCircle,
-  Eye, Pencil, Power, Trash2, ShieldCheck, GraduationCap, Presentation, UserX,
+  Eye, EyeOff, Pencil, Power, Trash2, ShieldCheck, GraduationCap, Presentation, UserX,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -560,6 +561,52 @@ function formatDay(value) {
  * walk up the chain, which is a query. The API refuses it with a sentence
  * naming both people, which is a better error than a silently shorter list.
  */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * A labelled control with room for the two things a field often needs to
+ * say: what it is FOR, and what is wrong with it.
+ *
+ * It exists because the add-user form repeated the same label/control/hint
+ * markup nine times and drifted — some fields carried an explanation, most
+ * did not, and none of the labels were associated with their input, so
+ * clicking a label focused nothing.
+ */
+function Field({ id, label, required = false, hint, error, children }) {
+  return (
+    <Box className="space-y-1.5">
+      <Label htmlFor={id}>
+        {label}
+        {required && <Text as="span" className="text-danger">*</Text>}
+      </Label>
+      {children}
+      {/* An error REPLACES the hint rather than stacking under it — two
+          lines of small print below one input is how a form starts looking
+          broken. */}
+      {error ? (
+        <Text as="p" className="text-[11px] text-danger">{error}</Text>
+      ) : hint ? (
+        <Text as="p" className="text-[11px] text-text-3">{hint}</Text>
+      ) : null}
+    </Box>
+  );
+}
+
+/** A titled group of fields, so nine inputs read as three questions. */
+function FormSection({ title, hint, children }) {
+  return (
+    <Box className="space-y-3">
+      <Box className="flex flex-wrap items-baseline gap-x-2 border-b border-line pb-1.5">
+        <Text as="h4" className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-3">
+          {title}
+        </Text>
+        {hint && <Text as="span" className="text-[11px] text-text-3">{hint}</Text>}
+      </Box>
+      {children}
+    </Box>
+  );
+}
+
 function ManagerField({ value, onChange, people, excludeId }) {
   const options = (people ?? []).filter(
     (p) => p.is_active && String(p.id) !== String(excludeId),
@@ -573,7 +620,7 @@ function ManagerField({ value, onChange, people, excludeId }) {
         value={value ? String(value) : "none"}
         onValueChange={(v) => onChange(v === "none" ? "" : v)}
       >
-        <SelectTrigger className="h-9 text-sm">
+        <SelectTrigger className="w-full text-sm">
           <SelectValue>
             {picked ? `${picked.first_name} ${picked.last_name}` : "No manager"}
           </SelectValue>
@@ -590,7 +637,7 @@ function ManagerField({ value, onChange, people, excludeId }) {
           ))}
         </SelectContent>
       </Select>
-      <Text as="p" className="text-[11px] text-muted-foreground">
+      <Text as="p" className="text-[11px] text-text-3">
         Their manager sees this person&apos;s progress in Team Learning.
       </Text>
     </Box>
@@ -639,6 +686,7 @@ export function AdminEmployeesContent() {
   const [orgOptions, setOrgOptions]         = useState(null);
   const [error, setError]                   = useState(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
+  const [showPassword, setShowPassword]     = useState(true);
   const [form, setForm]                     = useState(EMPTY_FORM);
   /* The org's own roles. An admin can now onboard somebody straight onto the
      trainer portal, which is the only way the session form's trainer picker
@@ -737,6 +785,21 @@ export function AdminEmployeesContent() {
       setActioning(false);
     }
   };
+
+  /* Named rather than inlined so the footer hint and the button's title
+     cannot describe different things. Order matches reading order, so the
+     message points at the first field they have not filled. */
+  const createBlockedReason = !form.first_name.trim()
+    ? "First name is required."
+    : !form.last_name.trim()
+      ? "Last name is required."
+      : !form.email.trim()
+        ? "Email is required."
+        : !EMAIL_RE.test(form.email.trim())
+          ? "That does not look like an email address."
+          : form.password.length < 6
+            ? "A password of at least 6 characters is required."
+            : null;
 
   const handleCreate = async () => {
     if (!form.first_name.trim()) { setFormError("First name is required"); return; }
@@ -1344,7 +1407,7 @@ export function AdminEmployeesContent() {
                 <Box className="space-y-1.5">
                   <Label>New role</Label>
                   <Select value={roleChoice} onValueChange={setRoleChoice}>
-                    <SelectTrigger className="h-9 text-sm">
+                    <SelectTrigger className="w-full text-sm">
                       <SelectValue>
                         {next ? `${next.label} — ${PORTAL_WORD[next.portal] ?? next.portal}` : "Pick a role"}
                       </SelectValue>
@@ -1509,7 +1572,7 @@ export function AdminEmployeesContent() {
                 <Box className="space-y-1.5">
                   <Label>Department</Label>
                   <Select value={editForm.department} onValueChange={(v) => setEditForm((p) => ({ ...p, department: v }))}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectTrigger className="w-full text-sm"><SelectValue placeholder="Select department" /></SelectTrigger>
                     <SelectContent>
                       {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                     </SelectContent>
@@ -1518,7 +1581,7 @@ export function AdminEmployeesContent() {
                 <Box className="space-y-1.5">
                   <Label>Location</Label>
                   <Select value={editForm.location} onValueChange={(v) => setEditForm((p) => ({ ...p, location: v }))}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
+                    <SelectTrigger className="w-full text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
                     <SelectContent>
                       {locationOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                     </SelectContent>
@@ -1531,7 +1594,7 @@ export function AdminEmployeesContent() {
                 <Box className="space-y-1.5">
                   <Label>Job Level</Label>
                   <Select value={editForm.job_level} onValueChange={(v) => setEditForm((p) => ({ ...p, job_level: v }))}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
+                    <SelectTrigger className="w-full text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
                     <SelectContent>
                       {jobLevelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                     </SelectContent>
@@ -1568,121 +1631,175 @@ export function AdminEmployeesContent() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Add User Dialog ── */}
+      {/* ── Add User Dialog ──────────────────────────────────────────
+          Nine fields over three questions — who they are, where they sit,
+          what they can reach. It was `sm:max-w-md` (448px), which forced a
+          two-column grid into one column and stacked all nine as an
+          undifferentiated list; the four-item grid in the middle also
+          paired Location with Job role and Job level with Manager, which
+          is not how anybody reads them. */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Add New Learner</DialogTitle>
+            <DialogTitle>Add {selectedRole?.label ?? "a learner"}</DialogTitle>
+            <DialogDescription>
+              They can sign in as soon as you save. You will need to pass on
+              the password yourself — this product sends no email.
+            </DialogDescription>
           </DialogHeader>
-          <Box className="space-y-3 py-2">
-            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Box className="space-y-1.5">
-                <Label>First Name <Text as="span" className="text-error">*</Text></Label>
-                <Input placeholder="Alice" value={form.first_name} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} />
+
+          <Box className="space-y-5 py-1">
+            <FormSection title="Who they are">
+              <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field id="nu-first" label="First name" required>
+                  <Input id="nu-first" autoFocus placeholder="Alice" value={form.first_name}
+                    onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} />
+                </Field>
+                <Field id="nu-last" label="Last name" required>
+                  <Input id="nu-last" placeholder="Johnson" value={form.last_name}
+                    onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))} />
+                </Field>
               </Box>
-              <Box className="space-y-1.5">
-                <Label>Last Name <Text as="span" className="text-error">*</Text></Label>
-                <Input placeholder="Johnson" value={form.last_name} onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))} />
+              <Field
+                id="nu-email" label="Email" required
+                hint="This is how they sign in. It cannot be changed afterwards."
+                /* Shown only once there is something to be wrong about —
+                   an error under an untouched field reads as the form
+                   complaining before you have started. */
+                error={form.email.trim() && !EMAIL_RE.test(form.email.trim())
+                  ? "That does not look like an email address."
+                  : null}
+              >
+                <Input id="nu-email" type="email" autoComplete="off" placeholder="alice@company.com"
+                  value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
+              </Field>
+            </FormSection>
+
+            <FormSection title="Where they sit" hint="All optional — these are the axes your reports group by.">
+              <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field id="nu-dept" label="Department">
+                  <Select value={form.department} onValueChange={(v) => setForm((p) => ({ ...p, department: v }))}>
+                    <SelectTrigger id="nu-dept" className="w-full text-sm"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>{DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+                <Field id="nu-loc" label="Location">
+                  <Select value={form.location} onValueChange={(v) => setForm((p) => ({ ...p, location: v }))}>
+                    <SelectTrigger id="nu-loc" className="w-full text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
+                    <SelectContent>{locationOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+                {/* Job role and job level belong NEXT to each other — they
+                    are one question asked twice, and the old grid split
+                    them across two rows. */}
+                <Field id="nu-role" label="Job role" hint="Free text — a title, not a reporting axis.">
+                  <Input id="nu-role" placeholder="e.g. Software Engineer" value={form.job_role}
+                    onChange={(e) => setForm((p) => ({ ...p, job_role: e.target.value }))} />
+                </Field>
+                <Field id="nu-level" label="Job level">
+                  <Select value={form.job_level} onValueChange={(v) => setForm((p) => ({ ...p, job_level: v }))}>
+                    <SelectTrigger id="nu-level" className="w-full text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
+                    <SelectContent>{jobLevelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
               </Box>
-            </Box>
-            <Box className="space-y-1.5">
-              <Label>Email <Text as="span" className="text-error">*</Text></Label>
-              <Input type="email" placeholder="alice@company.com" autoComplete="off" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
-            </Box>
-            <Box className="space-y-1.5">
-              <Label>Department</Label>
-              <Select value={form.department} onValueChange={(v) => setForm((p) => ({ ...p, department: v }))}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Box>
-            {/* Location and Job level are selects — see the edit dialog. */}
-            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Box className="space-y-1.5">
-                <Label>Location</Label>
-                <Select value={form.location} onValueChange={(v) => setForm((p) => ({ ...p, location: v }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select location" /></SelectTrigger>
-                  <SelectContent>
-                    {locationOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Box>
-              <Box className="space-y-1.5">
-                <Label>Job Role</Label>
-                <Input placeholder="e.g. Software Engineer" value={form.job_role} onChange={(e) => setForm((p) => ({ ...p, job_role: e.target.value }))} />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label>Job Level</Label>
-                <Select value={form.job_level} onValueChange={(v) => setForm((p) => ({ ...p, job_level: v }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select level" /></SelectTrigger>
-                  <SelectContent>
-                    {jobLevelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Box>
-              {/* No exclusion: the person does not exist yet, so they cannot
-                  be in their own list. */}
+              {/* Full width: it is a grant of visibility over somebody's
+                  record, not a label beside their city (§10.3.1.15). */}
               <ManagerField
                 value={form.manager_id}
                 onChange={(v) => setForm((p) => ({ ...p, manager_id: v }))}
                 people={employees}
               />
-            </Box>
-            <Box className="space-y-1.5">
-              <Label>Password <Text as="span" className="text-error">*</Text></Label>
-              <Input type="password" placeholder="Minimum 6 characters" autoComplete="new-password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} />
-            </Box>
+            </FormSection>
 
-            {/* ROLE. Omitted means the learner role, which is exactly what
-                this dialog did before the selector existed — so an admin who
-                ignores it gets the old behaviour. Choosing a trainer role is
-                the only way the session form's Trainer picker ever gets an
-                entry without somebody running a shell script. */}
-            {orgRoles && orgRoles.length > 0 && (
-              <Box className="space-y-1.5">
-                <Label>Role</Label>
-                <Select
-                  value={form.role_id ? String(form.role_id) : "default"}
-                  onValueChange={(v) => setForm((p) => ({ ...p, role_id: v === "default" ? "" : v }))}
+            <FormSection title="Access">
+              <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field
+                  id="nu-pass" label="Temporary password" required
+                  hint="You have to read this out to them, so it is shown rather than masked."
+                  error={form.password && form.password.length < 6
+                    ? "At least 6 characters."
+                    : null}
                 >
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue>
-                      {selectedRole ? `${selectedRole.label} — ${PORTAL_WORD[selectedRole.portal] ?? selectedRole.portal}` : "Learner (default)"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Learner (default)</SelectItem>
-                    {orgRoles.map((r) => (
-                      <SelectItem key={r.id} value={String(r.id)}>
-                        {r.label} — {PORTAL_WORD[r.portal] ?? r.portal}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {/* Said here because it decides whether Add is refused at the
-                    cap, and an admin at the cap needs to know a trainer is
-                    still possible. */}
-                <Text as="p" className="text-[11px] text-muted-foreground">
-                  {createCostsSeat
-                    ? "Learners use a licensed seat."
-                    : `${selectedRole?.label ?? "This role"} does not use a seat — only active learners count.`}
-                </Text>
+                  <Box className="relative">
+                    <Input
+                      id="nu-pass"
+                      /* NOT masked by default, for the reason the tenant
+                         form already records (§10.3.1.11): hiding a value
+                         its author must transcribe helps nobody. The toggle
+                         is there for anyone not alone at their desk. */
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Minimum 6 characters"
+                      className="pr-9"
+                      value={form.password}
+                      onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      title={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer p-1 text-text-3 hover:text-ink"
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </Box>
+                </Field>
+
+                {orgRoles && orgRoles.length > 0 && (
+                  <Field
+                    id="nu-rolesel" label="Role"
+                    hint={createCostsSeat
+                      ? "Learners use a licensed seat."
+                      : `${selectedRole?.label ?? "This role"} does not use a seat — only active learners count.`}
+                  >
+                    <Select
+                      value={form.role_id ? String(form.role_id) : "default"}
+                      onValueChange={(v) => setForm((p) => ({ ...p, role_id: v === "default" ? "" : v }))}
+                    >
+                      <SelectTrigger id="nu-rolesel" className="w-full text-sm">
+                        <SelectValue>
+                          {selectedRole ? `${selectedRole.label} — ${PORTAL_WORD[selectedRole.portal] ?? selectedRole.portal}` : "Learner (default)"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Learner (default)</SelectItem>
+                        {orgRoles.map((r) => (
+                          <SelectItem key={r.id} value={String(r.id)}>
+                            {r.label} — {PORTAL_WORD[r.portal] ?? r.portal}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+              </Box>
+            </FormSection>
+
+            {formError && (
+              <Box className="border border-danger/30 bg-danger/[0.06] px-3 py-2">
+                <Text as="p" className="text-sm text-danger">{formError}</Text>
               </Box>
             )}
-
-            {formError && <Text as="p" className="text-sm text-error">{formError}</Text>}
           </Box>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+
+          <DialogFooter className="flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {/* SAVE SAYS WHY IT IS OFF. The validation already existed and
+                only fired on click, so an admin pressed a live-looking
+                button and got a sentence back; now the button names what
+                is still missing before they reach for it. */}
+            {createBlockedReason && (
+              <Text as="p" className="mr-auto text-[11.5px] text-text-3">{createBlockedReason}</Text>
+            )}
+            <Button variant="outline" className="cursor-pointer" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={handleCreate}
-              disabled={saving || blockedBySeats}
-              title={blockedBySeats ? "All licensed seats are in use. A trainer or admin role does not use a seat." : undefined}
-              className="bg-navy hover:bg-navy-soft text-paper"
+              disabled={saving || blockedBySeats || Boolean(createBlockedReason)}
+              title={blockedBySeats
+                ? "All licensed seats are in use. A trainer or admin role does not use a seat."
+                : createBlockedReason || undefined}
+              className="cursor-pointer bg-navy text-paper hover:bg-navy-soft"
             >
               {saving ? "Creating…" : `Add ${selectedRole?.label ?? "Learner"}`}
             </Button>

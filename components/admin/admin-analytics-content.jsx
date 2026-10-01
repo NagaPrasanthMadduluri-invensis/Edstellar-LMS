@@ -14,7 +14,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { InsightPanel } from "@/components/admin/insights/insight-panel";
 import { StatTile } from "@/components/admin/insights/kpi-strip";
 import { fetchAnalytics } from "@/services/api/admin/admin-api";
-import { BRAND, HAIRLINE, WARM_FILL, WARM_SERIES, warmSeriesColor } from "@/lib/brand";
+import {
+  BRAND, HAIRLINE, metricTone, WARM_FILL, WARM_SERIES, warmSeriesColor,
+} from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 const GRANULARITIES = [
@@ -215,15 +217,20 @@ export function AdminAnalyticsContent() {
             subtitle="Total time your people spend learning on the LMS"
           >
             <Box className="grid gap-2.5 p-4 sm:grid-cols-3">
+              {/* Same rule as the dashboard's hours tiles: neutral above
+                  zero because there is no target, red at zero because that
+                  is unambiguous. */}
               <StatTile
                 label="Organisation — all time"
                 value={`${data.engagement.totalHours}h`}
                 icon={Clock}
+                tone={metricTone(data.engagement.totalHours, { zeroIsBad: true })}
               />
               <StatTile
                 label="Avg per learner"
                 value={`${data.engagement.avgPerLearner}h`}
                 icon={Users}
+                tone={metricTone(data.engagement.avgPerLearner, { zeroIsBad: true })}
               />
               <StatTile
                 label="Top department"

@@ -20,6 +20,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { fetchMyProfile, updateMyProfile } from "@/services/api/profile-api";
+import {
+  getEmailPreferences,
+  updateEmailPreferences,
+} from "@/services/api/auth";
 // Per-tenant now (`0031`), so fetched rather than imported. A learner and a
 // trainer both open this dialog, and both see their OWN organization's list.
 import { fetchMyOrgOptions } from "@/services/api/profile-api";
@@ -177,6 +181,8 @@ function ProfileView({ profile: p, onEdit, onClose }) {
         )}
       </Box>
 
+      <EmailPreferences />
+
       {/* `mx-0 mb-0` cancels the primitive's `-mx-4 -mb-4`, which assumes
           the content keeps its default `p-4`. This dialog sets `p-0` so its
           navy header can meet the edges, and without the reset the footer
@@ -198,6 +204,156 @@ function ProfileView({ profile: p, onEdit, onClose }) {
         </Link>
       </DialogFooter>
     </>
+  );
+}
+
+/* ── Email preferences ───────────────────────────────────────────────────── */
+
+/**
+ * Which emails this person gets.
+ *
+ * ## Why five checkboxes and not twenty-five
+ *
+ * There are 25 notification types across four audiences. A per-type grid is
+ * 100 cells nobody fills in, nobody maintains, and that needs a UI change
+ * every time a type is added. These are keyed by the notification
+ * CATALOGUE'S GROUP instead, so a 26th type drops into an existing group
+ * with no screen to update.
+ *
+ * ## Why the groups only govern announcements
+ *
+ * Unticking "Learning" stops the broadcasts — a course opening for
+ * self-enrolment — and does not stop a course being assigned TO YOU. The
+ * panel says that in words under the heading rather than leaving somebody
+ * to discover it, because a checkbox whose scope is a surprise is worse
+ * than no checkbox.
+ *
+ * The master switch is honoured for everything, with one stated exception.
+ * Partial honouring would make it a lie; the exception is named here
+ * because a learner who switches everything off and then cannot recover
+ * their account has been failed by this screen.
+ */
+const EMAIL_GROUPS = [
+  { key: "learning", label: "Learning", hint: "Courses opening for self-enrolment" },
+  { key: "sessions", label: "Sessions", hint: "Live sessions opening for booking" },
+  { key: "recognition", label: "Recognition", hint: "Badges and leaderboard movement" },
+  { key: "people", label: "People", hint: "Team and account changes" },
+  { key: "commercial", label: "Account", hint: "Requests and billing" },
+];
+
+function EmailPreferences() {
+  const [prefs, setPrefs] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getEmailPreferences()
+      .then((d) => {
+        if (!cancelled) setPrefs(d.preferences);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A failed fetch renders NOTHING rather than an error banner. This is a
+  // secondary panel inside a dialog somebody opened to read their own
+  // details — the same call §10.3.1.18 makes for the learner feedback card.
+  if (failed) return null;
+
+  if (!prefs) {
+    return (
+      <Box className="border-t border-line px-5 py-4">
+        <Skeleton className="h-3 w-32" />
+        <Skeleton className="mt-3 h-8 w-full" />
+      </Box>
+    );
+  }
+
+  const save = async (next) => {
+    const previous = prefs;
+    setPrefs(next);            // optimistic — a checkbox that lags reads as broken
+    setSaving(true);
+    try {
+      await updateEmailPreferences({
+        allOff: next.all_off,
+        groupsOff: next.groups_off,
+      });
+    } catch {
+      setPrefs(previous);      // and put it back if the write did not land
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleGroup = (key) => {
+    const off = new Set(prefs.groups_off);
+    if (off.has(key)) off.delete(key);
+    else off.add(key);
+    save({ ...prefs, groups_off: [...off] });
+  };
+
+  return (
+    <Box className="border-t border-line px-5 py-4">
+      <Text as="p" className="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
+        Email
+      </Text>
+      <Text as="p" className="mb-3 text-[11.5px] leading-relaxed text-text-3">
+        These control announcements only. Something assigned directly to you,
+        and anything about your account or password, is always sent.
+      </Text>
+
+      <label className="flex cursor-pointer items-start gap-2.5 border border-line bg-surface-2 px-3 py-2.5">
+        <input
+          type="checkbox"
+          className="mt-0.5 size-3.5 cursor-pointer accent-[#3B6FD4]"
+          checked={prefs.all_off}
+          disabled={saving}
+          onChange={(e) => save({ ...prefs, all_off: e.target.checked })}
+        />
+        <Box className="min-w-0">
+          <Text as="span" className="text-[12.5px] font-semibold text-ink">
+            Turn off all email
+          </Text>
+          <Text as="p" className="text-[11px] leading-relaxed text-text-3">
+            You will still see everything in the notification bell. Password
+            resets are the one thing still sent, because there is no other way
+            back into a locked account.
+          </Text>
+        </Box>
+      </label>
+
+      {!prefs.all_off && (
+        <Box className="mt-2 grid gap-px border border-line bg-line sm:grid-cols-2">
+          {EMAIL_GROUPS.map((g) => (
+            <label
+              key={g.key}
+              className="flex cursor-pointer items-start gap-2.5 bg-surface px-3 py-2.5"
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 size-3.5 cursor-pointer accent-[#3B6FD4]"
+                checked={!prefs.groups_off.includes(g.key)}
+                disabled={saving}
+                onChange={() => toggleGroup(g.key)}
+              />
+              <Box className="min-w-0">
+                <Text as="span" className="text-[12.5px] font-medium text-ink">
+                  {g.label}
+                </Text>
+                <Text as="p" className="text-[11px] leading-relaxed text-text-3">
+                  {g.hint}
+                </Text>
+              </Box>
+            </label>
+          ))}
+        </Box>
+      )}
+    </Box>
   );
 }
 

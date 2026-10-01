@@ -2,8 +2,21 @@ import { NextResponse } from "next/server";
 
 const TOKEN_COOKIE = "lms_token";
 // Self-registration was retired with multi-tenancy — a public signup cannot
-// know which organization a learner belongs to. /login is the only public page.
+// know which organization a learner belongs to.
 const PUBLIC_PATHS = ["/login"];
+
+/**
+ * Public, AND exempt from the "you have a cookie, go to /" redirect below.
+ *
+ * The password-reset pages need both halves. The first is obvious — somebody
+ * who has forgotten their password cannot sign in to reach them. The second
+ * is the one that bites: a learner very often still has a stale or valid
+ * cookie in the browser they open the email in, and sending them to `/`
+ * because a cookie exists would make the link from the email appear broken.
+ * They asked to change their password; having one already is not a reason to
+ * refuse.
+ */
+const RESET_PATHS = ["/forgot-password", "/reset-password"];
 
 /**
  * Navigation gate only — it checks whether an auth cookie is PRESENT, nothing
@@ -19,6 +32,10 @@ const PUBLIC_PATHS = ["/login"];
 export function middleware(request) {
   const { pathname, searchParams } = request.nextUrl;
   const hasToken = Boolean(request.cookies.get(TOKEN_COOKIE)?.value);
+
+  if (RESET_PATHS.some((path) => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
 
   if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     /**

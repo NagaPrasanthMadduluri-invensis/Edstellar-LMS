@@ -37,9 +37,6 @@ function printCertificate(cert) {
   const win = window.open("", "_blank", "width=900,height=650");
   if (!win) return;
 
-  const score =
-    cert.finalScore !== null && cert.finalScore !== undefined ? `${cert.finalScore}%` : "N/A";
-
   win.document.write(`<!doctype html>
 <html>
 <head>
@@ -73,8 +70,8 @@ function printCertificate(cert) {
     <div class="name-wrap"><span class="name">${escapeHtml(cert.learnerName || "Learner")}</span></div>
     <div class="body">
       has successfully completed the course
-      <span class="course">${escapeHtml(cert.courseName || "")}</span>
-      with a final score of <strong>${score}</strong>, meeting all requirements for certification.
+      <span class="course">${escapeHtml(cert.courseName || "")}</span>,
+      meeting all requirements for certification.
     </div>
     <div class="meta">
       <div>
@@ -110,9 +107,6 @@ export function CertificatePrintView({ certificateId, open, onClose }) {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [certificateId, open]);
-
-  const score =
-    cert && cert.finalScore !== null && cert.finalScore !== undefined ? `${cert.finalScore}%` : "N/A";
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -169,8 +163,8 @@ export function CertificatePrintView({ certificateId, open, onClose }) {
               </Text>
               <Text as="p" className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-muted-foreground">
                 has successfully completed the course{" "}
-                <Text as="span" className="font-semibold text-navy">{cert.courseName}</Text>{" "}
-                with a final score of <Text as="span" className="font-semibold text-ink/70">{score}</Text>.
+                <Text as="span" className="font-semibold text-navy">{cert.courseName}</Text>,
+                meeting all requirements for certification.
               </Text>
               <Box className="mt-8 flex items-end justify-between text-left">
                 <Box>

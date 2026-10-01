@@ -32,6 +32,50 @@ export async function logoutUser() {
 export async function getCurrentUser() {
   return apiClient("/api/auth/me");
 }
+
+/* ── Forgot password ──────────────────────────────────────────────────── */
+
+/**
+ * Always resolves, and always with the same sentence.
+ *
+ * The API answers identically whether or not the address has an account
+ * (server §5.3's anti-enumeration rule), so there is deliberately nothing
+ * here that branches on the result — a UI that said "no account found"
+ * would reintroduce the oracle the API just closed.
+ */
+export async function requestPasswordReset(email) {
+  return apiClient("/api/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+/** Whether a link is still good, so the page can say so before asking. */
+export async function checkResetToken(token) {
+  return apiClient(
+    `/api/auth/reset-password/check?token=${encodeURIComponent(token)}`,
+  );
+}
+
+export async function resetPassword({ token, newPassword }) {
+  return apiClient("/api/auth/reset-password", {
+    method: "POST",
+    body: { token, newPassword },
+  });
+}
+
+/* ── Email preferences ────────────────────────────────────────────────── */
+
+export async function getEmailPreferences() {
+  return apiClient("/api/auth/email-preferences");
+}
+
+export async function updateEmailPreferences({ allOff, groupsOff }) {
+  return apiClient("/api/auth/email-preferences", {
+    method: "PATCH",
+    body: { all_off: allOff, groups_off: groupsOff },
+  });
+}
 /**
  * Maps the API user onto the shape the UI renders. Kept identical to the old
  * helper except that `role` is now the plain string the JWT carries

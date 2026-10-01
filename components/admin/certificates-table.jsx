@@ -271,7 +271,7 @@ export function CertificatesTable() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/20">
-                {["Learner", "Course", "Code", "Issued", "Score", "Status", "Actions"].map((h) => (
+                {["Learner", "Course", "Code", "Issued", "Status", "Actions"].map((h) => (
                   <TableHead key={h} className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase px-4 py-3">
                     {h}
                   </TableHead>
@@ -292,11 +292,6 @@ export function CertificatesTable() {
                   </TableCell>
                   <TableCell className="px-4 py-3.5">
                     <Text as="span" className="text-sm">{formatDate(cert.issuedAt)}</Text>
-                  </TableCell>
-                  <TableCell className="px-4 py-3.5">
-                    <Text as="span" className="text-sm font-semibold text-ink/70">
-                      {cert.finalScore !== null && cert.finalScore !== undefined ? `${cert.finalScore}%` : "N/A"}
-                    </Text>
                   </TableCell>
                   <TableCell className="px-4 py-3.5">
                     {cert.isRevoked ? (

@@ -276,13 +276,21 @@ export function AdminDashboardContent() {
               tone={metricTone(e.avgScore)} />
             <StatTile label="Pass rate" value={`${e.passRate ?? 0}%`} hint="Of assessed learners" icon={CheckCircle2}
               tone={metricTone(e.passRate)} />
-            <StatTile label="Total learning hours" value={`${e.totalHours ?? 0}h`} hint="All time, org-wide" icon={Clock} />
-            <StatTile label="Avg hours / learner" value={`${e.avgHoursPerLearner ?? 0}h`} hint="All time" icon={TrendingUp} />
+            {/* An hours figure has no target to be judged against, so any
+                positive number stays neutral — but ZERO is unambiguous and
+                was rendering in the same blue as a healthy one. */}
+            <StatTile label="Total learning hours" value={`${e.totalHours ?? 0}h`} hint="All time, org-wide" icon={Clock}
+              tone={metricTone(e.totalHours, { zeroIsBad: true })} />
+            <StatTile label="Avg hours / learner" value={`${e.avgHoursPerLearner ?? 0}h`} hint="All time" icon={TrendingUp}
+              tone={metricTone(e.avgHoursPerLearner, { zeroIsBad: true })} />
             <StatTile
               label={`Hours ${HOURS_PERIODS.find((p) => p.key === hoursPeriod).noun}`}
               value={`${e.hoursByPeriod?.[hoursPeriod] ?? e.hoursThisMonth ?? 0}h`}
               hint="Org-wide"
               icon={Clock}
+              /* The tile most likely to read zero, and the one where zero
+                 matters most: nobody has learned anything this period. */
+              tone={metricTone(e.hoursByPeriod?.[hoursPeriod] ?? e.hoursThisMonth, { zeroIsBad: true })}
             />
             <StatTile label="Certificates issued" value={e.certificatesIssued ?? 0} hint="All time" icon={Award} />
           </Box>
