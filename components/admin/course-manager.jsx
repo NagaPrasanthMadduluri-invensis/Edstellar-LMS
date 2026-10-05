@@ -1166,7 +1166,13 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
                 <Text as="p" className="text-[10.5px] text-text-3">
                   {hasUpload
                     ? "Remove the uploaded file to link to one instead."
-                    : "A linked file is served from wherever it is hosted, so this product cannot protect it."}
+                    : isVideo
+                      // Named explicitly because "paste a link to the file" is
+                      // wrong for a YouTube URL, and a watch-page link is what
+                      // somebody will actually paste — the learner page
+                      // translates it to the player URL.
+                      ? "A YouTube, Vimeo, Loom or direct video URL. It plays from that host, so this product cannot protect it."
+                      : "A linked file is served from wherever it is hosted, so this product cannot protect it."}
                 </Text>
               </Box>
 
