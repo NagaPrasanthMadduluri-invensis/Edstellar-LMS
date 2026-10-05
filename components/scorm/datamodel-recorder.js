@@ -207,6 +207,24 @@ export function createDatamodelRecorder({ packageId, onError }) {
     flush,
     flushOnUnload,
     close,
+    /**
+     * Every element the package has WRITTEN this session, latest value each.
+     *
+     * This is the ground truth of what the package reported, and it exists
+     * because the runtime's own `api.cmi` was observed not to match it.
+     * Measured in production: the package wrote
+     * `cmi.core.lesson_status = "completed"` and, 224 ms later, the committed
+     * snapshot of `api.cmi` still read `"not attempted"` — so the lesson never
+     * completed and the next one stayed locked.
+     *
+     * These are the exact arguments of the exact calls the package made,
+     * intercepted at the boundary. Whatever the runtime then does with them
+     * internally, this map cannot disagree with what the package said.
+     */
+    writes() {
+      return new Map(lastValue);
+    },
+
     /** Test/debug visibility — how much is waiting to be shipped. */
     get pending() {
       return buffer.length;
