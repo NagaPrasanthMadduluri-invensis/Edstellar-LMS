@@ -1,6 +1,6 @@
 "use client";
 
-import { apiClient } from "@/lib/api-client";
+import { apiClient, SERVER_URL } from "@/lib/api-client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -171,7 +171,23 @@ function formatBytes(bytes) {
  * way from here.
  */
 function DocumentLessonView({ lesson, media }) {
-  const url = media?.documentUrl ?? lesson.content_url ?? null;
+  /*
+   * An UPLOADED document now arrives as a path rather than a presigned URL,
+   * and it has to be resolved against the API origin — not this page's.
+   *
+   * The API sends `/api/learner/lessons/:id/document`, which a browser would
+   * otherwise resolve against the frontend host, where nothing serves it.
+   * `SERVER_URL` is the same base `apiClient` uses, so the two cannot point
+   * at different APIs.
+   *
+   * The cookie rides along because the frontend and the API are same-SITE
+   * (both under one registrable domain, with `COOKIE_DOMAIN` set to the
+   * shared parent), which is what lets a SameSite=Lax cookie reach a
+   * cross-origin iframe. A linked document is left exactly as the admin
+   * typed it — it is somebody else's host and nothing here can sign for it.
+   */
+  const rawUrl = media?.documentUrl ?? lesson.content_url ?? null;
+  const url = rawUrl?.startsWith("/") ? `${SERVER_URL}${rawUrl}` : rawUrl;
   const isLinked = !lesson.has_document && Boolean(lesson.content_url);
   const mime = (lesson.document_mime || "").toLowerCase();
   const looksPdf =
@@ -205,10 +221,48 @@ function DocumentLessonView({ lesson, media }) {
   if (looksPdf) {
     return (
       <Card className="overflow-hidden h-[80dvh] p-0">
+        {/*
+          `#toolbar=0` hides the built-in viewer's download and print
+          buttons in Chrome and Edge.
+
+          It is an AFFORDANCE, not a boundary, and worth being plain about:
+          a learner who opens DevTools can still reach the bytes their own
+          browser has fetched in order to show them, and no browser-side
+          trick changes that. What the fragment does is stop the product
+          inviting a download it does not want — the real control is that
+          the URL behind it is cookie-authenticated and same-origin, so
+          copying it out of the Network tab gets somebody else a 401.
+        */}
         <iframe
-          src={url}
+          src={`${url}#toolbar=0&navpanes=0`}
           title={lesson.title}
           className="w-full h-full border-0 bg-paper-warm"
+        />
+      </Card>
+    );
+  }
+
+  /*
+   * An image lesson renders as an image, not as a download card.
+   *
+   * It fell through to the card before because the card was written when
+   * every non-PDF was an Office file. An image is the other thing a browser
+   * renders natively, so showing it is both possible and obviously right —
+   * and it keeps the file out of the learner's hands for the same reason
+   * the PDF does.
+   */
+  if ((lesson.document_mime || "").toLowerCase().startsWith("image/")) {
+    return (
+      <Card className="overflow-hidden p-0">
+        {/* eslint-disable-next-line @next/next/no-img-element -- the source is
+            an authenticated API stream, which next/image's optimizer cannot
+            fetch: it runs server-side and carries no cookie. */}
+        <img
+          src={url}
+          alt={lesson.title}
+          className="w-full h-auto select-none"
+          draggable={false}
+          onContextMenu={(e) => e.preventDefault()}
         />
       </Card>
     );
