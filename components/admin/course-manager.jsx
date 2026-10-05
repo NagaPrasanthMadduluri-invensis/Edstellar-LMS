@@ -34,7 +34,7 @@ import {
   deleteScormPackage, fetchAssessments, fetchCourseLessons, fetchModules,
   scormSizeError, setLessonModule, updateLesson, updateModule,
   uploadScormPackage,
-  presignDocument, presignNewVideo, confirmLessonVideo, readVideoDuration,
+  presignDocument, presignNewVideo, readVideoDuration,
   uploadToR2,
 } from "@/services/api/admin/admin-api";
 import { documentMimeFor, formatBytes } from "@/components/admin/lesson-resources-fields";
@@ -965,50 +965,36 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
               document_mime: documentKey ? form.document_mime : null,
             }
           : {}),
+        // The video rides WITH the save rather than following it.
+        //
+        // Uploading, then creating, then confirming failed at the middle
+        // step: the create validated a video lesson that had no video yet
+        // and refused it with "Upload a video or provide a link to one" —
+        // right after the upload had succeeded. Sending the key here means
+        // the row is created complete, and there is no window in which a
+        // half-made lesson exists.
+        ...(isVideo && pendingVideo
+          ? {
+              video_key: pendingVideo.key,
+              ...(pendingVideo.durationSeconds
+                ? { video_duration_seconds: Math.round(pendingVideo.durationSeconds) }
+                : {}),
+            }
+          : {}),
         duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : null,
         is_preview: form.is_preview,
         is_active: form.is_active,
       };
-      let lessonId = editing?.id ?? null;
       if (editing) {
         await updateLesson({ lessonId: editing.id, data });
       } else {
-        const created = await createCourseLesson({
+        await createCourseLesson({
           courseId,
           data: {
             ...data,
             ...(form.module_id !== "none" ? { module_id: Number(form.module_id) } : {}),
           },
         });
-        lessonId = created?.lesson?.id ?? created?.id ?? null;
-      }
-
-      /*
-       * The video is attached AFTER the row exists, because confirming is
-       * what binds an uploaded key to a lesson.
-       *
-       * A failure here is REPORTED but does not roll the lesson back. The row
-       * is real, correct and re-editable, and deleting somebody's
-       * just-written lesson because its video did not attach is the larger
-       * loss — so the message names exactly what is missing and how to fix
-       * it, rather than leaving them to re-create the lesson.
-       */
-      if (pendingVideo && lessonId) {
-        try {
-          await confirmLessonVideo({
-            lessonId,
-            key: pendingVideo.key,
-            durationSeconds: pendingVideo.durationSeconds ?? undefined,
-          });
-        } catch (e) {
-          setSaving(false);
-          setError(
-            `The lesson was saved, but the video could not be attached: `
-            + `${e?.message ?? "unknown error"}. Re-open the lesson and upload it again.`,
-          );
-          await onSaved();
-          return;
-        }
       }
 
       onOpenChange(false);
