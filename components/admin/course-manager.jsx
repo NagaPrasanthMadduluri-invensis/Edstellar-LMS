@@ -34,9 +34,13 @@ import {
   deleteScormPackage, fetchAssessments, fetchCourseLessons, fetchModules,
   scormSizeError, setLessonModule, updateLesson, updateModule,
   uploadScormPackage,
+  presignDocument, presignNewVideo, confirmLessonVideo, readVideoDuration,
+  uploadToR2,
 } from "@/services/api/admin/admin-api";
+import { documentMimeFor, formatBytes } from "@/components/admin/lesson-resources-fields";
 import {
-  CONTENT_TYPE_ICON, LESSON_CONTENT_TYPES, contentTypeOf, durationRequiredFor,
+  CONTENT_TYPE_ICON, LESSON_CONTENT_TYPES, OFFICE_GUIDANCE, contentTypeOf,
+  durationRequiredFor,
 } from "@/lib/lesson-content";
 import { cn } from "@/lib/utils";
 
@@ -671,6 +675,17 @@ const EMPTY_LESSON = {
   scorm_file: null,
   /** Set once the zip is uploaded, or carried in when editing. */
   scorm_package_id: null,
+  /** The chosen video, and the R2 key once it is up but the row is not. */
+  video_file: null,
+  video_key_pending: null,
+  video_duration_seconds: null,
+  has_video: false,
+  /** The chosen document, and its key once uploaded. */
+  document_file: null,
+  document_key: null,
+  document_name: "",
+  document_mime: "",
+  document_size_bytes: null,
 };
 
 function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved }) {
@@ -693,6 +708,15 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
           is_active: editing.is_active !== false,
           scorm_file: null,
           scorm_package_id: editing.scorm_package_id ?? null,
+          video_file: null,
+          video_key_pending: null,
+          video_duration_seconds: editing.video_duration_seconds ?? null,
+          has_video: Boolean(editing.video_key ?? editing.has_video),
+          document_file: null,
+          document_key: editing.document_key ?? null,
+          document_name: editing.document_name ?? "",
+          document_mime: editing.document_mime ?? "",
+          document_size_bytes: editing.document_size_bytes ?? null,
         }
       : EMPTY_LESSON);
   }, [open, editing]);
@@ -701,16 +725,103 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
   const needsDuration = durationRequiredFor(form.content_type);
 
   /**
-   * SCORM is the one type with no URL to paste.
+   * Four content types carry a FILE, and every one may be linked instead.
+   * The form treats that as ONE shape rather than four branches.
    *
-   * A package is a .zip, so the form used to demand a link that cannot
-   * exist — and told the admin "uploading is done from the lesson page once
-   * the lesson exists", which was false: there is no such page. The upload
-   * belongs here, where the lesson is created.
+   * The catalogue has said `upload: true` for video, pdf, image and scorm
+   * since it was written, and the presign endpoints have existed just as
+   * long — but this form only ever branched on SCORM, so the other three
+   * fell through to a bare "paste a link" box. An admin could not get a
+   * video or a PDF into the product from inside the product.
+   *
+   * UPLOAD AND LINK EXCLUDE EACH OTHER, AND THE LOCK RUNS BOTH WAYS. A
+   * lesson has one primary content; holding both would leave it ambiguous
+   * which the learner is served, and that ambiguity would be resolved one
+   * way by the save payload and another by whoever next read the row. So
+   * choosing a file disables the URL box and typing a URL disables the
+   * picker — each saying how to undo it, because a disabled control whose
+   * reason is invisible reads as a bug rather than a rule.
    */
   const isScorm = form.content_type === "scorm";
+  const isVideo = form.content_type === "video";
+  const isDocument = ["pdf", "image"].includes(form.content_type);
+  const canUpload = Boolean(type?.upload);
+
+  const hasUpload = isScorm
+    ? Boolean(form.scorm_file || form.scorm_package_id)
+    : isVideo
+      ? Boolean(form.video_file || form.video_key_pending || form.has_video)
+      : Boolean(form.document_file || form.document_key);
+
+  const hasLink = form.content_url.trim().length > 0;
+
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(null);
+
+  const uploadName = isScorm
+    ? (form.scorm_file?.name ?? (form.scorm_package_id ? "A package is attached" : null))
+    : isVideo
+      ? (form.video_file?.name
+          ?? ((form.has_video || form.video_key_pending) ? "A video is attached" : null))
+      : (form.document_name || null);
+
+  const uploadSize = isScorm
+    ? form.scorm_file?.size
+    : isVideo ? form.video_file?.size : form.document_size_bytes;
+
+  const clearUpload = () =>
+    setForm((f) => ({
+      ...f,
+      scorm_file: null, scorm_package_id: null,
+      video_file: null, video_key_pending: null, has_video: false,
+      video_duration_seconds: null,
+      document_file: null, document_key: null,
+      document_name: "", document_mime: "", document_size_bytes: null,
+    }));
+
+  /**
+   * Validates and stages a chosen file. Nothing is sent yet — the upload
+   * runs at save, so an admin who picks the wrong file and closes the dialog
+   * has pushed nothing across the network.
+   *
+   * SCORM's size check is the exception and runs here deliberately: that cap
+   * lives in the proxy rather than the API, so a 300 MB zip would otherwise
+   * fail AFTER being uploaded.
+   */
+  const chooseFile = (file) => {
+    if (!file) return;
+    setError(null);
+
+    if (isScorm) {
+      const tooBig = scormSizeError(file);
+      if (tooBig) { setError(tooBig); return; }
+      setForm((f) => ({ ...f, scorm_file: file, content_url: "" }));
+      return;
+    }
+
+    if (isVideo) {
+      setForm((f) => ({
+        ...f, video_file: file, video_key_pending: null, has_video: false,
+        content_url: "",
+      }));
+      return;
+    }
+
+    // The EXTENSION decides the mime, not `file.type`: a browser reports
+    // nothing at all for plenty of files, and the type is what the upload
+    // URL gets signed with.
+    const mime = documentMimeFor(file);
+    if (!mime) {
+      setError(`${file.name} is not a supported ${type?.label ?? "file"}.`);
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      document_file: file, document_key: null,
+      document_name: file.name, document_mime: mime, document_size_bytes: file.size,
+      content_url: "",
+    }));
+  };
 
   async function save() {
     if (!form.title.trim()) { setError("Lesson title is required"); return; }
@@ -721,17 +832,15 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
      * Checked here so the admin hears it before pressing Save rather than as
      * a 422 afterwards. The API is what enforces it (§10.8).
      */
-    if (isScorm) {
-      if (!form.scorm_file && !form.scorm_package_id) {
-        setError("Choose a SCORM package (.zip) to upload.");
+    if (canUpload) {
+      // Either half satisfies it. Naming only the upload would have the form
+      // refuse something the API accepts.
+      if (!hasUpload && !hasLink) {
+        setError(`Upload the ${type?.label ?? "file"}, or paste a link to it.`);
         return;
       }
     } else if (!form.content_url.trim()) {
-      setError(
-        form.content_type === "link"
-          ? "Enter the URL this lesson links to."
-          : `Paste a link to the ${type?.label.toLowerCase() ?? "file"}.`,
-      );
+      setError("Enter the URL this lesson links to.");
       return;
     }
     if (needsDuration && !(Number(form.duration_minutes) > 0)) {
@@ -774,6 +883,71 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
       setUploading(null);
     }
 
+    /*
+     * A video goes up in THREE steps, and the third needs a lesson that does
+     * not exist yet. presign and PUT happen here, because the row records a
+     * key; CONFIRM happens after the row is written, because confirming is
+     * what binds the key and its measured duration to a lesson id. That is
+     * why this one is carried across the save rather than resolved in place.
+     */
+    let pendingVideo = null;
+    if (isVideo && form.video_file) {
+      try {
+        setUploading({ percent: 0, extracting: false });
+        // Read off the file rather than asked of the admin — video is the one
+        // type whose runtime is measurable, which is exactly why the
+        // catalogue marks its duration optional (§10.4).
+        const durationSeconds = await readVideoDuration(form.video_file).catch(() => null);
+        const contentType = form.video_file.type || "video/mp4";
+        const { uploadUrl, key } = await presignNewVideo({
+          filename: form.video_file.name,
+          contentType,
+          sizeBytes: form.video_file.size,
+        });
+        await uploadToR2({
+          uploadUrl, file: form.video_file, contentType,
+          onProgress: (percent) => setUploading({ percent, extracting: false }),
+        });
+        pendingVideo = { key, durationSeconds };
+      } catch (e) {
+        setUploading(null); setSaving(false);
+        setError(e?.message ?? "The video could not be uploaded.");
+        return;
+      }
+      setUploading(null);
+    }
+
+    /*
+     * A document is the simple one — presign, PUT, record the key. The
+     * service proves the object really is in the bucket before storing the
+     * key (§10.8), so a key invented by a caller is refused.
+     *
+     * No `provisional` flag as SCORM has: a document is a bare object with no
+     * row of its own, so an abandoned save leaves one unreferenced key rather
+     * than a phantom entry in a library an admin can see.
+     */
+    let documentKey = form.document_key;
+    if (isDocument && form.document_file) {
+      try {
+        setUploading({ percent: 0, extracting: false });
+        const { uploadUrl, key } = await presignDocument({
+          filename: form.document_file.name,
+          contentType: form.document_mime,
+          sizeBytes: form.document_file.size,
+        });
+        await uploadToR2({
+          uploadUrl, file: form.document_file, contentType: form.document_mime,
+          onProgress: (percent) => setUploading({ percent, extracting: false }),
+        });
+        documentKey = key;
+      } catch (e) {
+        setUploading(null); setSaving(false);
+        setError(e?.message ?? "The document could not be uploaded.");
+        return;
+      }
+      setUploading(null);
+    }
+
     try {
       const data = {
         title: form.title.trim(),
@@ -781,21 +955,62 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
         content_type: form.content_type,
         content_url: isScorm ? null : (form.content_url.trim() || null),
         ...(isScorm ? { scorm_package_id: scormPackageId } : {}),
+        // Sent only for the types with a document slot, and as an explicit
+        // null when cleared — an omitted field means "leave it alone" on the
+        // API side (§10.10), which would keep a file just removed.
+        ...(isDocument
+          ? {
+              document_key: documentKey || null,
+              document_name: documentKey ? form.document_name : null,
+              document_mime: documentKey ? form.document_mime : null,
+            }
+          : {}),
         duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : null,
         is_preview: form.is_preview,
         is_active: form.is_active,
       };
+      let lessonId = editing?.id ?? null;
       if (editing) {
         await updateLesson({ lessonId: editing.id, data });
       } else {
-        await createCourseLesson({
+        const created = await createCourseLesson({
           courseId,
           data: {
             ...data,
             ...(form.module_id !== "none" ? { module_id: Number(form.module_id) } : {}),
           },
         });
+        lessonId = created?.lesson?.id ?? created?.id ?? null;
       }
+
+      /*
+       * The video is attached AFTER the row exists, because confirming is
+       * what binds an uploaded key to a lesson.
+       *
+       * A failure here is REPORTED but does not roll the lesson back. The row
+       * is real, correct and re-editable, and deleting somebody's
+       * just-written lesson because its video did not attach is the larger
+       * loss — so the message names exactly what is missing and how to fix
+       * it, rather than leaving them to re-create the lesson.
+       */
+      if (pendingVideo && lessonId) {
+        try {
+          await confirmLessonVideo({
+            lessonId,
+            key: pendingVideo.key,
+            durationSeconds: pendingVideo.durationSeconds ?? undefined,
+          });
+        } catch (e) {
+          setSaving(false);
+          setError(
+            `The lesson was saved, but the video could not be attached: `
+            + `${e?.message ?? "unknown error"}. Re-open the lesson and upload it again.`,
+          );
+          await onSaved();
+          return;
+        }
+      }
+
       onOpenChange(false);
       await onSaved();
     } catch (e) {
@@ -879,76 +1094,103 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
             </Box>
           </Box>
 
-          {isScorm ? (
-            <Box className="space-y-1.5">
+          {/*
+            ONE block for all four uploadable types, and the link beside it.
+
+            Upload first, because an admin holding a file wants to send it;
+            the link is the fallback for something already hosted elsewhere.
+            Each half disables the other — see the derivation above for why
+            holding both is not allowed — and each says how to undo it,
+            because a disabled control whose reason is invisible reads as a
+            bug rather than a rule.
+          */}
+          {canUpload && (
+            <Box className="space-y-2">
               <Label>
-                SCORM package (.zip)
+                {type?.label ?? "File"}
                 <Text as="span" className="text-danger"> *</Text>
               </Label>
+
               <input
                 ref={fileRef}
                 type="file"
-                accept=".zip"
+                accept={type?.accept ?? ""}
                 className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  // Refused here rather than after pushing 100 MB across the
-                  // network — the cap is in the proxy, not the API.
-                  const tooBig = scormSizeError(f);
-                  if (tooBig) { setError(tooBig); e.target.value = ""; return; }
-                  setError(null);
-                  setForm((p) => ({ ...p, scorm_file: f }));
-                }}
+                onChange={(e) => { chooseFile(e.target.files?.[0]); e.target.value = ""; }}
               />
+
               <Box
-                onClick={() => !saving && fileRef.current?.click()}
+                onClick={() => !saving && !hasLink && fileRef.current?.click()}
                 className={cn(
-                  "flex cursor-pointer flex-col items-center gap-2 border border-dashed px-4 py-5 transition-colors",
-                  form.scorm_file || form.scorm_package_id
-                    ? "border-line-strong bg-surface-2"
-                    : "border-line bg-surface hover:border-line-strong hover:bg-surface-2",
+                  "flex flex-col items-center gap-2 border border-dashed px-4 py-5 transition-colors",
+                  hasLink
+                    ? "cursor-not-allowed border-line bg-surface-2 opacity-50"
+                    : hasUpload
+                      ? "cursor-pointer border-line-strong bg-surface-2"
+                      : "cursor-pointer border-line bg-surface hover:border-line-strong hover:bg-surface-2",
                 )}
               >
                 <Upload className="size-6 text-text-3" />
                 <Box className="text-center">
-                  {form.scorm_file ? (
+                  {hasLink ? (
+                    <Text as="p" className="text-[12.5px] text-text-3">
+                      A link is set — clear it to upload a file instead
+                    </Text>
+                  ) : hasUpload ? (
                     <>
                       <Text as="p" className="text-[13px] font-semibold text-ink">
-                        {form.scorm_file.name}
+                        {uploadName}
                       </Text>
                       <Text as="p" className="text-[11px] text-text-3">
-                        {(form.scorm_file.size / 1024 / 1024).toFixed(1)} MB · click to change
-                      </Text>
-                    </>
-                  ) : form.scorm_package_id ? (
-                    <>
-                      <Text as="p" className="text-[13px] font-medium text-ink">
-                        A package is already attached
-                      </Text>
-                      <Text as="p" className="text-[11px] text-text-3">
-                        Click to replace it with a new .zip
+                        {formatBytes(uploadSize) ?? "attached"} · click to replace
                       </Text>
                     </>
                   ) : (
                     <>
                       <Text as="p" className="text-[13px] font-medium text-ink">
-                        Click to choose a .zip
+                        Click to choose a file
                       </Text>
                       <Text as="p" className="text-[11px] text-text-3">
-                        Uploaded to Cloudflare when you save
+                        {type?.hint} · uploaded to Cloudflare when you save
                       </Text>
                     </>
                   )}
                 </Box>
               </Box>
+
+              {hasUpload && (
+                <button
+                  type="button"
+                  onClick={clearUpload}
+                  disabled={saving}
+                  className="cursor-pointer text-[11px] text-accent-blue underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-text-3"
+                >
+                  Remove this file
+                </button>
+              )}
+
+              <Box className="space-y-1.5 pt-1">
+                <Label className="text-[11px] text-text-2">Or link to it instead</Label>
+                <Input
+                  value={form.content_url}
+                  disabled={hasUpload}
+                  onChange={(e) => setForm((p) => ({ ...p, content_url: e.target.value }))}
+                  placeholder="https://…"
+                />
+                <Text as="p" className="text-[10.5px] text-text-3">
+                  {hasUpload
+                    ? "Remove the uploaded file to link to one instead."
+                    : "A linked file is served from wherever it is hosted, so this product cannot protect it."}
+                </Text>
+              </Box>
+
               {uploading && (
                 <Box className="space-y-1">
                   <Box className="flex items-center justify-between text-[11px] text-text-2">
                     <Text as="span">
                       {uploading.extracting
                         ? "Extracting the package on the server…"
-                        : `Uploading ${form.scorm_file?.name ?? "package"}…`}
+                        : `Uploading ${uploadName ?? "file"}…`}
                     </Text>
                     {!uploading.extracting && (
                       <Text as="span" className="font-mono">{uploading.percent}%</Text>
@@ -956,8 +1198,8 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
                   </Box>
                   <Box className="h-1 w-full bg-surface-3">
                     {/* A percentage is genuinely dynamic, so it is an inline
-                        width — the same exception `youtube-player.jsx` makes.
-                        Tailwind cannot see a class built by interpolation. */}
+                        width — the exception `youtube-player.jsx` already
+                        makes. Tailwind cannot see an interpolated class. */}
                     <Box
                       className="h-1 bg-accent-blue transition-all"
                       style={{ width: `${uploading.percent}%` }}
@@ -966,11 +1208,13 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
                 </Box>
               )}
             </Box>
-          ) : (
+          )}
+
+          {/* `link` is the one type with nothing to upload. */}
+          {!canUpload && (
             <Box className="space-y-1.5">
               <Label>
-                {form.content_type === "link" ? "URL" : `${type?.label ?? "Content"} URL`}
-                <Text as="span" className="text-danger"> *</Text>
+                URL<Text as="span" className="text-danger"> *</Text>
               </Label>
               <Input
                 value={form.content_url}
@@ -978,12 +1222,30 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
                 placeholder="https://…"
               />
               <Text as="p" className="text-[10.5px] text-text-3">
-                {form.content_type === "link"
-                  ? "Opens in a new tab for the learner."
-                  : "Paste a link to the file."}
+                Opens in a new tab for the learner.
               </Text>
             </Box>
           )}
+
+          {/*
+            PowerPoint and Word are not in the dropdown, so an admin holding
+            one needs to be told what to do instead — here, where they are
+            looking, rather than left to conclude the feature is missing.
+          */}
+          <Box className="border border-line bg-surface-2 px-3 py-2.5">
+            <Text as="p" className="text-[11.5px] font-semibold text-ink">
+              {OFFICE_GUIDANCE.title}
+            </Text>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4">
+              {OFFICE_GUIDANCE.lines.map((line) => (
+                <li key={line} className="text-[10.5px] leading-snug text-text-2">{line}</li>
+              ))}
+            </ul>
+            <Text as="p" className="mt-1.5 text-[10.5px] leading-snug text-text-3">
+              {OFFICE_GUIDANCE.why}
+            </Text>
+          </Box>
+
 
           {!editing && (
             <>
