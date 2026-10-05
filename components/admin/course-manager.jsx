@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, BookOpen, ChevronDown, ChevronUp, ClipboardList, Clock,
   FileText, Image as ImageIcon, Layers, Link2, Package, Pencil, PlayCircle,
-  Plus, Trash2, Unlink, Users, AlertTriangle,
+  Plus, Trash2, Unlink, Upload, Users, AlertTriangle,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -31,8 +31,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import {
   createCourseLesson, createModule, deleteLesson, deleteModule,
-  fetchAssessments, fetchCourseLessons, fetchModules, setLessonModule,
-  updateLesson, updateModule,
+  deleteScormPackage, fetchAssessments, fetchCourseLessons, fetchModules,
+  scormSizeError, setLessonModule, updateLesson, updateModule,
+  uploadScormPackage,
 } from "@/services/api/admin/admin-api";
 import {
   CONTENT_TYPE_ICON, LESSON_CONTENT_TYPES, contentTypeOf, durationRequiredFor,
@@ -666,6 +667,10 @@ function LessonsTab({ courseId, modules, lessons, locked, onChanged }) {
 const EMPTY_LESSON = {
   title: "", description: "", content_type: "video", content_url: "",
   duration_minutes: "", module_id: "none", is_preview: false, is_active: true,
+  /** The chosen .zip, before it has been sent anywhere. */
+  scorm_file: null,
+  /** Set once the zip is uploaded, or carried in when editing. */
+  scorm_package_id: null,
 };
 
 function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved }) {
@@ -686,6 +691,8 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
           module_id: editing.module_id ? String(editing.module_id) : "none",
           is_preview: Boolean(editing.is_preview),
           is_active: editing.is_active !== false,
+          scorm_file: null,
+          scorm_package_id: editing.scorm_package_id ?? null,
         }
       : EMPTY_LESSON);
   }, [open, editing]);
@@ -693,15 +700,37 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
   const type = contentTypeOf(form.content_type);
   const needsDuration = durationRequiredFor(form.content_type);
 
+  /**
+   * SCORM is the one type with no URL to paste.
+   *
+   * A package is a .zip, so the form used to demand a link that cannot
+   * exist — and told the admin "uploading is done from the lesson page once
+   * the lesson exists", which was false: there is no such page. The upload
+   * belongs here, where the lesson is created.
+   */
+  const isScorm = form.content_type === "scorm";
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(null);
+
   async function save() {
     if (!form.title.trim()) { setError("Lesson title is required"); return; }
-    // Checked here so the admin hears it before pressing Save rather than as a
-    // 422 afterwards. The API is what enforces it (§10.8).
-    if (!form.content_url.trim()) {
+
+    /**
+     * SCORM needs a package, every other type needs a URL.
+     *
+     * Checked here so the admin hears it before pressing Save rather than as
+     * a 422 afterwards. The API is what enforces it (§10.8).
+     */
+    if (isScorm) {
+      if (!form.scorm_file && !form.scorm_package_id) {
+        setError("Choose a SCORM package (.zip) to upload.");
+        return;
+      }
+    } else if (!form.content_url.trim()) {
       setError(
         form.content_type === "link"
           ? "Enter the URL this lesson links to."
-          : `Provide a link to the ${type?.label.toLowerCase() ?? "file"}. Uploading is done from the lesson page after it is created.`,
+          : `Paste a link to the ${type?.label.toLowerCase() ?? "file"}.`,
       );
       return;
     }
@@ -710,12 +739,48 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
       return;
     }
     setSaving(true); setError(null);
+
+    /**
+     * The zip goes up BEFORE the lesson is written, because the lesson row
+     * needs the package id. That ordering is what `provisional` exists for
+     * (§10.9): a package uploaded this way is hidden from the SCORM library
+     * and swept if no lesson ever claims it, so an abandoned save leaves no
+     * debris an admin can see.
+     *
+     * `uploadedNow` is tracked separately so the rollback below only ever
+     * deletes a package THIS save created — never one the lesson already had.
+     */
+    let scormPackageId = form.scorm_package_id;
+    let uploadedNow = null;
+    if (isScorm && form.scorm_file) {
+      try {
+        setUploading({ percent: 0, extracting: false });
+        const res = await uploadScormPackage({
+          file: form.scorm_file,
+          title: form.title.trim(),
+          courseId,
+          provisional: true,
+          onProgress: (percent) =>
+            setUploading({ percent, extracting: percent >= 100 }),
+        });
+        scormPackageId = res?.package?.id ?? res?.id ?? null;
+        uploadedNow = scormPackageId;
+        if (!scormPackageId) throw new Error("The server did not return a package id.");
+      } catch (e) {
+        setUploading(null); setSaving(false);
+        setError(e?.message ?? "The SCORM package could not be uploaded.");
+        return;
+      }
+      setUploading(null);
+    }
+
     try {
       const data = {
         title: form.title.trim(),
         description: form.description.trim() || null,
         content_type: form.content_type,
-        content_url: form.content_url.trim() || null,
+        content_url: isScorm ? null : (form.content_url.trim() || null),
+        ...(isScorm ? { scorm_package_id: scormPackageId } : {}),
         duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : null,
         is_preview: form.is_preview,
         is_active: form.is_active,
@@ -733,7 +798,22 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
       }
       onOpenChange(false);
       await onSaved();
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
+    } catch (e) {
+      /**
+       * The lesson failed AFTER the zip went up, so the package is orphaned.
+       * The server's sweeper would collect it in 12 hours, but the browser
+       * knows NOW — the same rollback the SCORM library page performs, and
+       * the reason §10.9 calls the client "the fast path".
+       *
+       * Only a package this save created is deleted. Never one the lesson
+       * already had: that would destroy a working package because an
+       * unrelated field failed validation.
+       */
+      if (uploadedNow) {
+        try { await deleteScormPackage({ packageId: uploadedNow }); } catch { /* swept later */ }
+      }
+      setError(e.message);
+    } finally { setSaving(false); }
   }
 
   return (
@@ -799,22 +879,111 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
             </Box>
           </Box>
 
-          <Box className="space-y-1.5">
-            <Label>
-              {form.content_type === "link" ? "URL" : `${type?.label ?? "Content"} URL`}
-              <Text as="span" className="text-danger"> *</Text>
-            </Label>
-            <Input
-              value={form.content_url}
-              onChange={(e) => setForm((p) => ({ ...p, content_url: e.target.value }))}
-              placeholder="https://…"
-            />
-            <Text as="p" className="text-[10.5px] text-text-3">
-              {form.content_type === "link"
-                ? "Opens in a new tab for the learner."
-                : "Paste a link now. Uploading a file is done from the lesson page once the lesson exists."}
-            </Text>
-          </Box>
+          {isScorm ? (
+            <Box className="space-y-1.5">
+              <Label>
+                SCORM package (.zip)
+                <Text as="span" className="text-danger"> *</Text>
+              </Label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  // Refused here rather than after pushing 100 MB across the
+                  // network — the cap is in the proxy, not the API.
+                  const tooBig = scormSizeError(f);
+                  if (tooBig) { setError(tooBig); e.target.value = ""; return; }
+                  setError(null);
+                  setForm((p) => ({ ...p, scorm_file: f }));
+                }}
+              />
+              <Box
+                onClick={() => !saving && fileRef.current?.click()}
+                className={cn(
+                  "flex cursor-pointer flex-col items-center gap-2 border border-dashed px-4 py-5 transition-colors",
+                  form.scorm_file || form.scorm_package_id
+                    ? "border-line-strong bg-surface-2"
+                    : "border-line bg-surface hover:border-line-strong hover:bg-surface-2",
+                )}
+              >
+                <Upload className="size-6 text-text-3" />
+                <Box className="text-center">
+                  {form.scorm_file ? (
+                    <>
+                      <Text as="p" className="text-[13px] font-semibold text-ink">
+                        {form.scorm_file.name}
+                      </Text>
+                      <Text as="p" className="text-[11px] text-text-3">
+                        {(form.scorm_file.size / 1024 / 1024).toFixed(1)} MB · click to change
+                      </Text>
+                    </>
+                  ) : form.scorm_package_id ? (
+                    <>
+                      <Text as="p" className="text-[13px] font-medium text-ink">
+                        A package is already attached
+                      </Text>
+                      <Text as="p" className="text-[11px] text-text-3">
+                        Click to replace it with a new .zip
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text as="p" className="text-[13px] font-medium text-ink">
+                        Click to choose a .zip
+                      </Text>
+                      <Text as="p" className="text-[11px] text-text-3">
+                        Uploaded to Cloudflare when you save
+                      </Text>
+                    </>
+                  )}
+                </Box>
+              </Box>
+              {uploading && (
+                <Box className="space-y-1">
+                  <Box className="flex items-center justify-between text-[11px] text-text-2">
+                    <Text as="span">
+                      {uploading.extracting
+                        ? "Extracting the package on the server…"
+                        : `Uploading ${form.scorm_file?.name ?? "package"}…`}
+                    </Text>
+                    {!uploading.extracting && (
+                      <Text as="span" className="font-mono">{uploading.percent}%</Text>
+                    )}
+                  </Box>
+                  <Box className="h-1 w-full bg-surface-3">
+                    {/* A percentage is genuinely dynamic, so it is an inline
+                        width — the same exception `youtube-player.jsx` makes.
+                        Tailwind cannot see a class built by interpolation. */}
+                    <Box
+                      className="h-1 bg-accent-blue transition-all"
+                      style={{ width: `${uploading.percent}%` }}
+                    />
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Box className="space-y-1.5">
+              <Label>
+                {form.content_type === "link" ? "URL" : `${type?.label ?? "Content"} URL`}
+                <Text as="span" className="text-danger"> *</Text>
+              </Label>
+              <Input
+                value={form.content_url}
+                onChange={(e) => setForm((p) => ({ ...p, content_url: e.target.value }))}
+                placeholder="https://…"
+              />
+              <Text as="p" className="text-[10.5px] text-text-3">
+                {form.content_type === "link"
+                  ? "Opens in a new tab for the learner."
+                  : "Paste a link to the file."}
+              </Text>
+            </Box>
+          )}
 
           {!editing && (
             <>
