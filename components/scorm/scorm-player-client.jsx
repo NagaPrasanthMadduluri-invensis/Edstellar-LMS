@@ -23,6 +23,45 @@ const STATUS_CFG = {
   failed:          { label: "Failed",       cls: "bg-error/10 text-error border-error/30"             },
 };
 
+/**
+ * Writes `cmi.core.lesson_status` style paths into the snapshot object.
+ *
+ * The keys are the element names the package passed to `LMSSetValue`, so they
+ * carry the leading `cmi.` that the stored shape does not — `api.cmi`
+ * serialises as `{ core: { lesson_status } }`, not `{ cmi: { core: ... } }`.
+ * That prefix is stripped, and anything that is not addressing `cmi` is
+ * ignored rather than guessed at.
+ *
+ * Intermediate objects are created as needed, but an existing NON-object is
+ * never replaced: `cmi.core.score` is an object in the snapshot and a package
+ * writing `cmi.core.score.raw` must land inside it, while a package writing
+ * something malformed must not be able to blow away a subtree.
+ */
+function applyWrites(target, writes) {
+  if (!target || !writes || typeof writes.forEach !== "function") return target;
+
+  writes.forEach((value, key) => {
+    if (typeof key !== "string") return;
+    const parts = key.split(".");
+    if (parts.shift() !== "cmi" || parts.length === 0) return;
+
+    const leaf = parts.pop();
+    let node = target;
+    for (const part of parts) {
+      if (node[part] === null || typeof node[part] !== "object") {
+        if (node[part] !== undefined) return; // refuse to overwrite a scalar
+        node[part] = {};
+      }
+      node = node[part];
+    }
+    if (node && typeof node === "object" && !Array.isArray(node)) {
+      node[leaf] = value;
+    }
+  });
+
+  return target;
+}
+
 export function ScormPlayerClient({ packageId }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -36,10 +75,31 @@ export function ScormPlayerClient({ packageId }) {
   const [saveMsg,  setSaveMsg]  = useState("");
 
   /* ── Persist CMI data to server ── */
-  const persistTracking = useCallback(async (api) => {
+  const persistTracking = useCallback(async (api, recorder) => {
     if (!user || !api) return;
     try {
       const cmiData = JSON.parse(JSON.stringify(api.cmi ?? {}));
+
+      /**
+       * Overlay what the package ACTUALLY wrote.
+       *
+       * `api.cmi` is the runtime's interpretation of the session, and it was
+       * observed in production not to hold the module's own writes: the
+       * package set `cmi.core.lesson_status = "completed"` three times, and
+       * the snapshot committed 224 ms after the last one still read
+       * `"not attempted"`. The lesson therefore never completed and the next
+       * one stayed locked behind the sequential gate — with the learner
+       * having genuinely finished the content.
+       *
+       * The recorder intercepts `LMSSetValue` at the boundary, so its map is
+       * the exact set of values the package reported. Applying it over the
+       * snapshot means the stored record can never contradict what the
+       * package said — the snapshot still supplies everything the package
+       * did not write (loaded resume state, runtime-computed fields), and
+       * the package wins wherever both have an opinion.
+       */
+      applyWrites(cmiData, recorder?.writes?.());
+
       await apiClient(`/api/learner/scorm/${packageId}/tracking`, {
         method: "POST",
         body: { cmi_data: cmiData },
@@ -107,7 +167,7 @@ export function ScormPlayerClient({ packageId }) {
          * so a failure in one must not take the other down with it.
          */
         const save = () => {
-          const tracking = persistTracking(api);
+          const tracking = persistTracking(api, recorder);
           const deltas = recorder.flush();
           return Promise.allSettled([tracking, deltas]);
         };
