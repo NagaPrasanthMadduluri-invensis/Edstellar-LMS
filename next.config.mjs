@@ -13,6 +13,33 @@
  */
 const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL?.replace(/\/+$/, "");
 
+/**
+ * Where the rewrites below actually fetch from — THIS PROCESS, not a browser.
+ *
+ * A rewrite is a server-side proxy: Next receives the request and makes its
+ * own. Pointing it at the PUBLIC hostname sends that second request out of
+ * the box, through the CDN, and back to the same machine — the hairpin
+ * AGENTS.md describes for `SERVER_API_URL`, and it does not survive contact
+ * with bot protection.
+ *
+ * Measured on this deployment, both from the box, same path:
+ *
+ *   https://lms-api.edstellar.com/scorm/<dir>/index.html  ->  403 "Just a moment..."
+ *   http://127.0.0.1:5001/scorm/<dir>/index.html          ->  401 (the API, correctly)
+ *
+ * The 403 is Cloudflare challenging a datacenter IP, and what the learner
+ * saw was that challenge page rendered inside the SCORM player's iframe.
+ * The browser is never challenged, so this fails ONLY through the proxy —
+ * which is exactly why it looked like a SCORM bug rather than a network one.
+ *
+ * Falls back to the public URL when unset, so a deployment that has not
+ * configured it behaves as before. Unlike `lib/session.js`, which reads
+ * `SERVER_API_URL` per request, this one is baked into `routes-manifest.json`
+ * at BUILD time: changing it needs a rebuild, not a restart.
+ */
+const INTERNAL_SERVER_URL =
+  process.env.SERVER_API_URL?.replace(/\/+$/, "") || SERVER_URL;
+
 if (!SERVER_URL) {
   throw new Error(
     "NEXT_PUBLIC_SERVER_URL is not set. It is baked in at build time, so it " +
@@ -40,7 +67,7 @@ const nextConfig = {
     return [
       {
         source: "/scorm/:path*",
-        destination: `${SERVER_URL}/scorm/:path*`,
+        destination: `${INTERNAL_SERVER_URL}/scorm/:path*`,
       },
       /**
        * Course thumbnails, uploaded by an admin and stored by the API.
@@ -52,7 +79,7 @@ const nextConfig = {
        */
       {
         source: "/uploads/:path*",
-        destination: `${SERVER_URL}/uploads/:path*`,
+        destination: `${INTERNAL_SERVER_URL}/uploads/:path*`,
       },
     ];
   },
