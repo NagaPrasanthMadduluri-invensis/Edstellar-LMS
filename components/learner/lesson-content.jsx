@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { fetchLessonContent, markLessonComplete } from "@/services/api/learner/learner-api";
 import { YoutubePlayer, isYouTubeUrl, extractYouTubeId } from "@/components/learner/youtube-player";
 import { LocalVideoPlayer, isVideoFile } from "@/components/learner/local-video-player";
+import { toEmbedUrl } from "@/lib/video-embed";
 
 /* These chips sit on the navy panel below, so the light-surface fill weights do
    not apply: on a dark surface the heaviest state is the accent on navy, and
@@ -658,8 +659,15 @@ export function LessonContent({ courseId, lessonId }) {
   // A document lesson: the file is uploaded (has_document) or linked. Either
   // way there is nothing to play and nothing to measure, so its declared
   // duration is what counts — completion is the learner's to mark.
+  /*
+   * Mirrors the server's DOCUMENT_LIKE_TYPES. `image` and `word` were missing
+   * — so an IMAGE lesson never reached the document view at all: it fell
+   * through to the video branches, matched none of them, and rendered "No
+   * video content available for this lesson yet" over a perfectly good
+   * uploaded picture.
+   */
   const isDocument =
-    ["document", "pdf", "ppt", "doc", "xls"].includes(lesson.content_type) &&
+    ["document", "pdf", "ppt", "doc", "xls", "image", "word"].includes(lesson.content_type) &&
     (lesson.has_document || Boolean(lesson.content_url));
   // An uploaded R2 video wins over content_url — the admin form presents the
   // upload first and says as much.
@@ -802,8 +810,15 @@ export function LessonContent({ courseId, lessonId }) {
             />
           ) : (
             <Box className="h-full w-full bg-navy">
+              {/*
+                A watch-page URL is translated to its player URL first.
+                Vimeo, Loom and Drive all refuse to be framed on their public
+                page, so the link an admin actually copies renders a black
+                box — with the reason only in the console. Anything
+                unrecognised passes through unchanged.
+              */}
               <iframe
-                src={lesson.content_url}
+                src={toEmbedUrl(lesson.content_url)}
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
