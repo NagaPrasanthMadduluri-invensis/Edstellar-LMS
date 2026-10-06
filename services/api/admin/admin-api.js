@@ -155,6 +155,31 @@ export async function uploadCourseThumbnail({ file }) {
 }
 
 /**
+ * The organization's logo, for the certificate.
+ *
+ * Its own route rather than reusing `course-thumbnail`, so a reader can tell
+ * what an upload was for — the server delegates to the same checked handler
+ * (bytes sniffed, fresh UUID filename, SVG refused), so nothing about the
+ * validation differs.
+ */
+export async function uploadOrganizationLogo({ file }) {
+  const fd = new FormData();
+  fd.append("image", file);
+  return apiClient("/api/admin/media/organization-logo", { method: "POST", body: fd });
+}
+
+/* ── The organization's own settings ── */
+
+export async function fetchOwnOrganization() {
+  return apiClient("/api/admin/organization");
+}
+
+/** Only the keys passed are written; an omitted field is left alone. */
+export async function updateOwnOrganization({ data }) {
+  return apiClient("/api/admin/organization", { method: "PATCH", body: data });
+}
+
+/**
  * Rollback for an upload whose course then failed to save — the browser is the
  * only party that knows the image is now pointing at nothing. Best-effort:
  * never let the cleanup's failure replace the real error.
