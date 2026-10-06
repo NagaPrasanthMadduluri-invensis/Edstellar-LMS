@@ -32,17 +32,37 @@ import { cn } from "@/lib/utils";
  * this, the accent read on a dark field.
  */
 
-/** "12 lessons x 10 · 1 assessment x 50" — where the number comes from. */
+/**
+ * "Course 100 · early +75 · 1 assessment 50–200" — where the number comes from.
+ *
+ * Each figure is a field the API priced with the leaderboard's own rules
+ * (`courseReward` in points.ts), so nothing here is a rate typed into the
+ * browser. An assessment is a RANGE because it pays one tier by best score:
+ * the pass rate is guaranteed, a top or perfect score pays more.
+ */
 function breakdown(reward) {
-  const parts = [];
-  const lessons = reward.lessonPoints / reward.perLesson;
-  const assessments = reward.assessmentPoints / reward.perAssessment;
-  if (lessons > 0) {
-    parts.push(`${lessons} lesson${lessons === 1 ? "" : "s"} × ${reward.perLesson}`);
+  const parts = [`Course ${reward.completionPoints}`];
+  if (reward.earlyPoints > 0) parts.push(`early +${reward.earlyPoints}`);
+  const n = reward.assessmentCount;
+  if (n > 0) {
+    parts.push(
+      `${n} assessment${n === 1 ? "" : "s"} ${reward.perAssessmentMin}–${reward.perAssessmentMax}`,
+    );
   }
-  if (assessments > 0) {
-    parts.push(`${assessments} assessment${assessments === 1 ? "" : "s"} × ${reward.perAssessment}`);
-  }
+  return parts.join(" · ");
+}
+
+/**
+ * What a FINISHED course actually paid. Once complete the early bonus is
+ * either earned or gone (the API sends 0 for a lapsed one), so whatever is
+ * left of the total after completion and the bonus is what the assessments
+ * paid at their real tiers — a range would be vaguer than the facts.
+ */
+function earnedBreakdown(reward) {
+  const parts = [`Course ${reward.completionPoints}`];
+  if (reward.earlyPoints > 0) parts.push(`early +${reward.earlyPoints}`);
+  const assessments = reward.earnedPoints - reward.completionPoints - reward.earlyPoints;
+  if (assessments > 0) parts.push(`assessments +${assessments}`);
   return parts.join(" · ");
 }
 
@@ -57,7 +77,7 @@ function headline(reward, { isComplete, isSession }) {
       icon: CheckCircle2,
       label: "Earned",
       value: `${reward.earnedPoints} pts`,
-      sub: `Added to your leaderboard total · ${breakdown(reward)}`,
+      sub: `Added to your leaderboard total · ${earnedBreakdown(reward)}`,
     };
   }
   if (reward.earnedPoints > 0) {
@@ -68,6 +88,8 @@ function headline(reward, { isComplete, isSession }) {
       sub: `${reward.earnedPoints} of ${reward.totalPoints} earned so far`,
     };
   }
+  // "up to" only when a top score can genuinely pay more than the base.
+  const upTo = reward.maxPoints > reward.totalPoints ? ` · up to ${reward.maxPoints}` : "";
   return {
     icon: Sparkles,
     label: "On completion",
@@ -76,7 +98,7 @@ function headline(reward, { isComplete, isSession }) {
       // The learner cannot complete a session themselves — the trainer marks
       // it — so the card must not imply the points are theirs to take.
       ? "Credited when your trainer marks you present"
-      : breakdown(reward),
+      : `${breakdown(reward)}${upTo}`,
   };
 }
 

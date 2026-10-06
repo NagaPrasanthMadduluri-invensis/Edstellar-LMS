@@ -76,12 +76,10 @@ function LBSkeleton() {
  * and it fails worst here: a learner who reads a value they never receive
  * stops believing the whole board.
  *
- * THREE ROWS, NOT ELEVEN. The reference design lists top score, perfect
- * score, finished early, session attended and four community actions. This
- * product awards none of them — there is no community feature, no
- * early-completion bonus, and a session pays through the lesson its
- * attendance completes. They are absent rather than shown at zero, which
- * is the same call §10.3.1.21 makes for the webinar column.
+ * The reference design's rules, minus its four community actions — there
+ * is no community feature, so those are absent rather than shown at zero,
+ * the same call §10.3.1.21 makes for the webinar column. Every row that
+ * does appear is paid by `LeaderboardRepository.pointEvents`.
  */
 function HowPointsWork({ rules = [], notes = [] }) {
   return (

@@ -6,34 +6,24 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { SidebarNavFooter, SidebarNavGroup } from "@/components/layout/sidebar-nav";
-import Text from "@/components/ui/text";
+import { SidebarNavSections, SidebarSignOut } from "@/components/layout/sidebar-nav";
 import { learnerNav } from "@/lib/nav-config";
 
+/**
+ * Built to match the reference HTML's learner sidebar: the same order, the
+ * same headings, collapsible sections closed by default, and one-page modules
+ * as heading-links. The shape lives in `learnerNav.sections`.
+ */
 export function LearnerSidebar() {
+  const [signOut] = learnerNav.footer;
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarContent>
-        <SidebarNavGroup items={learnerNav.main} />
-        <SidebarNavGroup label="My Learnings" items={learnerNav.myLearnings} />
-        <SidebarNavGroup label="My Progress" items={learnerNav.progress} />
-        {/* "Recognition", not "My Achievements" — the group heading repeated
-            the first item under it verbatim, so the word carried no
-            information. It is also what the admin sidebar already calls the
-            same group. */}
-        <SidebarNavGroup label="Recognition" items={learnerNav.achievements} />
-        <SidebarNavGroup items={learnerNav.feedback} />
-        <SidebarNavGroup label="My Team" items={learnerNav.team} />
+        <SidebarNavSections sections={learnerNav.sections} />
       </SidebarContent>
       <SidebarSeparator />
-      <SidebarFooter>
-        <Text
-          as="span"
-          className="px-2 pb-1 text-[10px] font-medium text-sidebar-foreground/40 tracking-wide"
-        >
-          Powered by Edstellar
-        </Text>
-        <SidebarNavFooter items={learnerNav.footer} />
+      <SidebarFooter className="p-3">
+        <SidebarSignOut label={signOut.title} icon={signOut.icon} />
       </SidebarFooter>
     </Sidebar>
   );
