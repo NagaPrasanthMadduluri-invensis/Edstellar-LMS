@@ -58,6 +58,12 @@
   --color-text-2: var(--spectra-text-2);
   --color-text-3: var(--spectra-text-3);
 
+  /* The on-navy text ramp, as utilities for the sidebar's own rows. */
+  --color-on-navy-2: var(--on-navy-2);
+  --color-on-navy-3: var(--on-navy-3);
+  --color-on-navy-4: var(--on-navy-4);
+  --color-on-navy-5: var(--on-navy-5);
+
   /* ── Legacy brand aliases — same names, Spectra values ──
      navy*  → the Spectra navy scale (chrome)
      lime*  → the Spectra accent blue  (`lime` = accent, `lime-soft` = #BDD0F0)

@@ -6,23 +6,25 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { SidebarNavFooter, SidebarNavGroup } from "@/components/layout/sidebar-nav";
+import { SidebarNavSections, SidebarSignOut } from "@/components/layout/sidebar-nav";
 import { adminNav } from "@/lib/nav-config";
 
+/**
+ * Built to match the reference HTML's admin sidebar: the same order, the same
+ * headings, collapsible sections closed by default, and one-page modules as
+ * heading-links. The shape lives in `adminNav.sections`; read its docblock
+ * before adding a row.
+ */
 export function AdminSidebar() {
+  const [signOut] = adminNav.footer;
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarContent>
-        <SidebarNavGroup items={adminNav.main} />
-        <SidebarNavGroup label="User Management" items={adminNav.userManagement} />
-        <SidebarNavGroup label="Course Management" items={adminNav.courseManagement} />
-        <SidebarNavGroup label="Training Delivery" items={adminNav.trainingDelivery} />
-        <SidebarNavGroup label="Recognition" items={adminNav.recognition} />
-        <SidebarNavGroup label="Edstellar" items={adminNav.edstellar} />
+        <SidebarNavSections sections={adminNav.sections} />
       </SidebarContent>
       <SidebarSeparator />
-      <SidebarFooter>
-        <SidebarNavFooter items={adminNav.footer} />
+      <SidebarFooter className="p-3">
+        <SidebarSignOut label={signOut.title} icon={signOut.icon} />
       </SidebarFooter>
     </Sidebar>
   );
