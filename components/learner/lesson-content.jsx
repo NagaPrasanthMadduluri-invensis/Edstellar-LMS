@@ -252,7 +252,12 @@ function DocumentLessonView({ lesson, media }) {
    * and it keeps the file out of the learner's hands for the same reason
    * the PDF does.
    */
-  if ((lesson.document_mime || "").toLowerCase().startsWith("image/")) {
+  const looksImage =
+    (lesson.document_mime || "").toLowerCase().startsWith("image/") ||
+    lesson.content_type === "image" ||
+    /\.(png|jpe?g|gif|webp|avif|bmp)($|\?)/i.test(url || "");
+
+  if (looksImage) {
     return (
       <Card className="overflow-hidden p-0">
         {/* eslint-disable-next-line @next/next/no-img-element -- the source is
