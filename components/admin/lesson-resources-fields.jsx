@@ -33,6 +33,17 @@ export const DOCUMENT_MIME = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   txt:  "text/plain",
   csv:  "text/csv",
+  // Images, for an `image` lesson — which stores its file in the document
+  // slot and so uploads through the same presign. Both JPEG spellings are
+  // listed because the extension is what this map keys on. SVG is absent on
+  // purpose: it can carry script and is served from the API origin.
+  png:  "image/png",
+  jpg:  "image/jpeg",
+  jpeg: "image/jpeg",
+  gif:  "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+  bmp:  "image/bmp",
 };
 
 export const DOCUMENT_ACCEPT = Object.keys(DOCUMENT_MIME)
