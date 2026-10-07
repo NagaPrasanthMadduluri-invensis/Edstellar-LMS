@@ -781,7 +781,8 @@ function NewTenantDialog({ onClose, onSaved }) {
     form.adminFirstName.trim() &&
     form.adminLastName.trim() &&
     form.adminEmail.trim() &&
-    form.adminPassword.length >= 6 &&
+    // Optional: blank means the admin sets their own from the welcome email.
+    (form.adminPassword === "" || form.adminPassword.length >= 6) &&
     !datesInverted;
 
   async function save() {
@@ -796,7 +797,9 @@ function NewTenantDialog({ onClose, onSaved }) {
             firstName: form.adminFirstName.trim(),
             lastName: form.adminLastName.trim(),
             email: form.adminEmail.trim().toLowerCase(),
-            password: form.adminPassword,
+            // Omitted when blank — the API then gives the account an
+            // unguessable password and the welcome link is the way in.
+            ...(form.adminPassword ? { password: form.adminPassword } : {}),
           },
           // Only what was filled in. An empty string would clear a field the
           // admin never touched, which is the omitted-vs-null distinction the
@@ -869,7 +872,8 @@ function NewTenantDialog({ onClose, onSaved }) {
           <Text as="p" className="-mt-1 text-[11px] text-text-3">
             Required. This account is created with the tenant and is the one
             they sign in with — and the one a support session assumes when you
-            open their account from this page.
+            open their account from this page. They are emailed a welcome link
+            to choose their password as soon as you save.
           </Text>
           <Box className="grid gap-3 sm:grid-cols-2">
             <Field label="First name" required>
@@ -890,15 +894,25 @@ function NewTenantDialog({ onClose, onSaved }) {
                 Unique across the whole platform, not just this tenant.
               </Text>
             </Field>
-            <Field label="Temporary password" required>
+            <Field label="Temporary password (optional)">
               <Input
                 type="text" value={form.adminPassword}
                 onChange={(e) => set("adminPassword", e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder="Leave blank to send a welcome link"
               />
-              <Text as="p" className="text-[10.5px] text-text-3">
-                Shown, not masked — you have to pass it on. They can change it
-                from Change password once they are in.
+              <Text
+                as="p"
+                className={
+                  form.adminPassword !== "" && form.adminPassword.length < 6
+                    ? "text-[10.5px] text-danger"
+                    : "text-[10.5px] text-text-3"
+                }
+              >
+                {form.adminPassword !== "" && form.adminPassword.length < 6
+                  ? "At least 6 characters, or leave it blank."
+                  : "Blank is best: they choose their own from the welcome email. "
+                    + "If you set one it works straight away — shown, not masked, "
+                    + "because you have to pass it on — and the email still goes."}
               </Text>
             </Field>
           </Box>
