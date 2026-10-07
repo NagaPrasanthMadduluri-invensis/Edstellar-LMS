@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -35,6 +36,7 @@ import {
   CheckCircle2, XCircle, Clock, Trophy, TrendingUp,
   ChevronDown, ChevronUp, CalendarDays, FileArchive, MinusCircle,
   Eye, EyeOff, Pencil, Power, Trash2, ShieldCheck, GraduationCap, Presentation, UserX,
+  Mail,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -771,6 +773,10 @@ export function AdminEmployeesContent() {
   const [bulkRows, setBulkRows]               = useState(null);
   const [bulkUploading, setBulkUploading]     = useState(false);
   const [bulkResult, setBulkResult]           = useState(null);
+  /* Default ON — see the DTO's docblock. An import that creates accounts
+   * nobody can sign into is the gap this closes; the tick is here so an
+   * admin importing sample rows or staging a tenant can still opt out. */
+  const [bulkWelcome, setBulkWelcome]         = useState(true);
   const [parseError, setParseError]           = useState(null);
   const [templateLoading, setTemplateLoading] = useState(false);
 
@@ -965,7 +971,7 @@ export function AdminEmployeesContent() {
     if (!bulkRows?.length) return;
     setBulkUploading(true);
     try {
-      const result = await bulkCreateUsers({ users: bulkRows });
+      const result = await bulkCreateUsers({ users: bulkRows, sendWelcomeEmail: bulkWelcome });
       setBulkResult(result);
       setBulkRows(null);
       if (result.created > 0) load();
@@ -993,6 +999,7 @@ export function AdminEmployeesContent() {
     setBulkOpen(false);
     setBulkRows(null);
     setBulkResult(null);
+    setBulkWelcome(true);
     setParseError(null);
     setTemplateLoading(false);
     if (fileRef.current) fileRef.current.value = "";
@@ -1904,6 +1911,30 @@ export function AdminEmployeesContent() {
                   <Text as="p" className="text-xs text-muted-foreground mt-0.5">Total Rows</Text>
                 </Box>
               </Box>
+              {/*
+                Reported, not assumed. The whole reason this exists is that
+                the previous answer to "were they emailed?" was silence —
+                so the number comes from the server's own count of rows it
+                queued, never from the row count the admin uploaded.
+              */}
+              {bulkResult.created > 0 && (
+                <Box className={cn("flex items-start gap-2 rounded-xl border px-4 py-3 text-xs",
+                  !bulkResult.welcome_emails_requested
+                    ? "border-border bg-muted/40 text-text-2"
+                    : bulkResult.welcome_emails_queued > 0
+                      ? "border-success/30 bg-success/10 text-success"
+                      : "border-warning/30 bg-warning/10 text-warning")}>
+                  <Mail className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <Text as="span">
+                    {!bulkResult.welcome_emails_requested
+                      ? "No welcome emails were sent — you left that unticked. These learners hold the default password and have not been told it."
+                      : bulkResult.welcome_emails_queued > 0
+                        ? `${bulkResult.welcome_emails_queued} welcome email${bulkResult.welcome_emails_queued === 1 ? "" : "s"} queued. They go out over the next few minutes — track them on Email Delivery.`
+                        : "No welcome emails were queued, although they were asked for. Check Email Delivery for the reason."}
+                  </Text>
+                </Box>
+              )}
+
               {bulkResult.failed?.length > 0 && (
                 <Box className="rounded-xl border overflow-hidden">
                   <Box className="px-4 py-2.5 bg-error/10 border-b">
@@ -2045,6 +2076,35 @@ export function AdminEmployeesContent() {
                         ))}
                       </tbody>
                     </table>
+                  </Box>
+                </Box>
+              )}
+
+              {/*
+                The one outward-facing consequence of pressing Upload, so
+                it sits immediately above the button rather than in step 1.
+                It names the COUNT, because "email everyone" and "email
+                these 312 people" are read differently — and 312 messages
+                to strangers is the accident this file has already caused
+                once.
+              */}
+              {bulkRows && bulkRows.length > 0 && (
+                <Box className="flex items-start gap-3 rounded-xl border p-4">
+                  <Checkbox
+                    id="bulk-welcome"
+                    checked={bulkWelcome}
+                    onCheckedChange={(v) => setBulkWelcome(v === true)}
+                    className="mt-0.5"
+                  />
+                  <Box className="space-y-1">
+                    <Label htmlFor="bulk-welcome" className="cursor-pointer text-sm font-medium">
+                      Email {bulkRows.length} {bulkRows.length === 1 ? "person" : "people"} their sign-in link
+                    </Label>
+                    <Text as="p" className="text-[11px] text-text-3 leading-relaxed">
+                      {bulkWelcome
+                        ? "Each learner gets their own one-time link to set a password. It lasts 7 days, and the mail goes out over the next few minutes rather than all at once."
+                        : "Accounts are created but nobody is told. They will hold the default password with no way to learn it — you will need to send the details yourself, or resend from Email Delivery later."}
+                    </Text>
                   </Box>
                 </Box>
               )}

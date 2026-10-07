@@ -606,8 +606,14 @@ export async function updateUser({ userId, data }) {
   return apiClient(`/api/admin/users/${userId}`, { method: "PUT", body: data });
 }
 
-export async function bulkCreateUsers({ users }) {
-  return apiClient("/api/admin/users/bulk", { method: "POST", body: { users } });
+export async function bulkCreateUsers({ users, sendWelcomeEmail = true }) {
+  // Sent explicitly rather than relying on the server default, so the
+  // checkbox the admin saw is the value the server acts on. The DTO also
+  // defaults it to true, which covers any caller that predates the flag.
+  return apiClient("/api/admin/users/bulk", {
+    method: "POST",
+    body: { users, send_welcome_email: sendWelcomeEmail },
+  });
 }
 
 export async function exportReport() {
