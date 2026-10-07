@@ -439,8 +439,9 @@ function SessionsTab({
       const res = await bulkSessionAction({ ids, action });
       if (res.affected < res.requested) {
         setBulkError(
-          `${res.affected} of ${res.requested} updated — a completed session ` +
-          `cannot be cancelled, because its attendance has already credited people.`,
+          `${res.affected} of ${res.requested} updated — the rest were already ` +
+          `cancelled, or completed (a completed session cannot be cancelled, ` +
+          `because its attendance has already credited people).`,
         );
       }
       setSelected(new Set());
