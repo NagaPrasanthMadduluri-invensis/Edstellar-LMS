@@ -72,6 +72,8 @@ function ResetForm() {
 
   const [state, setState] = useState("checking");
   const [reason, setReason] = useState("not_found");
+  // "welcome" (a first password, from the welcome email) or "reset".
+  const [purpose, setPurpose] = useState("reset");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
@@ -89,6 +91,7 @@ function ResetForm() {
       .then((result) => {
         if (cancelled) return;
         if (result?.valid) {
+          if (result.purpose) setPurpose(result.purpose);
           setState("ready");
         } else {
           setReason(result?.reason ?? "not_found");
@@ -193,14 +196,16 @@ function ResetForm() {
       <Box className="space-y-4">
         <Box className="border-l-[3px] border-success bg-success/[0.08] px-3 py-3">
           <Text as="p" className="text-[13px] font-semibold text-ink">
-            Your password has been changed
+            {purpose === "welcome" ? "Your password is set" : "Your password has been changed"}
           </Text>
-          {/* Said explicitly, because somebody who reset a password they
+          {/* For a RESET, said explicitly: somebody who reset a password they
               believed was compromised needs to know the other sessions are
-              gone — that is the whole reason the reset ends them. */}
+              gone. For a WELCOME there were none — telling a new user their
+              sessions were ended reads as something having gone wrong. */}
           <Text as="p" className="mt-1 text-[12.5px] leading-relaxed text-text-2">
-            Every signed-in session has been ended, on every device. Sign in
-            again with your new password.
+            {purpose === "welcome"
+              ? "Your account is ready. Sign in with your email address and the password you just chose."
+              : "Every signed-in session has been ended, on every device. Sign in again with your new password."}
           </Text>
         </Box>
         <Button
@@ -320,7 +325,7 @@ export default function ResetPasswordPage() {
           </Text>
         </CardTitle>
         <Text as="p" className="text-muted-foreground text-sm">
-          Choose a new password
+          Choose your password
         </Text>
       </CardHeader>
       <CardContent>
