@@ -1,7 +1,7 @@
 "use client";
 
 import { SERVER_URL } from "@/lib/api-client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,8 +81,62 @@ const HEADER_MAP = {
   "location": "location", "city": "location",
   "job role": "job_role", "job_role": "job_role", "jobrole": "job_role", "title": "job_role", "position": "job_role",
   "job level": "job_level", "job_level": "job_level", "joblevel": "job_level", "level": "job_level", "seniority": "job_level",
+  // The column holds an EMAIL. Every spelling an admin might type for it maps
+  // to the same field, including the bare word "manager" — somebody who
+  // renames the header has still told us what they meant, and refusing the
+  // column on a spelling is how a whole file's reporting lines go missing
+  // with nothing on screen to say why.
+  "manager email": "manager", "manager_email": "manager", "manageremail": "manager",
+  "manager": "manager", "manager mail": "manager",
+  "reports to": "manager", "reporting manager": "manager",
   "password": "password",
 };
+
+/**
+ * What the preview prints in the Manager column, one entry per row.
+ *
+ * The file carries an EMAIL because that is the only thing an admin can type
+ * that means exactly one person. A NAME is what they can actually check, so
+ * the address is resolved here, before anything is sent — a typo caught in
+ * the preview costs a correction, the same typo caught by the server costs a
+ * failed row and a second upload.
+ *
+ * Three states, and the third is the reason this exists:
+ *   found    an active account in this organization, shown by name
+ *   pending  somebody created EARLIER IN THIS FILE. The server resolves
+ *            these too (rows are processed in order), so flagging them as
+ *            unknown would red-flag a row that is going to work
+ *   self     the row names its own address. Its own state rather than
+ *            `unknown`, because the fix is a different one and the server
+ *            refuses it with a different sentence
+ *   unknown  nothing matches. The row will fail, and it says so here first
+ */
+function managerPreview(rows, people) {
+  const byEmail = new Map(
+    (people ?? [])
+      .filter((p) => p.is_active)
+      .map((p) => [String(p.email).toLowerCase(), `${p.first_name} ${p.last_name}`]),
+  );
+
+  const seenInFile = new Map();
+  return (rows ?? []).map((row) => {
+    const own = String(row.email ?? "").trim().toLowerCase();
+    const email = String(row.manager ?? "").trim().toLowerCase();
+    const entry = (() => {
+      if (!email) return { state: "none", label: "—" };
+      if (email === own) return { state: "self", label: "Cannot be their own manager" };
+      const existing = byEmail.get(email);
+      if (existing) return { state: "found", label: existing };
+      const inFile = seenInFile.get(email);
+      if (inFile) return { state: "pending", label: inFile };
+      return { state: "unknown", label: email };
+    })();
+    if (own) {
+      seenInFile.set(own, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || own);
+    }
+    return entry;
+  });
+}
 
 async function parseXlsx(file) {
   const buffer = await file.arrayBuffer();
@@ -921,6 +975,19 @@ export function AdminEmployeesContent() {
       setBulkUploading(false);
     }
   };
+
+  /**
+   * Recomputed from the directory the table already loaded, so the preview
+   * costs no request and cannot disagree with the Manager picker in the Add
+   * User dialog beside it — both read `employees`, both filter to active.
+   */
+  const managerCells = useMemo(
+    () => managerPreview(bulkRows, employees),
+    [bulkRows, employees],
+  );
+  const badManagers = managerCells.filter(
+    (m) => m.state === "unknown" || m.state === "self",
+  ).length;
 
   const closeBulk = () => {
     setBulkOpen(false);
@@ -1809,7 +1876,13 @@ export function AdminEmployeesContent() {
 
       {/* ── Bulk Upload Dialog ── */}
       <Dialog open={bulkOpen} onOpenChange={(o) => { if (!o) closeBulk(); }}>
-        <DialogContent className="sm:max-w-2xl">
+        {/*
+          Wider than the 2xl it was, because the preview now carries nine
+          columns and Manager is the ninth. A column the admin has to scroll
+          sideways to find is one they will not check, which would waste the
+          whole point of resolving the address to a name.
+        */}
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Bulk Upload Learners</DialogTitle>
           </DialogHeader>
@@ -1864,7 +1937,15 @@ export function AdminEmployeesContent() {
             </Box>
           ) : (
             /* Upload flow */
-            <Box className="space-y-5 py-2">
+            /*
+              `min-w-0`: DialogContent lays its children out as a grid, and a
+              grid item's min-width is `auto` — so the preview table's
+              intrinsic width stretched this past the dialog and everything
+              beyond the edge was CLIPPED, including the warning's own words.
+              The `overflow-x-auto` below can only scroll what it is allowed
+              to be narrower than.
+            */
+            <Box className="space-y-5 py-2 min-w-0">
 
               {/* Step 1 — Download template */}
               <Box className="rounded-xl border p-4 space-y-3">
@@ -1917,7 +1998,7 @@ export function AdminEmployeesContent() {
 
               {/* Preview table */}
               {bulkRows && bulkRows.length > 0 && (
-                <Box className="rounded-xl border overflow-hidden">
+                <Box className="rounded-xl border overflow-hidden min-w-0">
                   <Box className="px-4 py-2.5 bg-muted/40 border-b">
                     <Text as="p" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       Preview — {bulkRows.length} row{bulkRows.length !== 1 ? "s" : ""}
@@ -1927,7 +2008,7 @@ export function AdminEmployeesContent() {
                     <table className="w-full text-xs">
                       <thead className="bg-muted/20 sticky top-0">
                         <tr>
-                          {["Employee ID", "First Name", "Last Name", "Email", "Department", "Location", "Job Role", "Password"].map((h) => (
+                          {["Employee ID", "First Name", "Last Name", "Email", "Department", "Location", "Job Role", "Manager", "Password"].map((h) => (
                             <th key={h} className="px-3 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -1942,12 +2023,45 @@ export function AdminEmployeesContent() {
                             <td className="px-3 py-2">{r.department || "—"}</td>
                             <td className="px-3 py-2">{r.location || "—"}</td>
                             <td className="px-3 py-2">{r.job_role || "—"}</td>
+                            {/*
+                              The file said an email; this says a NAME. That
+                              swap is the whole point of the column — an
+                              address is what an admin can type unambiguously
+                              and a name is what they can actually verify.
+                            */}
+                            <td className={cn(
+                              "px-3 py-2 whitespace-nowrap",
+                              (managerCells[idx]?.state === "unknown"
+                                || managerCells[idx]?.state === "self") && "text-error",
+                              managerCells[idx]?.state === "none" && "text-muted-foreground",
+                            )}>
+                              {managerCells[idx]?.label ?? "—"}
+                              {managerCells[idx]?.state === "pending" && (
+                                <Text as="span" className="ml-1.5 text-[10.5px] text-text-3">· new in this file</Text>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-muted-foreground">{r.password ? "••••••" : "(default)"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </Box>
+                </Box>
+              )}
+
+              {/*
+                Stated before the button, not after the upload. These rows
+                WILL fail on the server with the same reason; saying so here
+                turns a second upload into a correction.
+              */}
+              {badManagers > 0 && (
+                <Box className="flex items-start gap-2 rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-xs text-error">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <Text as="span">
+                    {badManagers} row{badManagers !== 1 ? "s" : ""} will fail on the Manager column —
+                    the address is not an active user here, or it is the learner&apos;s own. Fix the
+                    address, add the manager first, or clear the column.
+                  </Text>
                 </Box>
               )}
 
