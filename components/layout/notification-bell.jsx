@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Award, Bell, BookOpen, CalendarCheck, CalendarClock, CalendarPlus, CalendarX,
-  CheckCircle2, Map as MapIcon, MessageSquare, Sparkles, Trophy, UserCheck,
-  UserPlus, Users,
+  CheckCircle2, MailWarning, Map as MapIcon, MessageSquare, Sparkles, Trophy,
+  UserCheck, UserPlus, Users,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -30,8 +30,8 @@ import { cn } from "@/lib/utils";
  */
 const ICONS = {
   Award, BookOpen, CalendarCheck, CalendarClock, CalendarPlus, CalendarX,
-  CheckCircle2, Map: MapIcon, MessageSquare, Sparkles, Trophy, UserCheck,
-  UserPlus, Users,
+  CheckCircle2, MailWarning, Map: MapIcon, MessageSquare, Sparkles, Trophy,
+  UserCheck, UserPlus, Users,
 };
 
 /** How often the bell re-checks. Slow on purpose — see the docblock. */
