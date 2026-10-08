@@ -82,7 +82,7 @@ function RecommendedCard({ course }) {
   // Already theirs → the course itself. Not yet → the catalogue, which is
   // the only place the Add button lives. A card that landed somewhere with
   // nothing to press would be the §10.3.1.2 failure one click along.
-  const href = course.is_enrolled ? `/my-courses/${course.id}` : "/catalogue";
+  const href = course.is_enrolled ? `/my-courses/${course.public_id ?? course.id}` : "/catalogue";
 
   return (
     <Link href={href} className="block">

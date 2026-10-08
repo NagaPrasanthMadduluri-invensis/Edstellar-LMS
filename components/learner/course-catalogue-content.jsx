@@ -359,7 +359,7 @@ function CourseCard({ course, busy, onEnrol }) {
 
       <Box className="border-t border-line p-3 pt-2.5">
         {course.is_enrolled ? (
-          <Link href={`/my-courses/${course.id}`} className="block">
+          <Link href={`/my-courses/${course.public_id ?? course.id}`} className="block">
             <Button variant="outline" size="sm" className="w-full cursor-pointer text-xs">
               <CheckCircle2 className="mr-1.5 size-3.5 text-success" />
               Already yours — open it
