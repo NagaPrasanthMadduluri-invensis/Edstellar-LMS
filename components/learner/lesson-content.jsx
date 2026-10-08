@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ArrowLeft, CheckCircle2, Clock, PlayCircle, Lock,
+  ArrowLeft, ArrowRight, CheckCircle2, Clock, PlayCircle, Lock,
   FileArchive, Trophy, RefreshCw, ExternalLink,
   CalendarDays, MapPin, Video, UserCircle, Users,
   FileText, FileSpreadsheet, Presentation, Link2, Paperclip, Download,
@@ -435,7 +435,7 @@ function parseScormTime(t) {
   return out.join(" ") || null;
 }
 
-function ScormLessonView({ lesson, courseId, progressStatus, onStatusRefresh }) {
+function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onStatusRefresh }) {
   const router = useRouter();
   const { user } = useAuth();
   const [tracking, setTracking] = useState(undefined);
@@ -469,7 +469,26 @@ function ScormLessonView({ lesson, courseId, progressStatus, onStatusRefresh }) 
   const scorePct = scoreRaw !== null && scoreMax ? Math.round((scoreRaw / scoreMax) * 100) : null;
   const timeSpent = parseScormTime(tracking?.total_time);
 
-  const launchLabel = !isAttempted ? "Launch Course" : isCompleted ? "Review Course" : "Resume Course";
+  const launchLabel = !isAttempted ? "Launch Course" : "Resume Course";
+
+  /*
+   * Open the player in its OWN popup window, not in this tab. The learner keeps
+   * the course page behind them, and the player closes itself on Exit. The
+   * course and next lesson ride in the query string so the player can offer
+   * "Next Lesson" on completion (scorm-player-client reads them).
+   */
+  const openPlayer = () => {
+    const params = new URLSearchParams({ courseId: String(courseId) });
+    if (nextLessonId) params.set("nextLessonId", String(nextLessonId));
+    // Launch by the package's PUBLIC uuid, not the sequential id (0046); fall
+    // back to the integer id only for an older payload without it.
+    const playerId = lesson.scorm_package_public_id ?? lesson.scorm_package_id;
+    window.open(
+      `/scorm-player/${playerId}?${params.toString()}`,
+      `scorm_${playerId}`,
+      "popup=yes,width=1200,height=840",
+    );
+  };
 
   return (
     <Box className="space-y-4">
@@ -531,31 +550,63 @@ function ScormLessonView({ lesson, courseId, progressStatus, onStatusRefresh }) 
           </Box>
         </Card>
       ) : (
-        <Card className="p-5 text-center border-dashed">
-          <FileArchive className="h-10 w-10 mx-auto bg-navy mb-2" />
-          <Text as="p" className="text-sm font-medium text-muted-foreground">No results yet</Text>
-          <Text as="p" className="text-xs text-muted-foreground mt-1">Launch the course to begin.</Text>
+        <Card className="p-6 text-center border-dashed">
+          <Box className="w-12 h-12 rounded-2xl bg-paper-cream flex items-center justify-center mx-auto mb-3">
+            <FileArchive className="h-6 w-6 text-navy/70" />
+          </Box>
+          <Text as="p" className="text-sm font-semibold">No results yet</Text>
+          <Text as="p" className="text-xs text-muted-foreground mt-1">
+            Launch the course to begin — your score and progress will appear here.
+          </Text>
         </Card>
       )}
 
-      {/* Launch button */}
+      {/* Launch / proceed */}
       <Card className="p-5">
         <Box className="flex items-center justify-between gap-4 flex-wrap">
           <Box>
             <Text as="p" className="text-sm font-medium">
-              {isCompleted ? "Course completed — you can still review it." : "Ready to start?"}
+              {isCompleted ? "Course completed." : "Ready to start?"}
             </Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">
-              The course opens in a full-screen player.
+              The course opens in a new window.
             </Text>
           </Box>
-          <Button
-            onClick={() => router.push(`/scorm-player/${lesson.scorm_package_id}`)}
-            className="shrink-0 bg-navy hover:bg-navy-soft text-paper"
-          >
-            <ExternalLink className="h-4 w-4 mr-1.5" />
-            {launchLabel}
-          </Button>
+          {/*
+            Once completed, the primary action is to move ON — Next Lesson when
+            there is one, otherwise back to the course — rather than "Review
+            Course". Review stays available as a secondary action so a learner
+            can still re-open the package.
+          */}
+          {isCompleted ? (
+            <Box className="flex items-center gap-2 shrink-0 flex-wrap">
+              <Button variant="outline" onClick={openPlayer}>
+                <ExternalLink className="h-4 w-4 mr-1.5" />
+                Review course
+              </Button>
+              {nextLessonId ? (
+                <Button
+                  onClick={() => router.push(`/my-courses/${courseId}/lessons/${nextLessonId}`)}
+                  className="bg-navy hover:bg-navy-soft text-paper"
+                >
+                  Next Lesson
+                  <ArrowRight className="h-4 w-4 ml-1.5" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => router.push(`/my-courses/${courseId}`)}
+                  className="bg-navy hover:bg-navy-soft text-paper"
+                >
+                  Back to course
+                </Button>
+              )}
+            </Box>
+          ) : (
+            <Button onClick={openPlayer} className="shrink-0 bg-navy hover:bg-navy-soft text-paper">
+              <ExternalLink className="h-4 w-4 mr-1.5" />
+              {launchLabel}
+            </Button>
+          )}
         </Box>
       </Card>
     </Box>
@@ -769,6 +820,7 @@ export function LessonContent({ courseId, lessonId }) {
         <ScormLessonView
           lesson={lesson}
           courseId={courseId}
+          nextLessonId={data.next_lesson_id}
           progressStatus={status}
           onStatusRefresh={loadLesson}
         />

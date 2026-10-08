@@ -348,7 +348,7 @@ function TenantCard({ tenant: t, onEdit }) {
 
         <Box className="ml-auto flex items-center gap-2">
           <Link
-            href={`/platform/organizations/${t.id}`}
+            href={`/platform/organizations/${t.public_id ?? t.id}`}
             className="cursor-pointer text-[11.5px] font-semibold text-text-2 underline-offset-2 hover:text-accent-blue hover:underline"
           >
             Details

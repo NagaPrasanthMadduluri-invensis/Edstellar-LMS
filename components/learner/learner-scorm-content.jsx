@@ -148,7 +148,16 @@ export function LearnerScormContent() {
               <Button
                 className="w-full gap-2 mt-1"
                 variant={sCfg.label === "Completed" ? "outline" : "default"}
-                onClick={() => window.open(`/scorm-player/${pkg.id}`, "_blank")}
+                onClick={() =>
+                  window.open(
+                    // Launch by the package's PUBLIC uuid so the player URL never
+                    // exposes the sequential id (0046). Falls back to the integer
+                    // id only if an older payload lacks public_id.
+                    `/scorm-player/${pkg.public_id ?? pkg.id}`,
+                    `scorm_${pkg.public_id ?? pkg.id}`,
+                    "popup=yes,width=1200,height=840",
+                  )
+                }
               >
                 <Play className="h-4 w-4" />
                 {sCfg.label === "Not Started"  && "Launch"}

@@ -132,7 +132,7 @@ export function PlatformOrganizationsContent() {
                   <TableRow key={org.id}>
                     <TableCell>
                       <Link
-                        href={`/platform/organizations/${org.id}`}
+                        href={`/platform/organizations/${org.publicId ?? org.id}`}
                         className="text-sm font-medium text-navy hover:underline"
                       >
                         {org.name}
@@ -158,7 +158,7 @@ export function PlatformOrganizationsContent() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Link href={`/platform/organizations/${org.id}`}>
+                      <Link href={`/platform/organizations/${org.publicId ?? org.id}`}>
                         <ChevronRight className="h-4 w-4 text-ink/40" />
                       </Link>
                     </TableCell>

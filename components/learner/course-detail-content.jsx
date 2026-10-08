@@ -177,7 +177,7 @@ export function CourseDetailContent({ courseId }) {
 
             {nextLesson ? (
               <Button
-                onClick={() => router.push(`/my-courses/${course.id}/lessons/${nextLesson.id}`)}
+                onClick={() => router.push(`/my-courses/${courseId}/lessons/${nextLesson.public_id ?? nextLesson.id}`)}
                 className="bg-lime text-navy hover:bg-lime-soft font-semibold shrink-0"
               >
                 {isComplete ? "Review course" : progress > 0 ? "Continue" : "Start course"}
@@ -417,7 +417,7 @@ export function CourseDetailContent({ courseId }) {
                         ) : (
                           <Link
                             key={lesson.id}
-                            href={`/my-courses/${courseId}/lessons/${lesson.id}`}
+                            href={`/my-courses/${courseId}/lessons/${lesson.public_id ?? lesson.id}`}
                             className="block"
                           >
                             {row}
@@ -506,7 +506,7 @@ export function CourseDetailContent({ courseId }) {
                     </Box>
 
                     {assessmentsUnlocked ? (
-                      <Link href={`/my-courses/${courseId}/assessments/${a.id}`}>
+                      <Link href={`/my-courses/${courseId}/assessments/${a.public_id ?? a.id}`}>
                         <Button
                           size="sm"
                           className={cn(

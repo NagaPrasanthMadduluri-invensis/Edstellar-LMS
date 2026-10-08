@@ -1,4 +1,4 @@
-import { apiClient, SERVER_URL } from "@/lib/api-client";
+import { apiClient, SERVER_URL, ApiError } from "@/lib/api-client";
 import { downloadFile } from "@/lib/download";
 
 /* ── Dashboard ── */
@@ -621,10 +621,22 @@ export async function bulkCreateUsers({ users, sendWelcomeEmail = true }) {
   // Sent explicitly rather than relying on the server default, so the
   // checkbox the admin saw is the value the server acts on. The DTO also
   // defaults it to true, which covers any caller that predates the flag.
-  return apiClient("/api/admin/users/bulk", {
-    method: "POST",
-    body: { users, send_welcome_email: sendWelcomeEmail },
-  });
+  try {
+    return await apiClient("/api/admin/users/bulk", {
+      method: "POST",
+      body: { users, send_welcome_email: sendWelcomeEmail },
+    });
+  } catch (e) {
+    // The endpoint answers 201 when anything was created and 422 when NOTHING
+    // was — but BOTH carry the same `{ created, failed, total }` result, with
+    // the per-row reason for every rejected row (e.g. a location the org does
+    // not offer: "Bangalore" vs "Bengaluru"). The 422 would otherwise surface
+    // as a bare "Something went wrong" and throw that detail away. A bulk
+    // result is a result whichever status carried it, so hand it back; the
+    // dialog's Failed Rows table renders the reasons either way.
+    if (e instanceof ApiError && Array.isArray(e.data?.failed)) return e.data;
+    throw e;
+  }
 }
 
 export async function exportReport() {

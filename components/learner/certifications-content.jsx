@@ -349,8 +349,15 @@ export function CertificationsContent() {
    */
   useEffect(() => {
     if (!certificates) return;
-    const wanted = Number(params.get("certificate"));
-    if (wanted && certificates.some((c) => Number(c.id) === wanted)) setViewId(wanted);
+    // The deep link now carries the certificate's public UUID (0046), matched
+    // against the learner's own list; a legacy integer id still matches too.
+    const wanted = params.get("certificate");
+    if (
+      wanted &&
+      certificates.some((c) => c.publicId === wanted || String(c.id) === wanted)
+    ) {
+      setViewId(wanted);
+    }
   }, [certificates, params]);
 
   const view = useMemo(() => {

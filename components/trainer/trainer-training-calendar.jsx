@@ -341,7 +341,7 @@ export function TrainerTrainingCalendar() {
                   )}
 
                 <Link
-                  href={`/trainer/sessions/${selected.id}`}
+                  href={`/trainer/sessions/${selected.public_id ?? selected.id}`}
                   className="inline-flex cursor-pointer items-center gap-1 border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-accent-blue transition-colors hover:bg-accent-blue hover:text-white"
                 >
                   Open session <Arrow className="size-3.5" />

@@ -314,7 +314,7 @@ function CourseCard({ c }) {
               `flex-1 min-w-0` on both, so the pair splits the card evenly and
               neither label is pushed out — a fixed width would break the
               moment a status label got longer than "Review Course". */}
-          <Link href={`/my-courses/${c.course.id}`} className="block min-w-0 flex-1">
+          <Link href={`/my-courses/${c.course.public_id ?? c.course.id}`} className="block min-w-0 flex-1">
             <Button className={cn("h-10 w-full gap-2 text-sm font-semibold", st.btnCls)}>
               {st.btnLabel}
               <ArrowRight className="h-4 w-4 shrink-0" />
@@ -322,7 +322,7 @@ function CourseCard({ c }) {
           </Link>
           {c.certificateId && (
             <Link
-              href={`/certifications?certificate=${c.certificateId}`}
+              href={`/certifications?certificate=${c.certificatePublicId ?? c.certificateId}`}
               className="block min-w-0 flex-1"
             >
               <Button

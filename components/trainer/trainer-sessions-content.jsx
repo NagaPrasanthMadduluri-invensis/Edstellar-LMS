@@ -145,7 +145,7 @@ export function TrainerSessionsContent() {
           return (
             <Card key={s.id} className="gap-0 overflow-hidden p-0">
               <Link
-                href={`/trainer/sessions/${s.id}`}
+                href={`/trainer/sessions/${s.public_id ?? s.id}`}
                 className="block p-4 transition-colors hover:bg-paper-warm sm:p-5"
               >
                 <Box className="flex flex-wrap items-start gap-4">

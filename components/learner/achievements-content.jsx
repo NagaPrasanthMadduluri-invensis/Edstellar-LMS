@@ -29,12 +29,30 @@ const ICONS = {
   crown:    Crown,
 };
 
-/* ── Tier config ── */
+/*
+ * ── Tier config ──
+ * An earned badge is worth seeing from across the room, so each tier carries
+ * its own colour from the Spectra palette rather than the four shades of grey
+ * it used to be. These are palette hues (§10.1) re-used as an EARNED-STATE axis,
+ * the same licence §10.1.1 takes for learning types — not new colours: rust for
+ * bronze, slate blue for silver, the warning ochre for gold, accent-blue for
+ * platinum. Each tier gets a tinted ring, a tinted icon well and a coloured
+ * icon; a LOCKED badge stays grey and dimmed, so colour reads as "earned".
+ */
 const TIER_CFG = {
-  BRONZE:   { label: "BRONZE",   color: "text-ink/70",  border: "border-border",  iconBg: "bg-paper-cream",  iconColor: "text-ink/70"  },
-  SILVER:   { label: "SILVER",   color: "text-ink/45",    border: "border-border",    iconBg: "bg-paper-warm",    iconColor: "text-ink/45"    },
-  GOLD:     { label: "GOLD",     color: "text-ink/70",   border: "border-border",   iconBg: "bg-paper-cream",   iconColor: "text-ink/70"   },
-  PLATINUM: { label: "PLATINUM", color: "text-navy/70",  border: "border-navy/20",  iconBg: "bg-paper-cream",  iconColor: "text-navy/70"  },
+  BRONZE:   { label: "BRONZE",   color: "text-rust",        border: "border-rust/40",        iconBg: "bg-rust/10",        iconColor: "text-rust"        },
+  SILVER:   { label: "SILVER",   color: "text-navy/70",     border: "border-navy/25",        iconBg: "bg-navy/10",        iconColor: "text-navy/70"     },
+  GOLD:     { label: "GOLD",     color: "text-warning",     border: "border-warning/45",     iconBg: "bg-warning/15",     iconColor: "text-warning"     },
+  PLATINUM: { label: "PLATINUM", color: "text-accent-blue", border: "border-accent-blue/40", iconBg: "bg-accent-tint",    iconColor: "text-accent-blue" },
+};
+
+/*
+ * An earned badge with no tier (two of them) would otherwise stay grey — the
+ * one thing this change is undoing — so it gets a colour too: the success green,
+ * which reads as an achievement and is distinct from the four tier hues.
+ */
+const DEFAULT_EARNED = {
+  color: "text-success", border: "border-success/40", iconBg: "bg-success/12", iconColor: "text-success",
 };
 
 /* ── Single badge card ── */
@@ -42,11 +60,14 @@ function BadgeCard({ badge }) {
   const Icon  = ICONS[badge.icon] || Trophy;
   const tier  = badge.tier ? TIER_CFG[badge.tier] : null;
   const earned = badge.earned;
+  // What paints an EARNED badge: its tier's palette, or the green fallback for a
+  // tierless one. A locked badge ignores this and stays grey/dimmed.
+  const skin  = tier ?? DEFAULT_EARNED;
 
   return (
     <Card className={cn(
       "flex flex-col items-center p-5 gap-3 relative transition-all",
-      earned && tier ? `border-2 ${tier.border}` : "border",
+      earned ? `border-2 ${skin.border}` : "border",
       !earned && "opacity-60"
     )}>
       {/* tier label */}
@@ -59,11 +80,11 @@ function BadgeCard({ badge }) {
       {/* icon */}
       <Box className={cn(
         "w-14 h-14 rounded-full flex items-center justify-center",
-        earned && tier ? tier.iconBg : "bg-muted"
+        earned ? skin.iconBg : "bg-muted"
       )}>
         <Icon className={cn(
           "h-7 w-7",
-          earned && tier ? tier.iconColor : "text-muted-foreground/40"
+          earned ? skin.iconColor : "text-muted-foreground/40"
         )} />
       </Box>
 
@@ -76,8 +97,8 @@ function BadgeCard({ badge }) {
       {/* status */}
       {earned ? (
         <Box className="flex items-center gap-1">
-          <CheckCircle2 className="h-3.5 w-3.5 text-navy" />
-          <Text as="span" className="text-[11px] font-bold text-navy">EARNED</Text>
+          <CheckCircle2 className={cn("h-3.5 w-3.5", skin.color)} />
+          <Text as="span" className={cn("text-[11px] font-bold", skin.color)}>EARNED</Text>
         </Box>
       ) : (
         <Box className="flex items-center gap-1">

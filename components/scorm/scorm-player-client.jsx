@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Loader2, AlertCircle, CheckCircle2, BookOpen } from "lucide-react";
+import { X, Loader2, AlertCircle, CheckCircle2, BookOpen, ArrowRight } from "lucide-react";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
@@ -62,7 +62,27 @@ function applyWrites(target, writes) {
   return target;
 }
 
-export function ScormPlayerClient({ packageId }) {
+/** The two statuses that mean the learner has finished, across 1.2 and 2004. */
+const DONE = new Set(["completed", "passed"]);
+
+/**
+ * Has the package reported completion, from either the loaded resume record or
+ * the live runtime? Reads both shapes — 1.2 keeps it under `core.lesson_status`,
+ * 2004 under `completion_status` / `success_status` — and the recorder's own
+ * writes are overlaid for the same reason `persistTracking` overlays them: the
+ * runtime snapshot was observed not to hold the package's own final write.
+ */
+function readCompleted(api, recorder) {
+  const cmi = JSON.parse(JSON.stringify(api?.cmi ?? {}));
+  applyWrites(cmi, recorder?.writes?.());
+  return (
+    DONE.has(cmi?.core?.lesson_status) ||
+    DONE.has(cmi?.completion_status) ||
+    DONE.has(cmi?.success_status)
+  );
+}
+
+export function ScormPlayerClient({ packageId, courseId = null, nextLessonId = null }) {
   const { user } = useAuth();
   const router = useRouter();
   const apiRef  = useRef(null);
@@ -73,6 +93,10 @@ export function ScormPlayerClient({ packageId }) {
   const [tracking, setTracking] = useState(null);
   const [status,   setStatus]   = useState("loading"); // loading | ready | error
   const [saveMsg,  setSaveMsg]  = useState("");
+  // Drives the completion footer (Exit + Next Lesson). Seeded from the loaded
+  // resume record and flipped on whenever a live save reports completion, so a
+  // learner who finishes IN this sitting sees it without reloading.
+  const [completed, setCompleted] = useState(false);
 
   /* ── Persist CMI data to server ── */
   const persistTracking = useCallback(async (api, recorder) => {
@@ -127,6 +151,10 @@ export function ScormPlayerClient({ packageId }) {
 
         setPkg(pkgData.package);
         setTracking(trackingData.tracking);
+        const loaded = trackingData.tracking;
+        if (DONE.has(loaded?.lesson_status) || DONE.has(loaded?.completion_status)) {
+          setCompleted(true);
+        }
 
         /* Dynamically import scorm-again (browser only) */
         const { Scorm12API, Scorm2004API } = await import("scorm-again");
@@ -169,6 +197,9 @@ export function ScormPlayerClient({ packageId }) {
         const save = () => {
           const tracking = persistTracking(api, recorder);
           const deltas = recorder.flush();
+          // Reveal the completion footer the moment the package reports done,
+          // from the same values that are being persisted.
+          if (readCompleted(api, recorder)) setCompleted(true);
           return Promise.allSettled([tracking, deltas]);
         };
         saveRef.current = save;
@@ -211,13 +242,37 @@ export function ScormPlayerClient({ packageId }) {
     };
   }, [user, packageId, persistTracking]);
 
-  /* ── Exit handler: save then navigate back ── */
-  const handleExit = async () => {
+  /** Flush the final save/batch while the page still exists (unlike pagehide). */
+  const saveThenLeave = async () => {
     if (apiRef.current && saveRef.current) await saveRef.current();
     // Awaited, unlike the pagehide path: there IS still a page here, so the
     // final batch can be confirmed rather than fired into an unloading document.
     await recorderRef.current?.close();
-    router.back();
+  };
+
+  /*
+   * Exit closes the window. The player is launched with `window.open`, so it is
+   * its own popup window and `window.close()` is permitted. If it was instead
+   * reached by direct navigation (no opener — e.g. a bookmarked player URL),
+   * the browser refuses to close it, so a short fallback goes back in history.
+   * The fallback timer never fires when the window actually closes, because the
+   * document is gone by then.
+   */
+  const handleExit = async () => {
+    await saveThenLeave();
+    window.close();
+    setTimeout(() => router.back(), 150);
+  };
+
+  /*
+   * Next Lesson navigates THIS window to the next lesson. The player is a
+   * self-contained popup, so the learner continues the course inside it rather
+   * than hunting for the tab they came from. Only offered when the launcher
+   * supplied the course and next lesson (i.e. launched from a course lesson).
+   */
+  const handleNextLesson = async () => {
+    await saveThenLeave();
+    window.location.href = `/my-courses/${courseId}/lessons/${nextLessonId}`;
   };
 
   /* ── Loading ── */
@@ -283,6 +338,39 @@ export function ScormPlayerClient({ packageId }) {
         className="flex-1 w-full border-0"
         allow="fullscreen"
       />
+
+      {/*
+        ── Completion footer ──
+        Appears once the package reports done, giving the learner a clear way
+        out and, when the player was launched from a course lesson, a way
+        straight on to the next one without returning to the course page first.
+      */}
+      {completed && (
+        <Box className="flex items-center justify-between gap-3 px-4 h-14 border-t bg-card shrink-0">
+          <Box className="flex items-center gap-2 text-navy min-w-0">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <Text as="span" className="text-sm font-medium truncate">
+              Course completed
+            </Text>
+          </Box>
+          <Box className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExit}>
+              <X className="h-4 w-4" />
+              Exit
+            </Button>
+            {courseId && nextLessonId && (
+              <Button
+                size="sm"
+                className="h-9 gap-1.5 bg-navy hover:bg-navy-soft text-paper"
+                onClick={handleNextLesson}
+              >
+                Next Lesson
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }
