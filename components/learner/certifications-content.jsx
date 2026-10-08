@@ -524,7 +524,7 @@ export function CertificationsContent() {
                   )}
 
                   <Link
-                    href={`/my-courses/${lc.course.id}`}
+                    href={`/my-courses/${lc.course.public_id ?? lc.course.id}`}
                     className={cn(buttonVariants({ size: "sm" }), "w-full bg-navy text-paper hover:bg-navy-soft")}
                   >
                     {started ? "Continue" : "Start course"}
@@ -571,7 +571,7 @@ export function CertificationsContent() {
                   </Box>
                 </Box>
                 <Link
-                  href={`/my-courses/${lc.course.id}`}
+                  href={`/my-courses/${lc.course.public_id ?? lc.course.id}`}
                   className={cn(buttonVariants({ size: "sm" }), "shrink-0 bg-danger text-white hover:bg-danger/90")}
                 >
                   Retake

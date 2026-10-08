@@ -254,7 +254,7 @@ export function DashboardContent() {
                   reward={continue_learning.reward}
                   isSession={Boolean(continue_learning.session)}
                 />
-                <Link href={`/my-courses/${continue_learning.course.id}`}>
+                <Link href={`/my-courses/${continue_learning.course.public_id ?? continue_learning.course.id}`}>
                   <Button size="sm" className="h-9 bg-navy hover:bg-navy-soft text-paper gap-1.5 w-full mt-1">
                     Continue <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
@@ -307,7 +307,7 @@ export function DashboardContent() {
                   {journey.courses.map((c, i) => {
                     const isCurrent = c.status === "in-progress" && journey.courses.slice(0, i).every((x) => x.status === "completed");
                     return (
-                      <Link key={c.course_id} href={`/my-courses/${c.course_id}`}>
+                      <Link key={c.course_id} href={`/my-courses/${c.course_public_id ?? c.course_id}`}>
                         <Box className={cn(
                           "flex items-center gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-muted/30",
                           c.status === "assigned" && "opacity-50"
@@ -410,7 +410,7 @@ export function DashboardContent() {
                 {upcoming_deadlines.map((d) => {
                   const scfg = STATUS_CFG[d.status] || STATUS_CFG["assigned"];
                   return (
-                    <Link key={d.course_id} href={`/my-courses/${d.course_id}`}>
+                    <Link key={d.course_id} href={`/my-courses/${d.course_public_id ?? d.course_id}`}>
                       <Box className="flex items-center gap-3 hover:bg-muted/20 rounded-lg px-2 py-2 -mx-2 transition-colors">
                         <Box className="w-8 h-8 rounded-lg bg-paper-cream flex items-center justify-center shrink-0">
                           <Settings className="h-4 w-4 text-ink/45" />

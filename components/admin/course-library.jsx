@@ -491,7 +491,7 @@ export function CourseLibrary() {
               onOpen={() => router.push(
                 course.session_id
                   ? `/admin/sessions?session=${course.session_id}`
-                  : `/admin/courses/${course.id}`,
+                  : `/admin/courses/${course.public_id ?? course.id}`,
               )}
               onEdit={() => openEdit(course)}
               onPublish={() => runOne(course.is_active ? "unpublish" : "publish", course.id)}
