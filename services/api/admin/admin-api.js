@@ -405,12 +405,23 @@ export function uploadToR2({ uploadUrl, file, contentType, onProgress, signal })
  *   - the origin nginx `client_max_body_size`
  *   - Cloudflare's request-body cap, a hard 100 MiB below Enterprise
  *
- * Cloudflare's is the one that cannot be raised by editing config, so it is
- * the default here. Override it if the origin limit is lower, or once uploads
- * go straight to R2 and stop crossing the proxy at all.
+ * Cloudflare's is the one that cannot be raised by editing config, so it sets
+ * the ceiling. The origin nginx was raised to 100m on 2026-10-08 to match it,
+ * so both caps are now 100 MiB.
+ *
+ * We guard a small margin UNDER that ceiling, because the multipart request
+ * body is larger than the file itself (the boundary framing plus the title and
+ * course_id fields), so a file at exactly 100 MiB would still 413 at the proxy.
+ * Guarding under it turns that opaque "content too large" into the clear
+ * message below, caught before the bytes ever move.
+ *
+ * Override with NEXT_PUBLIC_SCORM_MAX_BYTES once uploads go straight to R2 and
+ * stop crossing the proxy at all.
  */
+export const SCORM_PROXY_LIMIT_BYTES = 100 * 1024 * 1024;
 export const SCORM_MAX_BYTES =
-  Number(process.env.NEXT_PUBLIC_SCORM_MAX_BYTES) || 100 * 1024 * 1024;
+  Number(process.env.NEXT_PUBLIC_SCORM_MAX_BYTES) ||
+  SCORM_PROXY_LIMIT_BYTES - 2 * 1024 * 1024;
 
 export function formatBytes(bytes) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
