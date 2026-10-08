@@ -109,14 +109,23 @@ export function BranchLocationFields({
    * scroll. Nothing is listed until two characters are typed — an unfiltered
    * list of 4,242 names is not a control, it is a wall.
    */
+  // Dedupe by city AND country: the same name can exist in two countries
+  // (Columbus, Ohio and Columbus, Georgia), and a tenant may have a branch in
+  // each — so "already added" is keyed on both, not on the name alone.
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!cities || q.length < 2) return [];
-    const chosen = new Set(locations.map((l) => l.name.toLowerCase()));
+    const chosen = new Set(
+      locations.map((l) => `${l.name.toLowerCase()}|${l.country_code ?? ""}`),
+    );
     return cities
-      .filter((c) => c.name.toLowerCase().includes(q) && !chosen.has(c.name.toLowerCase()))
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) &&
+          !chosen.has(`${c.name.toLowerCase()}|${country}`),
+      )
       .slice(0, 12);
-  }, [cities, search, locations]);
+  }, [cities, search, locations, country]);
 
   function add(city) {
     onLocationsChange([
@@ -131,18 +140,22 @@ export function BranchLocationFields({
     setSearch("");
   }
 
-  function remove(name) {
-    onLocationsChange(locations.filter((l) => l.name !== name));
+  function remove(loc) {
+    onLocationsChange(
+      locations.filter(
+        (l) => !(l.name === loc.name && l.country_code === loc.country_code),
+      ),
+    );
   }
 
   return (
     <>
       <Box className="space-y-1.5">
-        <Label>Region (country)</Label>
+        <Label>Country to add branches from</Label>
         <Select value={country || ""} onValueChange={onCountryChange}>
           <SelectTrigger>
             <SelectValue>
-              {selectedCountry ? `${selectedCountry.flag} ${selectedCountry.name}` : "Not set"}
+              {selectedCountry ? `${selectedCountry.flag} ${selectedCountry.name}` : "Pick a country"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent className="max-h-72">
@@ -153,6 +166,15 @@ export function BranchLocationFields({
             ))}
           </SelectContent>
         </Select>
+        {/* This picks which country's cities the branch search below offers —
+            it is NOT the tenant's one region. Switching it keeps every branch
+            already added, so one tenant can have offices in several countries
+            (Bengaluru in India and Columbus in the United States). The
+            organization's region is taken from the first branch on save. */}
+        <Text as="p" className="text-[10.5px] text-text-3">
+          Switch countries freely — branches you&apos;ve already added stay. A
+          tenant can have offices in more than one country.
+        </Text>
       </Box>
 
       <Box className="space-y-1.5 sm:col-span-2">
@@ -217,15 +239,20 @@ export function BranchLocationFields({
               <Box className="flex flex-wrap gap-1.5 pt-1">
                 {locations.map((l) => (
                   <Text
-                    key={l.name}
+                    key={`${l.country_code ?? ""}-${l.name}`}
                     as="span"
                     className="inline-flex items-center gap-1.5 border border-line bg-surface-2 py-1 pl-2 pr-1 text-[11.5px] text-ink"
                   >
                     <MapPin className="size-3 shrink-0 text-text-3" />
                     {l.name}
+                    {l.country_name && (
+                      <Text as="span" className="text-[10px] text-text-3">
+                        {l.state_name ? `${l.state_name}, ` : ""}{l.country_name}
+                      </Text>
+                    )}
                     <button
                       type="button"
-                      onClick={() => remove(l.name)}
+                      onClick={() => remove(l)}
                       aria-label={`Remove ${l.name}`}
                       title={`Remove ${l.name}`}
                       className="cursor-pointer p-0.5 text-text-3 transition-colors hover:text-danger"

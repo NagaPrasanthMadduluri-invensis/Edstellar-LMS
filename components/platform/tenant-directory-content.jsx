@@ -590,7 +590,7 @@ function TenantDialog({ tenant, onClose, onSaved }) {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{tenant.name}</DialogTitle>
         </DialogHeader>
@@ -615,7 +615,7 @@ function TenantDialog({ tenant, onClose, onSaved }) {
             <IndustryField value={form.industry} onChange={(v) => set("industry", v)} />
             <BranchLocationFields
               country={form.country}
-              onCountryChange={(v) => setForm((p) => ({ ...p, country: v, locations: [] }))}
+              onCountryChange={(v) => set("country", v)}
               locations={form.locations}
               onLocationsChange={(v) => set("locations", v)}
             />
@@ -832,7 +832,7 @@ function NewTenantDialog({ onClose, onSaved }) {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader><DialogTitle>New tenant</DialogTitle></DialogHeader>
 
         <Box className="space-y-4">
@@ -861,7 +861,7 @@ function NewTenantDialog({ onClose, onSaved }) {
             <IndustryField value={form.industry} onChange={(v) => set("industry", v)} />
             <BranchLocationFields
               country={form.country}
-              onCountryChange={(v) => setForm((p) => ({ ...p, country: v, locations: [] }))}
+              onCountryChange={(v) => set("country", v)}
               locations={form.locations}
               onLocationsChange={(v) => set("locations", v)}
             />

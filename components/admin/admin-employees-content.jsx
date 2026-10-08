@@ -1889,7 +1889,7 @@ export function AdminEmployeesContent() {
           sideways to find is one they will not check, which would waste the
           whole point of resolving the address to a name.
         */}
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Bulk Upload Learners</DialogTitle>
           </DialogHeader>
