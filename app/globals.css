@@ -186,23 +186,33 @@
   --spectra-accent-tint: var(--theme-accent-tint);
 
   /* ── Themed background mesh + chrome gradient (Violet defaults) ──
-     The body paints a subtle mesh from --bg-grad-*; the sidebar/topbar paint a
-     deep gradient from --chrome-grad-*. Both are re-tinted per theme below. */
-  --bg-canvas: #f4f2fb;
-  --bg-grad-1: #efe9fd;
-  --bg-grad-2: #e9effb;
-  --bg-grad-3: #f7f3fd;
+     The body paints a full themed scene from --app-bg (a layered gradient
+     "environment"); the sidebar/topbar paint a deep gradient from
+     --chrome-grad-*. Both are re-tinted per theme below. `--app-bg` is a whole
+     background-image list so a theme can be a vivid aurora mesh OR an
+     illustrated scene (sky + sun + hills). Defaults = Violet. */
+  --bg-canvas: #f3f0fe;
+  --app-bg:
+    radial-gradient(780px 520px at 86% 84%, rgba(103, 232, 249, 0.34), transparent 60%),
+    radial-gradient(900px 620px at 8% -5%, rgba(167, 139, 250, 0.50), transparent 60%),
+    radial-gradient(820px 600px at 96% 6%, rgba(129, 140, 248, 0.44), transparent 55%),
+    radial-gradient(1000px 720px at 55% 112%, rgba(244, 114, 182, 0.42), transparent 60%),
+    linear-gradient(160deg, #ece7fe, #eef1ff 55%, #fbf3ff);
   --chrome-grad-1: #1e2340;
   --chrome-grad-2: #3a2a63;
 
-  /* ── Glass ──
-     Floating panels are translucent + blurred; menus use the stronger fill so
-     they stay legible over the gradient. Inner surfaces stay opaque (see the
-     plan's cascade note) to keep dense tables readable. */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-strong: rgba(255, 255, 255, 0.93);
-  --glass-border: rgba(255, 255, 255, 0.55);
-  --glass-blur: 16px;
+  /* ── Glass (iOS frosted vibrancy) ──
+     The Apple recipe: a translucent fill, a strong blur AND a saturate() bump
+     (what makes the colour behind the glass bloom), a bright hairline highlight,
+     and a soft layered shadow. Floating panels use --glass-bg; menus use the
+     stronger fill so they stay legible over a vivid scene; inner surfaces stay
+     opaque to keep dense tables readable. */
+  --glass-bg: rgba(255, 255, 255, 0.66);
+  --glass-strong: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-blur: 22px;
+  --glass-saturate: 180%;
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 
   /* Status hues. Four, and only four. */
   --spectra-success: #1a5e3a;
@@ -352,39 +362,121 @@
 :root[data-theme="indigo"] {
   --theme-accent: #4f46e5;  --theme-accent-strong: #4338ca;
   --theme-accent-soft: #c7d2fe; --theme-accent-tint: #eef2ff;
-  --bg-canvas: #f1f2fb; --bg-grad-1: #e7e9fd; --bg-grad-2: #e9effb; --bg-grad-3: #f4f5fe;
+  --bg-canvas: #eef0fe;
+  --app-bg:
+    radial-gradient(900px 620px at 8% -5%, rgba(129, 140, 248, 0.45), transparent 60%),
+    radial-gradient(820px 600px at 95% 8%, rgba(99, 102, 241, 0.38), transparent 55%),
+    radial-gradient(1000px 720px at 60% 108%, rgba(165, 180, 252, 0.40), transparent 60%),
+    linear-gradient(160deg, #e7eafe, #eef2ff 55%, #f3f4ff);
   --chrome-grad-1: #1d2140; --chrome-grad-2: #2b2f6b;
 }
 :root[data-theme="blue"] {
   --theme-accent: #2563eb;  --theme-accent-strong: #1d4ed8;
   --theme-accent-soft: #bfdbfe; --theme-accent-tint: #eff6ff;
-  --bg-canvas: #eff4fc; --bg-grad-1: #e3eefc; --bg-grad-2: #e8f1fb; --bg-grad-3: #f1f6fd;
+  --bg-canvas: #ecf3fd;
+  --app-bg:
+    radial-gradient(780px 520px at 88% 82%, rgba(103, 232, 249, 0.40), transparent 60%),
+    radial-gradient(900px 620px at 8% -5%, rgba(96, 165, 250, 0.50), transparent 60%),
+    radial-gradient(820px 600px at 96% 6%, rgba(56, 189, 248, 0.44), transparent 55%),
+    radial-gradient(1000px 720px at 52% 112%, rgba(165, 180, 252, 0.40), transparent 60%),
+    linear-gradient(160deg, #e3eefc, #eef5fd 55%, #f0f9ff);
   --chrome-grad-1: #182a46; --chrome-grad-2: #1e3f73;
 }
 :root[data-theme="green"] {
   --theme-accent: #059669;  --theme-accent-strong: #047857;
   --theme-accent-soft: #a7f3d0; --theme-accent-tint: #ecfdf5;
-  --bg-canvas: #eef7f2; --bg-grad-1: #ddf3e8; --bg-grad-2: #e6f3ec; --bg-grad-3: #f0f9f4;
+  --bg-canvas: #eaf7f1;
+  --app-bg:
+    radial-gradient(780px 520px at 88% 80%, rgba(103, 232, 249, 0.32), transparent 60%),
+    radial-gradient(900px 620px at 8% -5%, rgba(52, 211, 153, 0.48), transparent 60%),
+    radial-gradient(820px 600px at 96% 6%, rgba(132, 204, 22, 0.40), transparent 55%),
+    radial-gradient(1000px 720px at 52% 112%, rgba(134, 239, 172, 0.42), transparent 60%),
+    linear-gradient(160deg, #e2f6ec, #ecfdf5 55%, #f0fdf4);
   --chrome-grad-1: #163a30; --chrome-grad-2: #0f5a43;
 }
 :root[data-theme="yellow"] {
   /* A deep amber, not pure yellow — white text and links need the contrast. */
   --theme-accent: #b45309;  --theme-accent-strong: #92400e;
   --theme-accent-soft: #fde68a; --theme-accent-tint: #fffbeb;
-  --bg-canvas: #faf6ec; --bg-grad-1: #fbf0d6; --bg-grad-2: #f7f1e2; --bg-grad-3: #fdf9ef;
+  --bg-canvas: #faf4e4;
+  --app-bg:
+    radial-gradient(900px 620px at 8% -5%, rgba(251, 191, 36, 0.42), transparent 60%),
+    radial-gradient(820px 600px at 95% 8%, rgba(253, 224, 71, 0.40), transparent 55%),
+    radial-gradient(1000px 720px at 60% 108%, rgba(252, 211, 77, 0.36), transparent 60%),
+    linear-gradient(160deg, #fbf1d8, #fffbeb 55%, #fefce8);
   --chrome-grad-1: #2a2416; --chrome-grad-2: #5c4710;
 }
 :root[data-theme="orange"] {
   --theme-accent: #ea580c;  --theme-accent-strong: #c2410c;
   --theme-accent-soft: #fed7aa; --theme-accent-tint: #fff7ed;
-  --bg-canvas: #fbf4ee; --bg-grad-1: #fde4d2; --bg-grad-2: #f8ece2; --bg-grad-3: #fdf6f0;
+  --bg-canvas: #fbf1e8;
+  --app-bg:
+    radial-gradient(900px 620px at 8% -5%, rgba(251, 146, 60, 0.42), transparent 60%),
+    radial-gradient(820px 600px at 95% 8%, rgba(253, 186, 116, 0.40), transparent 55%),
+    radial-gradient(1000px 720px at 60% 108%, rgba(254, 215, 170, 0.40), transparent 60%),
+    linear-gradient(160deg, #fde6d3, #fff7ed 55%, #fff7ed);
   --chrome-grad-1: #3a2518; --chrome-grad-2: #7a3b14;
 }
 :root[data-theme="red"] {
   --theme-accent: #dc2626;  --theme-accent-strong: #b91c1c;
   --theme-accent-soft: #fecaca; --theme-accent-tint: #fef2f2;
-  --bg-canvas: #fbf1f1; --bg-grad-1: #fcdede; --bg-grad-2: #f8e8e8; --bg-grad-3: #fdf3f3;
+  --bg-canvas: #fbeeee;
+  --app-bg:
+    radial-gradient(900px 620px at 8% -5%, rgba(248, 113, 113, 0.40), transparent 60%),
+    radial-gradient(820px 600px at 95% 8%, rgba(252, 165, 165, 0.40), transparent 55%),
+    radial-gradient(1000px 720px at 60% 108%, rgba(254, 202, 202, 0.42), transparent 60%),
+    linear-gradient(160deg, #fcdede, #fef2f2 55%, #fff1f2);
   --chrome-grad-1: #3a1c1c; --chrome-grad-2: #7a1f1f;
+}
+
+/* ── Illustrated SCENE themes ──────────────────────────────────────────────
+   Richer "environments" — sky washes, a soft sun glow and a faint hill/sea
+   silhouette, built entirely from layered CSS gradients (no image assets, so
+   nothing to license or download and nothing heavy to ship). Kept LIGHT at the
+   top where the page header and content sit, so dark text on frosted glass
+   stays readable. */
+:root[data-theme="aurora"] {
+  --theme-accent: #0d9488;  --theme-accent-strong: #0f766e;
+  --theme-accent-soft: #99f6e4; --theme-accent-tint: #f0fdfa;
+  --bg-canvas: #eafaf6;
+  --app-bg:
+    radial-gradient(1100px 520px at 28% 0%, rgba(45, 212, 191, 0.42), transparent 62%),
+    radial-gradient(900px 500px at 82% 8%, rgba(167, 139, 250, 0.34), transparent 58%),
+    radial-gradient(760px 420px at 55% 26%, rgba(94, 234, 212, 0.30), transparent 60%),
+    linear-gradient(180deg, #e6fbf5 0%, #eafaf6 55%, #f0fdfa 100%);
+  --chrome-grad-1: #0f2e2b; --chrome-grad-2: #134e4a;
+}
+:root[data-theme="sunrise"] {
+  --theme-accent: #e11d48;  --theme-accent-strong: #be123c;
+  --theme-accent-soft: #fecdd3; --theme-accent-tint: #fff1f2;
+  --bg-canvas: #fdf1ec;
+  --app-bg:
+    radial-gradient(760px 380px at 74% 80%, rgba(251, 191, 36, 0.55), transparent 66%),
+    radial-gradient(900px 520px at 18% 6%, rgba(244, 114, 182, 0.30), transparent 60%),
+    linear-gradient(180deg, transparent 85%, rgba(190, 24, 93, 0.16) 100%),
+    linear-gradient(180deg, #ffe4e6 0%, #fde2c8 46%, #fef3c7 72%, #fffaf0 100%);
+  --chrome-grad-1: #3a1d2a; --chrome-grad-2: #7c2d4a;
+}
+:root[data-theme="ocean"] {
+  --theme-accent: #0284c7;  --theme-accent-strong: #0369a1;
+  --theme-accent-soft: #bae6fd; --theme-accent-tint: #f0f9ff;
+  --bg-canvas: #e9f5fd;
+  --app-bg:
+    radial-gradient(900px 480px at 80% 6%, rgba(56, 189, 248, 0.42), transparent 56%),
+    radial-gradient(820px 440px at 18% 22%, rgba(45, 212, 191, 0.28), transparent 60%),
+    linear-gradient(180deg, transparent 78%, rgba(2, 132, 199, 0.16) 80%, rgba(3, 105, 161, 0.24) 100%),
+    linear-gradient(180deg, #dcf0fb 0%, #e9f5fd 52%, #f0fbff 100%);
+  --chrome-grad-1: #0b2a40; --chrome-grad-2: #0c4a6e;
+}
+:root[data-theme="meadow"] {
+  --theme-accent: #16a34a;  --theme-accent-strong: #15803d;
+  --theme-accent-soft: #bbf7d0; --theme-accent-tint: #f0fdf4;
+  --bg-canvas: #eef8ec;
+  --app-bg:
+    radial-gradient(720px 340px at 78% 16%, rgba(250, 204, 21, 0.40), transparent 66%),
+    linear-gradient(180deg, transparent 70%, rgba(34, 197, 94, 0.20) 72%, rgba(21, 128, 61, 0.28) 100%),
+    linear-gradient(180deg, #d8eefb 0%, #e6f5ec 52%, #eef8ec 100%);
+  --chrome-grad-1: #14321f; --chrome-grad-2: #166534;
 }
 
 @layer base {
@@ -397,15 +489,13 @@
     font-family: var(--font-sans);
     font-size: 13px;
     -webkit-font-smoothing: antialiased;
-    /* The themed mesh. Fixed, so it stays put while the content column scrolls
-       (the shell's <main> is made transparent for exactly this). Re-tints per
-       theme via --bg-* above. */
+    /* The themed scene. Fixed, so it stays put while the content column scrolls
+       (the shell's <main> is made transparent for exactly this). The whole
+       environment comes from --app-bg, re-tinted per theme below. */
     background-color: var(--bg-canvas);
-    background-image:
-      radial-gradient(1100px 780px at 12% -8%, var(--bg-grad-1), transparent 60%),
-      radial-gradient(1000px 720px at 108% 6%, var(--bg-grad-2), transparent 55%),
-      linear-gradient(180deg, var(--bg-grad-3), var(--bg-canvas) 70%);
+    background-image: var(--app-bg);
     background-attachment: fixed;
+    background-size: cover;
     background-repeat: no-repeat;
     min-height: 100%;
   }
@@ -530,31 +620,66 @@
     background-color: var(--theme-accent-strong);
   }
 
+  /* ── Frost (iOS vibrancy) ──
+     The shared frosted-glass treatment: the blur+saturate filter, a bright
+     hairline highlight, a top inner-highlight and a soft layered shadow, plus a
+     gentle transition so the glass responds to the cursor. Applied by .glass,
+     .panel and the shadcn Card. It sets the FILTER/border/shadow only — the
+     fill is left to the caller (bg-card / --glass-bg) so themes stay in charge
+     of colour. `prefers-reduced-motion` neutralises the transition (base layer). */
+  .frost {
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
+      var(--shadow);
+    transition: box-shadow 0.28s ease, border-color 0.28s ease, transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .frost:hover {
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
+      0 16px 44px -16px rgba(16, 25, 35, 0.3);
+  }
+
   /* ── Glass ──
-     The frosted-panel look as a single class, so a hand-rolled card that used
-     `bg-white` becomes glass by swapping that one token for `glass`. It sets
-     fill + blur + soft shadow only; the caller keeps its own rounding and
-     border. Do NOT put this on avatars, icon tiles, status chips, media
-     players or the certificate document — those want real opaque white. */
+     The frosted-panel look as one class, so a hand-rolled card that used
+     `bg-white` becomes glass by swapping that token for `glass`. It adds the
+     translucent fill on top of the shared .frost recipe. Do NOT put this on
+     avatars, icon tiles, status chips, media players or the certificate
+     document — those want real opaque white. */
   .glass {
     background: var(--glass-bg);
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    backdrop-filter: blur(var(--glass-blur));
-    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
+      var(--shadow);
+    transition: box-shadow 0.28s ease, border-color 0.28s ease, transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .glass:hover {
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
+      0 16px 44px -16px rgba(16, 25, 35, 0.3);
   }
 
   /* ── Panel ──
-     The Spectra card: white, hairline, square, no shadow. Use it when a
-     shadcn Card is not already in play. */
+     A floating frosted card for when a shadcn Card is not already in play. */
   .panel {
     background: var(--glass-bg);
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
+      var(--shadow);
+    transition: box-shadow 0.28s ease, border-color 0.28s ease;
   }
-  .panel:hover { border-color: var(--spectra-border-2); }
+  .panel:hover { border-color: rgba(255, 255, 255, 0.8); }
 
   /* Tinted icon tiles beside a stat — the reference's four accents. */
   .tile-accent  { background: rgba(59, 111, 212, 0.12); color: var(--spectra-accent); }
