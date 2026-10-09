@@ -124,18 +124,9 @@ export function ChangePasswordContent() {
   return (
     <Card className="max-w-md mx-auto p-6 space-y-6">
 
-      {/* Header */}
-      <Box className="flex items-center gap-3">
-        <Box className="w-10 h-10 rounded-lg bg-paper-cream flex items-center justify-center shrink-0">
-          <KeyRound className="h-5 w-5 text-navy" />
-        </Box>
-        <Box>
-          <Text as="h2" className="text-base font-bold">Change Password</Text>
-          <Text as="p" className="text-xs text-muted-foreground mt-0.5">
-            Create a strong password to keep your account secure.
-          </Text>
-        </Box>
-      </Box>
+      {/* No heading here — every portal's change-password page already renders a
+          PageHeader ("Change password"); a second title on the card was the
+          duplicate. The page's summary carries the guidance this card used to. */}
 
       <form onSubmit={handleSubmit} className="space-y-5">
 

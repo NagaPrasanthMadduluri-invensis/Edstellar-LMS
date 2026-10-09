@@ -264,11 +264,14 @@ export function AssessmentContent({ courseId, assessmentId }) {
 
   return (
     <Box className="space-y-5">
-      {/* ── Back ── */}
-      <Button variant="ghost" size="sm" onClick={() => router.push(`/my-courses/${courseId}`)} className="w-fit">
-        <ArrowLeft className="h-4 w-4 mr-1.5" />
-        Back to Course
-      </Button>
+      {/* ── Back ── sticky so it stays reachable instead of scrolling away
+          under the top bar on a long assessment. */}
+      <Box className="sticky top-0 z-30 -mx-4 -mt-4 mb-1 flex border-b border-line/60 glass px-4 py-2 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6">
+        <Button variant="ghost" size="sm" onClick={() => router.push(`/my-courses/${courseId}`)} className="w-fit">
+          <ArrowLeft className="h-4 w-4 mr-1.5" />
+          Back to Course
+        </Button>
+      </Box>
 
       {/* ── Assessment Header ── */}
       <Card className="gap-0">

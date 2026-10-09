@@ -12,14 +12,20 @@ import {
   FileArchive, Trophy, RefreshCw, ExternalLink,
   CalendarDays, MapPin, Video, UserCircle, Users,
   FileText, FileSpreadsheet, Presentation, Link2, Paperclip, Download,
+  ChevronLeft, ChevronRight, RotateCcw, X, Sparkles,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchLessonContent, markLessonComplete } from "@/services/api/learner/learner-api";
 import { YoutubePlayer, isYouTubeUrl, extractYouTubeId } from "@/components/learner/youtube-player";
 import { LocalVideoPlayer, isVideoFile } from "@/components/learner/local-video-player";
+import { LessonPlaylist } from "@/components/learner/lesson-playlist";
 import { toEmbedUrl } from "@/lib/video-embed";
+
+/** Seconds the autoplay end-card counts down before advancing. */
+const AUTOPLAY_SECONDS = 5;
 
 /* These chips sit on the navy panel below, so the light-surface fill weights do
    not apply: on a dark surface the heaviest state is the accent on navy, and
@@ -624,6 +630,14 @@ export function LessonContent({ courseId, lessonId }) {
   // Presigned R2 URLs for an uploaded video. undefined = not yet asked,
   // null = this lesson has no hosted video.
   const [media, setMedia] = useState(undefined);
+  // Autoplay-next is OFF by default and remembered per browser. When on, the
+  // end card counts down and advances; Replay/Cancel interrupt it.
+  const [autoplay, setAutoplay] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  // Bumped to remount the player for Replay (restart at 0); `replayed` then
+  // keeps the resume point at 0 for the rest of this lesson view.
+  const [playNonce, setPlayNonce] = useState(0);
+  const [replayed, setReplayed] = useState(false);
 
   /**
    * Fetches a fresh signed URL pair. Also handed to the player as `onRefresh`
@@ -661,7 +675,23 @@ export function LessonContent({ courseId, lessonId }) {
   }, [user, user, lessonId]);
 
   useEffect(() => { loadLesson(); }, [loadLesson]);
-  useEffect(() => { setVideoEnded(false); setMedia(undefined); }, [lessonId]);
+  // A new lesson resets everything the player/overlay track.
+  useEffect(() => {
+    setVideoEnded(false);
+    setMedia(undefined);
+    setCountdown(null);
+    setReplayed(false);
+    setPlayNonce(0);
+  }, [lessonId]);
+
+  // Autoplay preference, remembered per browser.
+  useEffect(() => {
+    try { setAutoplay(localStorage.getItem("lesson-autoplay") === "1"); } catch {}
+  }, []);
+  const toggleAutoplay = (on) => {
+    setAutoplay(on);
+    try { localStorage.setItem("lesson-autoplay", on ? "1" : "0"); } catch {}
+  };
 
   // Only ask for a signed URL when the lesson actually has an uploaded file —
   // a video or a document. Signing is cheap but pointless for a YouTube-backed
@@ -690,6 +720,52 @@ export function LessonContent({ courseId, lessonId }) {
       setCompleting(false);
     }
   };
+
+  const goToLesson = (id) => router.push(`/my-courses/${courseId}/lessons/${id}`);
+
+  // Continue to the next lesson from the end card / Next button. If the lesson
+  // is already complete, just navigate; otherwise complete it first (which also
+  // unlocks the next), exactly like the footer's Save-and-move button.
+  const continueNext = () => {
+    if (!data?.next_lesson_id) {
+      router.push(`/my-courses/${courseId}`);
+      return;
+    }
+    if (status === "completed") goToLesson(data.next_lesson_id);
+    else handleMarkComplete();
+  };
+
+  // Replay — remount the player at 0 and clear the end card, instead of leaving
+  // a frozen last frame.
+  const handleReplay = () => {
+    setCountdown(null);
+    setVideoEnded(false);
+    setReplayed(true);
+    setPlayNonce((n) => n + 1);
+  };
+
+  // Autoplay-next: once a video ends, if the toggle is on and there is a next
+  // lesson, count down and advance. Replay and Cancel both clear it.
+  useEffect(() => {
+    if (!videoEnded || !autoplay || !data?.next_lesson_id) {
+      setCountdown(null);
+      return;
+    }
+    setCountdown(AUTOPLAY_SECONDS);
+    const iv = setInterval(() => {
+      setCountdown((c) => {
+        if (c === null) return null;
+        if (c <= 1) {
+          clearInterval(iv);
+          continueNext();
+          return null;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoEnded, autoplay, data?.next_lesson_id]);
 
   if (error) {
     const isLocked = error.toLowerCase().includes("locked");
@@ -770,19 +846,146 @@ export function LessonContent({ courseId, lessonId }) {
     ? <FileText className="h-4 w-4 text-navy shrink-0" />
     : <PlayCircle className="h-4 w-4 text-navy shrink-0" />;
 
-  return (
-    <Box className="space-y-4">
-      {/* Back */}
-      <Box className="flex items-center gap-2 flex-wrap">
-        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/my-courses/${courseId}`)}>
-          <ArrowLeft className="h-4 w-4 mr-1.5" />
-          Back to Course
-        </Button>
-        {lesson.module && (
-          <Text as="span" className="text-xs text-muted-foreground">/ {lesson.module.title}</Text>
+  // Next is purely navigational and never bypasses a completion gate: it is
+  // enabled only when the next lesson is actually unlocked (the server's
+  // playlist status says so). A completed current lesson shows as 'completed'
+  // (not 'current'), so revisiting it leaves Next free.
+  const curIdx = data.playlist?.findIndex((l) => l.status === "current") ?? -1;
+  const nextEntry = curIdx >= 0 ? data.playlist?.[curIdx + 1] ?? null : null;
+  const nextReachable =
+    hasNextLesson && (status === "completed" || !nextEntry || nextEntry.status !== "locked");
+
+  const isVideoType = isHosted || isYT || isLocal;
+  const nextTypeLabel = data.next_lesson
+    ? ({ scorm: "SCORM", session: "Session", document: "Document", pdf: "Document", ppt: "Document", doc: "Document", word: "Document", xls: "Document", image: "Document", quiz: "Quiz" }[data.next_lesson.content_type] || "Video")
+    : "";
+
+  // The end card shown over a finished video instead of a frozen last frame:
+  // what was earned, what's next, and Continue / Replay (+ Cancel during an
+  // autoplay countdown).
+  const videoEndCard = (
+    <Box className="absolute inset-0 z-10 flex items-center justify-center bg-navy/85 p-5 backdrop-blur-sm">
+      <Box className="w-full max-w-sm rounded-xl border border-white/15 bg-navy-deep/80 p-5 text-center text-paper">
+        <Box className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-success/20">
+          <CheckCircle2 className="h-5 w-5 text-success" />
+        </Box>
+        <Text as="p" className="text-sm font-semibold">Lesson finished</Text>
+        <Text as="p" className="mt-0.5 text-xs text-paper/70">
+          {lesson.duration_minutes
+            ? `${lesson.duration_minutes} min added to your learning hours`
+            : "Nice work — you watched the whole lesson"}
+        </Text>
+
+        {data.next_lesson ? (
+          <>
+            <Box className="mt-4 rounded-lg border border-white/15 bg-white/5 p-3 text-left">
+              <Text as="p" className="font-mono text-[10px] uppercase tracking-wide text-paper/50">Up next</Text>
+              <Text as="p" className="mt-0.5 truncate text-sm font-semibold">{data.next_lesson.title}</Text>
+              <Text as="p" className="mt-0.5 text-[11px] text-paper/60">
+                {nextTypeLabel}
+                {data.next_lesson.duration_minutes ? ` · ${data.next_lesson.duration_minutes} min` : ""}
+              </Text>
+            </Box>
+            {countdown !== null && (
+              <Text as="p" className="mt-3 text-xs text-paper/80">Continuing in {countdown}s…</Text>
+            )}
+            <Box className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <Button size="sm" variant="outline" className="border-white/25 bg-transparent text-paper hover:bg-white/10" onClick={handleReplay}>
+                <RotateCcw className="h-4 w-4 mr-1.5" />Replay
+              </Button>
+              {countdown !== null && (
+                <Button size="sm" variant="outline" className="border-white/25 bg-transparent text-paper hover:bg-white/10" onClick={() => setCountdown(null)}>
+                  <X className="h-4 w-4 mr-1.5" />Cancel
+                </Button>
+              )}
+              <Button size="sm" className="bg-accent-blue text-white hover:bg-accent-blue/90" onClick={continueNext} disabled={completing}>
+                Continue<ArrowRight className="h-4 w-4 ml-1.5" />
+              </Button>
+            </Box>
+          </>
+        ) : (
+          <>
+            <Text as="p" className="mt-4 text-xs text-paper/70">You've reached the end of the course.</Text>
+            <Box className="mt-3 flex items-center justify-center gap-2">
+              <Button size="sm" variant="outline" className="border-white/25 bg-transparent text-paper hover:bg-white/10" onClick={handleReplay}>
+                <RotateCcw className="h-4 w-4 mr-1.5" />Replay
+              </Button>
+              <Button size="sm" className="bg-accent-blue text-white hover:bg-accent-blue/90" onClick={continueNext} disabled={completing}>
+                Finish<CheckCircle2 className="h-4 w-4 ml-1.5" />
+              </Button>
+            </Box>
+          </>
         )}
       </Box>
+    </Box>
+  );
 
+  const autoplayBar = (
+    <Card className="p-3">
+      <Box className="flex items-center justify-between gap-3">
+        <Box className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 shrink-0 text-navy" />
+          <Box>
+            <Text as="p" className="text-sm font-medium leading-none">Autoplay next lesson</Text>
+            <Text as="p" className="mt-1 text-xs text-muted-foreground">When a video ends, continue automatically after a short countdown.</Text>
+          </Box>
+        </Box>
+        <Switch checked={autoplay} onCheckedChange={toggleAutoplay} />
+      </Box>
+    </Card>
+  );
+
+  return (
+    <Box className="space-y-4">
+      {/* Sticky lesson toolbar — Back, "Lesson X of Y", and Prev/Next, always
+          reachable so a learner never has to return to the course page between
+          lessons. The negative margins cancel the shell's padding so the frosted
+          bar spans full width; z-30 keeps it under the z-50 top bar. */}
+      <Box className="sticky top-0 z-30 -mx-4 -mt-4 mb-2 flex items-center gap-2 border-b border-line/60 glass px-4 py-2 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6">
+        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/my-courses/${courseId}`)}>
+          <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
+          <Text as="span" className="hidden sm:inline">Back to Course</Text>
+        </Button>
+        {data.position && data.total ? (
+          <Text as="span" className="mx-auto shrink-0 text-xs font-medium text-muted-foreground">
+            Lesson {data.position} of {data.total}
+          </Text>
+        ) : (
+          <Box className="mx-auto" />
+        )}
+        <Box className="flex shrink-0 items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!data.prev_lesson}
+            title={data.prev_lesson ? `Previous: ${data.prev_lesson.title ?? ""}` : "This is the first lesson"}
+            onClick={() => data.prev_lesson && goToLesson(data.prev_lesson.id)}
+          >
+            <ChevronLeft className="h-4 w-4 sm:mr-1" />
+            <Text as="span" className="hidden sm:inline">Prev</Text>
+          </Button>
+          {hasNextLesson ? (
+            <Button
+              size="sm"
+              className="bg-navy hover:bg-navy-soft text-paper disabled:opacity-50"
+              disabled={!nextReachable}
+              title={nextReachable ? `Next: ${nextLessonTitle ?? ""}` : "Complete this lesson to continue"}
+              onClick={() => nextReachable && goToLesson(data.next_lesson_id)}
+            >
+              <Text as="span" className="hidden sm:inline">Next</Text>
+              <ChevronRight className="h-4 w-4 sm:ml-1" />
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => router.push(`/my-courses/${courseId}`)}>
+              Finish
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {/* Content + the collapsible playlist sidebar. */}
+      <Box className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <Box className="min-w-0 space-y-4">
       {/* Lesson Header */}
       <Card className="overflow-hidden">
         <CardContent className="p-5">
@@ -835,21 +1038,22 @@ export function LessonContent({ courseId, lessonId }) {
           onStatusRefresh={loadLesson}
         />
       ) : isHosted ? (
-        <Card className="overflow-hidden aspect-video sm:aspect-auto sm:h-[80dvh]">
+        <Card className="relative overflow-hidden aspect-video sm:aspect-auto sm:h-[80dvh]">
           {media === undefined ? (
             <Box className="h-full w-full bg-navy flex items-center justify-center">
               <Text as="p" className="text-sm text-paper/60 font-mono">Preparing video…</Text>
             </Box>
           ) : media ? (
             <LocalVideoPlayer
+              key={`${lessonId}-${playNonce}`}
               src={media.videoUrl}
               captionSrc={media.captionUrl}
               expiresIn={media.expiresIn}
               onRefresh={loadMedia}
               onProgress={reportProgress}
-              resumeAt={media.resumeAtSeconds}
+              resumeAt={replayed ? 0 : media.resumeAtSeconds}
               watchedSeconds={media.watchedSeconds}
-              resetKey={lessonId}
+              resetKey={`${lessonId}-${playNonce}`}
               onEnded={() => setVideoEnded(true)}
               className="h-full"
             />
@@ -860,18 +1064,23 @@ export function LessonContent({ courseId, lessonId }) {
               </Text>
             </Box>
           )}
+          {videoEnded && videoEndCard}
         </Card>
       ) : lesson.content_url ? (
-        <Card className="overflow-hidden aspect-video sm:aspect-auto sm:h-[80dvh]">
+        <Card className="relative overflow-hidden aspect-video sm:aspect-auto sm:h-[80dvh]">
           {isYT ? (
             <YoutubePlayer
+              key={`${lessonId}-${playNonce}`}
               videoId={extractYouTubeId(lesson.content_url)}
               onEnded={() => setVideoEnded(true)}
               className="h-full"
             />
           ) : isLocal ? (
             <LocalVideoPlayer
+              key={`${lessonId}-${playNonce}`}
               src={lesson.content_url}
+              resetKey={`${lessonId}-${playNonce}`}
+              resumeAt={0}
               onEnded={() => setVideoEnded(true)}
               className="h-full"
             />
@@ -893,6 +1102,7 @@ export function LessonContent({ courseId, lessonId }) {
               />
             </Box>
           )}
+          {videoEnded && videoEndCard}
         </Card>
       ) : (
         <Card className="p-10 text-center">
@@ -900,6 +1110,9 @@ export function LessonContent({ courseId, lessonId }) {
           <Text as="p" className="text-sm text-muted-foreground">No video content available for this lesson yet.</Text>
         </Card>
       )}
+
+      {/* Autoplay-next toggle — only for video lessons, where "ends" is a thing. */}
+      {isVideoType && autoplayBar}
 
       {/* Supporting material, for every lesson type that has any. */}
       <LessonResources resources={data.resources} />
@@ -954,6 +1167,16 @@ export function LessonContent({ courseId, lessonId }) {
           </Box>
         </Card>
       )}
+        </Box>
+
+        {/* Collapsible lesson playlist — current highlighted, ticks for done,
+            padlocks for locked, one-click jump. Sticky on wide screens. */}
+        {data.playlist?.length ? (
+          <Box className="lg:sticky lg:top-16">
+            <LessonPlaylist playlist={data.playlist} courseId={courseId} />
+          </Box>
+        ) : null}
+      </Box>
     </Box>
   );
 }
