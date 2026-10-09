@@ -36,7 +36,7 @@ import {
   CheckCircle2, XCircle, Clock, Trophy, TrendingUp,
   ChevronDown, ChevronUp, CalendarDays, FileArchive, MinusCircle,
   Eye, EyeOff, Pencil, Power, Trash2, ShieldCheck, GraduationCap, Presentation, UserX,
-  Mail,
+  Mail, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -53,6 +53,9 @@ import { progressFill } from "@/lib/brand";
 
 /** How a role's portal reads in a picker. One place, so it cannot drift. */
 const PORTAL_WORD = { admin: "Admin portal", learner: "Learner portal", trainer: "Trainer portal" };
+
+/** The Manage Users table page size. Must stay ≤ the server's `limit` cap (100). */
+const PAGE = 25;
 
 const AVATAR_COLORS = [
   "bg-navy text-white",
@@ -733,8 +736,22 @@ export function AdminEmployeesContent() {
   const { user } = useAuth();
   const fileRef   = useRef(null);
 
-  const [employees, setEmployees]           = useState(null);
+  // The TABLE rows are a single server-paginated page; `people` is the full
+  // lightweight identity list the Manager picker and bulk resolution need
+  // (both of which want everybody, not a page). Keeping them apart is what
+  // lets the heavy progress table be paged while the cheap picker list is not.
+  const [pageUsers, setPageUsers]           = useState(null);
+  const [people, setPeople]                 = useState(null);
+  const [facets, setFacets]                 = useState(null);
+  const [total, setTotal]                   = useState(0);
+  const [hasMore, setHasMore]               = useState(false);
+  const [offset, setOffset]                 = useState(0);
+  const [pageLoading, setPageLoading]       = useState(false);
+
   const [search, setSearch]                 = useState("");
+  // What is actually SENT — the search box debounced, so the table is not
+  // refetched on every keystroke across an org.
+  const [appliedSearch, setAppliedSearch]   = useState("");
   const [filterDept, setFilterDept]         = useState("all");
   const [filterStatus, setFilterStatus]     = useState("all");
   const [filterProgress, setFilterProgress] = useState("all");
@@ -785,39 +802,88 @@ export function AdminEmployeesContent() {
   const [parseError, setParseError]           = useState(null);
   const [templateLoading, setTemplateLoading] = useState(false);
 
-  const load = useCallback(async () => {
+  /**
+   * The paginated, filtered table page plus the org-wide KPI tiles and filter
+   * facets that travel with it. This is the DIRECTORY, not `/admin/employees`:
+   * the table shows every account in the organization — admins and trainers
+   * included — while that endpoint is learners-only because it also feeds the
+   * assign-learning picker and the session roster.
+   */
+  const loadPage = useCallback(async () => {
     if (!user) return;
+    setPageLoading(true);
     try {
-      // The DIRECTORY, not /admin/employees: this table shows every account
-      // in the organization — admins and trainers included — while that
-      // endpoint is learners-only because it also feeds the assign-learning
-      // picker and the session roster.
-      const [d, seats, options, roles] = await Promise.all([
-        apiClient("/api/admin/users/directory"),
-        // Seats travel with every refetch, not just the first: creating or
-        // deactivating somebody moves the meter, and a stale one beside a
-        // table that just changed is the two-numbers-disagreeing failure the
-        // KPI tiles are already refetched to avoid.
-        fetchSeatState().catch(() => null),
-        // The branch locations and job levels this org may offer. Fetched
-        // with the directory so the forms below never render a stale list.
-        fetchMyOrgOptions().catch(() => null),
-        // The org's roles, for the Add User selector and Change role. A
-        // failure leaves the selector out rather than blocking onboarding —
-        // creating a learner is what the dialog did before this existed.
-        fetchOrgRoles().catch(() => null),
-      ]);
-      setEmployees(d.users || []);
+      const params = new URLSearchParams();
+      params.set("limit", String(PAGE));
+      params.set("offset", String(offset));
+      if (appliedSearch)             params.set("search", appliedSearch);
+      if (filterStatus   !== "all")  params.set("status", filterStatus);
+      if (filterProgress !== "all")  params.set("progress", filterProgress);
+      if (filterDept     !== "all")  params.set("department", filterDept);
+      if (filterLocation !== "all")  params.set("location", filterLocation);
+      if (filterJobRole  !== "all")  params.set("job_role", filterJobRole);
+      if (filterLevel    !== "all")  params.set("job_level", filterLevel);
+      if (filterRole     !== "all")  params.set("role", filterRole);
+
+      const d = await apiClient(`/api/admin/users/directory?${params.toString()}`);
+      setPageUsers(d.users || []);
       setStats(d.stats || null);
-      setSeatState(seats);
-      setOrgOptions(options);
-      setOrgRoles(roles?.roles ?? null);
+      setFacets(d.facets || null);
+      setTotal(d.total ?? 0);
+      setHasMore(Boolean(d.has_more));
+      setError(null);
     } catch (e) {
       setError(e.message);
+    } finally {
+      setPageLoading(false);
     }
+  }, [user, offset, appliedSearch, filterStatus, filterProgress, filterDept,
+      filterLocation, filterJobRole, filterLevel, filterRole]);
+
+  /**
+   * Everything that does NOT depend on the table's filters: the full identity
+   * list for the pickers, seats, the org's branch/level options, and the org's
+   * roles. Fetched once on mount and after any mutation.
+   */
+  const loadStatic = useCallback(async () => {
+    if (!user) return;
+    const [peopleRes, seats, options, roles] = await Promise.all([
+      apiClient("/api/admin/users/people").catch(() => null),
+      // Seats travel with every refetch: creating or deactivating somebody
+      // moves the meter, and a stale one beside a table that just changed is
+      // the two-numbers-disagreeing failure the KPI tiles already avoid.
+      fetchSeatState().catch(() => null),
+      // The branch locations and job levels this org may offer.
+      fetchMyOrgOptions().catch(() => null),
+      // The org's roles, for the Add User selector and Change role. A failure
+      // leaves the selector out rather than blocking onboarding.
+      fetchOrgRoles().catch(() => null),
+    ]);
+    setPeople(peopleRes?.people ?? []);
+    setSeatState(seats);
+    setOrgOptions(options);
+    setOrgRoles(roles?.roles ?? null);
   }, [user]);
 
-  useEffect(() => { load(); }, [load]);
+  /** A full reload after a mutation — the table page AND the picker list. */
+  const load = useCallback(async () => {
+    await Promise.all([loadPage(), loadStatic()]);
+  }, [loadPage, loadStatic]);
+
+  useEffect(() => { loadPage(); }, [loadPage]);
+  useEffect(() => { loadStatic(); }, [loadStatic]);
+
+  // Debounce the search box into what is actually sent, and return to the
+  // first page whenever the query narrows — a filtered result shorter than the
+  // current offset would otherwise show an empty page the admin did not ask for.
+  useEffect(() => {
+    const t = setTimeout(() => { setAppliedSearch(search.trim()); setOffset(0); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Any dropdown filter change also returns to the first page. Batched with the
+  // setter in the same event, so this costs one fetch, not two.
+  const withFirstPage = (setter) => (value) => { setter(value); setOffset(0); };
 
   const handleToggleStatus = async () => {
     if (!confirmToggle) return;
@@ -990,11 +1056,11 @@ export function AdminEmployeesContent() {
   /**
    * Recomputed from the directory the table already loaded, so the preview
    * costs no request and cannot disagree with the Manager picker in the Add
-   * User dialog beside it — both read `employees`, both filter to active.
+   * User dialog beside it — both read `people`, both filter to active.
    */
   const managerCells = useMemo(
-    () => managerPreview(bulkRows, employees),
-    [bulkRows, employees],
+    () => managerPreview(bulkRows, people),
+    [bulkRows, people],
   );
   const badManagers = managerCells.filter(
     (m) => m.state === "unknown" || m.state === "self",
@@ -1016,7 +1082,7 @@ export function AdminEmployeesContent() {
     </Card>
   );
 
-  if (!employees) return (
+  if (pageUsers === null) return (
     <Box className="space-y-2">
       {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
     </Box>
@@ -1041,31 +1107,20 @@ export function AdminEmployeesContent() {
   const locationOptions = (orgOptions?.locations ?? []).map((l) => l.name);
   const jobLevelOptions = (orgOptions?.job_levels ?? []).map((j) => j.name);
 
-  const depts     = [...new Set(employees.map((e) => e.department).filter(Boolean))].sort();
-  const locations = [...new Set(employees.map((e) => e.location).filter(Boolean))].sort();
-  const jobRoles  = [...new Set(employees.map((e) => e.job_role).filter(Boolean))].sort();
-  // Roles come from the rows so the filter offers exactly what is present;
-  // levels come from the closed list, in seniority order, so the dropdown
-  // reads Executive-to-Intern rather than alphabetically — the org list is
-  // stored in seniority order (`organization_job_levels.sort_order`).
-  const roleOptions = [...new Set(employees.map((e) => e.role_label).filter(Boolean))].sort();
-  const levelOptions = jobLevelOptions.filter((l) => employees.some((e) => e.job_level === l));
+  // The filter dropdowns offer the org-wide distinct values the server sends in
+  // `facets` — not whatever is on the current page, which would shrink the
+  // options as you paged. Levels come from the closed list in seniority order
+  // (`organization_job_levels.sort_order`), intersected with the ones actually
+  // in use, so the dropdown reads Executive-to-Intern rather than alphabetically.
+  const depts       = facets?.departments ?? [];
+  const locations   = facets?.locations ?? [];
+  const jobRoles    = facets?.job_roles ?? [];
+  const roleOptions = facets?.roles ?? [];
+  const levelsInUse = facets?.job_levels ?? [];
+  const levelOptions = jobLevelOptions.filter((l) => levelsInUse.includes(l));
 
-  const filtered = employees.filter((e) => {
-    const q = `${e.first_name} ${e.last_name} ${e.email}`.toLowerCase();
-    const matchSearch   = q.includes(search.toLowerCase());
-    const matchDept     = filterDept     === "all" || e.department === filterDept;
-    const matchStatus   = filterStatus   === "all"
-      || (filterStatus   === "active"   && e.is_active)
-      || (filterStatus   === "inactive" && !e.is_active);
-    const matchProgress = filterProgress === "all" || e.status === filterProgress;
-    const matchLocation = filterLocation === "all" || e.location === filterLocation;
-    const matchJobRole  = filterJobRole  === "all" || e.job_role === filterJobRole;
-    const matchRole     = filterRole     === "all" || e.role_label === filterRole;
-    const matchLevel    = filterLevel    === "all" || e.job_level === filterLevel;
-    return matchSearch && matchDept && matchStatus && matchProgress
-      && matchLocation && matchJobRole && matchRole && matchLevel;
-  });
+  // The table rows are already filtered and paginated by the server.
+  const filtered = pageUsers;
 
   return (
     <Box>
@@ -1116,7 +1171,9 @@ export function AdminEmployeesContent() {
           <Box>
             <Text as="h2" className="text-base font-bold">All Users</Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">
-              {filtered.length} of {employees.length} users shown
+              {total === 0
+                ? "No users match"
+                : `Showing ${offset + 1}–${Math.min(offset + PAGE, total)} of ${total}${pageLoading ? " · loading…" : ""}`}
             </Text>
           </Box>
           <Box className="flex items-center gap-2">
@@ -1174,7 +1231,7 @@ export function AdminEmployeesContent() {
           {/* Filters row */}
           <Box className="flex flex-wrap items-center gap-2">
             <Text as="span" className="text-xs font-medium text-ink/45 mr-1">Filter by:</Text>
-            <Select value={filterRole} onValueChange={setFilterRole}>
+            <Select value={filterRole} onValueChange={withFirstPage(setFilterRole)}>
               <SelectTrigger className={`h-8 text-xs w-[150px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterRole === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>{filterRole === "all" ? "All Roles" : filterRole}</SelectValue>
               </SelectTrigger>
@@ -1183,7 +1240,7 @@ export function AdminEmployeesContent() {
                 {roleOptions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterLevel} onValueChange={setFilterLevel}>
+            <Select value={filterLevel} onValueChange={withFirstPage(setFilterLevel)}>
               <SelectTrigger className={`h-8 text-xs w-[150px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterLevel === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>{filterLevel === "all" ? "All Levels" : filterLevel}</SelectValue>
               </SelectTrigger>
@@ -1192,7 +1249,7 @@ export function AdminEmployeesContent() {
                 {levelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterDept} onValueChange={setFilterDept}>
+            <Select value={filterDept} onValueChange={withFirstPage(setFilterDept)}>
               <SelectTrigger className={`h-8 text-xs w-[150px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterDept === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>{filterDept === "all" ? "All Departments" : filterDept}</SelectValue>
               </SelectTrigger>
@@ -1201,7 +1258,7 @@ export function AdminEmployeesContent() {
                 {depts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <Select value={filterStatus} onValueChange={withFirstPage(setFilterStatus)}>
               <SelectTrigger className={`h-8 text-xs w-[130px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterStatus === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>
                   {filterStatus === "all" ? "All Statuses" : filterStatus === "active" ? "Active" : "Inactive"}
@@ -1213,7 +1270,7 @@ export function AdminEmployeesContent() {
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterProgress} onValueChange={setFilterProgress}>
+            <Select value={filterProgress} onValueChange={withFirstPage(setFilterProgress)}>
               <SelectTrigger className={`h-8 text-xs w-[140px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterProgress === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>
                   {filterProgress === "all" ? "All Progress"
@@ -1231,7 +1288,7 @@ export function AdminEmployeesContent() {
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterLocation} onValueChange={setFilterLocation}>
+            <Select value={filterLocation} onValueChange={withFirstPage(setFilterLocation)}>
               <SelectTrigger className={`h-8 text-xs w-[140px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterLocation === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>{filterLocation === "all" ? "All Locations" : filterLocation}</SelectValue>
               </SelectTrigger>
@@ -1240,7 +1297,7 @@ export function AdminEmployeesContent() {
                 {locations.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={filterJobRole} onValueChange={setFilterJobRole}>
+            <Select value={filterJobRole} onValueChange={withFirstPage(setFilterJobRole)}>
               <SelectTrigger className={`h-8 text-xs w-[160px] bg-paper-cream border-border hover:bg-paper-cream transition-colors ${filterJobRole === "all" ? "text-ink/45" : "text-ink font-medium"}`}>
                 <SelectValue>{filterJobRole === "all" ? "All Job Roles" : filterJobRole}</SelectValue>
               </SelectTrigger>
@@ -1249,12 +1306,16 @@ export function AdminEmployeesContent() {
                 {jobRoles.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
               </SelectContent>
             </Select>
-            {(search || filterDept !== "all" || filterStatus !== "all" || filterProgress !== "all" || filterLocation !== "all" || filterJobRole !== "all") && (
+            {(search || filterRole !== "all" || filterLevel !== "all" || filterDept !== "all" || filterStatus !== "all" || filterProgress !== "all" || filterLocation !== "all" || filterJobRole !== "all") && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 px-3 text-xs text-ink/45 hover:text-ink/70 hover:bg-paper-cream"
-                onClick={() => { setSearch(""); setFilterDept("all"); setFilterStatus("all"); setFilterProgress("all"); setFilterLocation("all"); setFilterJobRole("all"); }}
+                onClick={() => {
+                  setSearch(""); setFilterRole("all"); setFilterLevel("all");
+                  setFilterDept("all"); setFilterStatus("all"); setFilterProgress("all");
+                  setFilterLocation("all"); setFilterJobRole("all"); setOffset(0);
+                }}
               >
                 × Clear filters
               </Button>
@@ -1267,7 +1328,9 @@ export function AdminEmployeesContent() {
           <Box className="py-16 text-center">
             <Users className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
             <Text as="p" className="text-sm text-muted-foreground">
-              {search || filterDept !== "all" || filterStatus !== "all" || filterProgress !== "all"
+              {appliedSearch || filterRole !== "all" || filterLevel !== "all"
+                || filterDept !== "all" || filterStatus !== "all" || filterProgress !== "all"
+                || filterLocation !== "all" || filterJobRole !== "all"
                 ? "No users match your filters."
                 : "No learners yet. Add the first user."}
             </Text>
@@ -1455,6 +1518,40 @@ export function AdminEmployeesContent() {
             </table>
           </Box>
         )}
+
+        {/* ── Pagination ──
+            Server-side offset paging (§7.6). Shown only when there is a second
+            page to reach; Previous/Next move one page and the range line says
+            which rows these are out of the whole matched set. */}
+        {total > PAGE && (
+          <Box className="px-6 py-3 border-t flex items-center justify-between">
+            <Text as="p" className="text-xs text-text-3">
+              {offset + 1}–{Math.min(offset + PAGE, total)} of {total}
+            </Text>
+            <Box className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                disabled={offset === 0 || pageLoading}
+                onClick={() => setOffset(Math.max(offset - PAGE, 0))}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                disabled={!hasMore || pageLoading}
+                onClick={() => setOffset(offset + PAGE)}
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </Box>
+          </Box>
+        )}
       </Card>
 
       {/* ── Change role ── */}
@@ -1473,7 +1570,7 @@ export function AdminEmployeesContent() {
                Save (§10.3.1.2). Counted from the rows already on screen so it
                cannot disagree with the table — and if the count is ever wrong
                the API still refuses, so this only ever errs toward caution. */
-            const activeAdmins = employees.filter((e) => e.role === "admin" && e.is_active).length;
+            const activeAdmins = (people ?? []).filter((e) => e.role === "admin" && e.is_active).length;
             const strandsOrg =
               roleTarget.role === "admin" && next && next.portal !== "admin" && activeAdmins <= 1;
             return (
@@ -1685,7 +1782,7 @@ export function AdminEmployeesContent() {
                 <ManagerField
                   value={editForm.manager_id}
                   onChange={(v) => setEditForm((p) => ({ ...p, manager_id: v }))}
-                  people={employees}
+                  people={people}
                   excludeId={editUser?.id}
                 />
               </Box>
@@ -1787,7 +1884,7 @@ export function AdminEmployeesContent() {
               <ManagerField
                 value={form.manager_id}
                 onChange={(v) => setForm((p) => ({ ...p, manager_id: v }))}
-                people={employees}
+                people={people}
               />
             </FormSection>
 
