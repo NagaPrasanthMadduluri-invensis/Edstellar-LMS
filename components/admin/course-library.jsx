@@ -710,7 +710,7 @@ function CourseCard({
         </Box>
 
         {/* ── Breakdown. Every figure is counted, never estimated. ── */}
-        <Box className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-2">
+        <Box className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] text-text-2">
           <Text as="span" className="inline-flex items-center gap-1.5">
             <Box className="size-2 shrink-0" style={{ background: BRAND.success }} />{done} completed
           </Text>
