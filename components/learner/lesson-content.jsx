@@ -733,15 +733,25 @@ export function LessonContent({ courseId, lessonId }) {
   const canMarkComplete =
     !isSession && (isScorm || isDocument || ((!isYT && !isLocal && !isHosted) || videoEnded));
 
+  // When there is a next lesson, the button saves AND moves on, and names where
+  // it goes — a friendlier end to a lesson than a bare "Mark complete".
+  const nextLessonTitle = data?.next_lesson_title ?? null;
+  const hasNextLesson = Boolean(data?.next_lesson_id);
   const MarkCompleteButton = () => (
     <Button
       size="sm"
       onClick={handleMarkComplete}
       disabled={completing}
       className="shrink-0 bg-navy hover:bg-navy-soft text-paper"
+      title={hasNextLesson && nextLessonTitle ? `Next: ${nextLessonTitle}` : undefined}
     >
       <CheckCircle2 className="h-4 w-4 mr-1.5" />
-      {completing ? "Saving..." : "Mark Complete"}
+      {completing
+        ? "Saving..."
+        : hasNextLesson
+          ? "Save & move to next lesson"
+          : "Save & finish course"}
+      {hasNextLesson && !completing && <ArrowRight className="h-4 w-4 ml-1.5" />}
     </Button>
   );
 
@@ -911,9 +921,19 @@ export function LessonContent({ courseId, lessonId }) {
             ) : canMarkComplete ? (
               <>
                 <Text as="p" className="text-sm text-muted-foreground">
-                  {isDocument
-                    ? "Finished reading? Mark this lesson as complete."
-                    : "Finished watching? Mark this lesson as complete."}
+                  {hasNextLesson && nextLessonTitle ? (
+                    <>
+                      {isDocument ? "Finished reading?" : "Finished watching?"}{" "}
+                      Next up:{" "}
+                      <Text as="span" className="font-semibold text-ink">
+                        {nextLessonTitle}
+                      </Text>
+                    </>
+                  ) : isDocument ? (
+                    "Finished reading? Save this lesson to finish the course."
+                  ) : (
+                    "Finished watching? Save this lesson to finish the course."
+                  )}
                 </Text>
                 <MarkCompleteButton />
               </>
