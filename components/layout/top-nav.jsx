@@ -67,7 +67,7 @@ export function TopNav() {
   return (
     <Box
       as="header"
-      className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between gap-2 bg-sidebar bg-[linear-gradient(110deg,var(--chrome-grad-1),var(--chrome-grad-2))] px-3 sm:px-4"
+      className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between gap-2 chrome-glass px-3 sm:px-4"
     >
       <Box className="flex min-w-0 items-center gap-2 sm:gap-3">
         <SidebarTrigger className="shrink-0 bg-transparent hover:bg-transparent" />

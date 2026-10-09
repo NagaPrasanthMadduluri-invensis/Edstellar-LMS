@@ -143,7 +143,7 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          "flex h-full w-(--sidebar-width) flex-col bg-sidebar bg-[linear-gradient(165deg,var(--chrome-grad-1),var(--chrome-grad-2))] text-sidebar-foreground",
+          "flex h-full w-(--sidebar-width) flex-col chrome-glass text-sidebar-foreground",
           className
         )}
         {...props}>
@@ -160,7 +160,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar bg-[linear-gradient(165deg,var(--chrome-grad-1),var(--chrome-grad-2))] p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-(--sidebar-width) chrome-glass p-0 text-sidebar-foreground [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE
@@ -211,7 +211,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex size-full flex-col bg-sidebar bg-[linear-gradient(165deg,var(--chrome-grad-1),var(--chrome-grad-2))] group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border">
+          className="flex size-full flex-col chrome-glass group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border">
           {children}
         </div>
       </div>

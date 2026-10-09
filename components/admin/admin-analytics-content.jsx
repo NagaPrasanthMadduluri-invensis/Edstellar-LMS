@@ -65,7 +65,7 @@ const TOOLTIP = {
 
 function Panel({ title, subtitle, children, action, className }) {
   return (
-    <Box className={cn("border border-line bg-surface", className)}>
+    <Box className={cn("border border-line glass", className)}>
       <Box className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
         <Box>
           <Text as="h3" className="text-[13px] font-bold text-ink">{title}</Text>
@@ -87,7 +87,7 @@ function Panel({ title, subtitle, children, action, className }) {
  */
 function NotEnoughHistory({ periods }) {
   return (
-    <Box className="flex items-start gap-2.5 border border-line bg-surface-2 px-4 py-3">
+    <Box className="flex items-start gap-2.5 border border-line glass px-4 py-3">
       <Info className="mt-0.5 size-4 shrink-0 text-accent-blue" />
       <Text as="p" className="text-[12px] leading-relaxed text-text-2">
         Only {periods} period{periods === 1 ? "" : "s"} of history at this
@@ -195,7 +195,7 @@ export function AdminAnalyticsContent() {
       </Box>
 
       {error && (
-        <Box className="border border-line bg-surface px-4 py-10 text-center">
+        <Box className="border border-line px-4 py-10 text-center">
           <Text as="p" className="text-sm text-danger">{error}</Text>
         </Box>
       )}

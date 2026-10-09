@@ -52,7 +52,7 @@ const ACTION_LOOK = {
 
 function Panel({ title, subtitle, action, children, className }) {
   return (
-    <Box className={cn("border border-line bg-surface", className)}>
+    <Box className={cn("border border-line glass", className)}>
       <Box className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
         <Box>
           <Text as="h3" className="text-[13px] font-bold text-ink">{title}</Text>
@@ -134,7 +134,7 @@ export function AdminDashboardContent() {
 
   if (error) {
     return (
-      <Box className="border border-line bg-surface px-4 py-10 text-center">
+      <Box className="border border-line px-4 py-10 text-center">
         <Text as="p" className="text-sm text-danger">{error}</Text>
       </Box>
     );
@@ -333,7 +333,7 @@ export function AdminDashboardContent() {
                reading exercise rather than a glance. */
             const t = metricTone(d.pct);
             return (
-            <Box key={d.dept} className="border-b border-r border-line bg-surface px-4 py-3 last:border-r-0">
+            <Box key={d.dept} className="border-b border-r border-line px-4 py-3 last:border-r-0">
               <Text as="p" className="text-[12.5px] font-semibold text-ink">{d.dept}</Text>
               <Text as="p" className={cn("mt-1 text-2xl font-bold leading-none", t.text)}>
                 {d.pct}%
