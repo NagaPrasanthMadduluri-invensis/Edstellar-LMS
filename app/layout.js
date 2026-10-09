@@ -1,5 +1,6 @@
 import { Inter, IBM_Plex_Mono } from "next/font/google";
 import { PRODUCT_FULL } from "@/lib/brand";
+import { ThemeProvider } from "@/components/layout/theme-provider";
 import "./globals.css";
 
 /* Two typefaces, each with one job — the Spectra pairing.
@@ -52,9 +53,14 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${inter.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="h-full">{children}</body>
+      {/* suppressHydrationWarning: next-themes sets data-theme on <html> before
+          hydration, so the server/client attribute differ by design. */}
+      <body className="h-full">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

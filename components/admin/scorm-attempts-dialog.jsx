@@ -76,7 +76,7 @@ function AttemptCard({ attempt }) {
   const Chevron = open ? ChevronDown : ChevronRight;
 
   return (
-    <Box className="rounded-xl border border-border bg-white overflow-hidden">
+    <Box className="glass rounded-xl border border-border overflow-hidden">
       <Box
         onClick={() => hasQuestions && setOpen((v) => !v)}
         className={`flex items-center justify-between gap-3 px-3.5 py-3 ${

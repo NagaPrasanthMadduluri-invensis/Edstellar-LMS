@@ -170,10 +170,39 @@
   --spectra-navy-border: #2d446d;
   --spectra-navy-hover: #223247;
 
-  /* The one interactive accent, plus its on-dark and on-light tints. */
-  --spectra-accent: #3b6fd4;
-  --spectra-accent-soft: #bdd0f0;
-  --spectra-accent-tint: #f0f5fc;
+  /* ── Theme accent (VIBGYOR) ──
+     The one interactive accent now FOLLOWS the chosen theme. The four
+     --theme-accent* vars below are the Violet defaults; each
+     :root[data-theme="…"] block (after this :root) overrides them. Everything
+     that used to read --spectra-accent keeps working — it now resolves through
+     the theme. Status hues are deliberately NOT themed. */
+  --theme-accent: #7c3aed;
+  --theme-accent-strong: #6d28d9;
+  --theme-accent-soft: #ddd6fe;
+  --theme-accent-tint: #f5f3ff;
+
+  --spectra-accent: var(--theme-accent);
+  --spectra-accent-soft: var(--theme-accent-soft);
+  --spectra-accent-tint: var(--theme-accent-tint);
+
+  /* ── Themed background mesh + chrome gradient (Violet defaults) ──
+     The body paints a subtle mesh from --bg-grad-*; the sidebar/topbar paint a
+     deep gradient from --chrome-grad-*. Both are re-tinted per theme below. */
+  --bg-canvas: #f4f2fb;
+  --bg-grad-1: #efe9fd;
+  --bg-grad-2: #e9effb;
+  --bg-grad-3: #f7f3fd;
+  --chrome-grad-1: #1e2340;
+  --chrome-grad-2: #3a2a63;
+
+  /* ── Glass ──
+     Floating panels are translucent + blurred; menus use the stronger fill so
+     they stay legible over the gradient. Inner surfaces stay opaque (see the
+     plan's cascade note) to keep dense tables readable. */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.93);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-blur: 16px;
 
   /* Status hues. Four, and only four. */
   --spectra-success: #1a5e3a;
@@ -248,10 +277,12 @@
   --ink-45: var(--spectra-text-3);
   --ink-12: var(--spectra-border);
 
-  /* Geometry. Spectra is square and unshadowed. */
-  --radius: 0px;
+  /* Geometry. Softened for the glass refresh: rounded corners + gentle depth.
+     The whole --radius-sm..4xl scale derives from --radius, so this one value
+     rounds Card/Button/Input/Dialog/Select everywhere. */
+  --radius: 12px;
   --radius-pill: 999px;
-  --shadow: none;
+  --shadow: 0 1px 2px rgba(16, 25, 35, 0.06), 0 10px 30px -12px rgba(16, 25, 35, 0.18);
 
   /* Shell metrics from the reference. */
   --header-h: 50px;
@@ -260,9 +291,10 @@
   /* ── Light surfaces (the default) ── */
   --background: var(--spectra-bg);
   --foreground: var(--spectra-text);
-  --card: var(--spectra-surface);
+  /* Cards float as glass; menus use the stronger fill so they stay legible. */
+  --card: var(--glass-bg);
   --card-foreground: var(--spectra-text);
-  --popover: var(--spectra-surface);
+  --popover: var(--glass-strong);
   --popover-foreground: var(--spectra-text);
   --primary: var(--spectra-navy);
   --primary-foreground: var(--spectra-accent-soft);
@@ -311,16 +343,71 @@
   --status-warning-fg: var(--spectra-warning);
 }
 
+/* ══ VIBGYOR themes ══════════════════════════════════════════════════════
+   `next-themes` sets data-theme on <html>. Violet is the default and lives in
+   :root above, so it needs no block here. Each theme overrides only the accent
+   quartet, the background mesh stops and the chrome gradient — nothing else.
+   Keep the accents dark enough for white-on-accent buttons and for links on a
+   light surface; keep the chrome stops dark so the on-navy text ramp holds. */
+:root[data-theme="indigo"] {
+  --theme-accent: #4f46e5;  --theme-accent-strong: #4338ca;
+  --theme-accent-soft: #c7d2fe; --theme-accent-tint: #eef2ff;
+  --bg-canvas: #f1f2fb; --bg-grad-1: #e7e9fd; --bg-grad-2: #e9effb; --bg-grad-3: #f4f5fe;
+  --chrome-grad-1: #1d2140; --chrome-grad-2: #2b2f6b;
+}
+:root[data-theme="blue"] {
+  --theme-accent: #2563eb;  --theme-accent-strong: #1d4ed8;
+  --theme-accent-soft: #bfdbfe; --theme-accent-tint: #eff6ff;
+  --bg-canvas: #eff4fc; --bg-grad-1: #e3eefc; --bg-grad-2: #e8f1fb; --bg-grad-3: #f1f6fd;
+  --chrome-grad-1: #182a46; --chrome-grad-2: #1e3f73;
+}
+:root[data-theme="green"] {
+  --theme-accent: #059669;  --theme-accent-strong: #047857;
+  --theme-accent-soft: #a7f3d0; --theme-accent-tint: #ecfdf5;
+  --bg-canvas: #eef7f2; --bg-grad-1: #ddf3e8; --bg-grad-2: #e6f3ec; --bg-grad-3: #f0f9f4;
+  --chrome-grad-1: #163a30; --chrome-grad-2: #0f5a43;
+}
+:root[data-theme="yellow"] {
+  /* A deep amber, not pure yellow — white text and links need the contrast. */
+  --theme-accent: #b45309;  --theme-accent-strong: #92400e;
+  --theme-accent-soft: #fde68a; --theme-accent-tint: #fffbeb;
+  --bg-canvas: #faf6ec; --bg-grad-1: #fbf0d6; --bg-grad-2: #f7f1e2; --bg-grad-3: #fdf9ef;
+  --chrome-grad-1: #2a2416; --chrome-grad-2: #5c4710;
+}
+:root[data-theme="orange"] {
+  --theme-accent: #ea580c;  --theme-accent-strong: #c2410c;
+  --theme-accent-soft: #fed7aa; --theme-accent-tint: #fff7ed;
+  --bg-canvas: #fbf4ee; --bg-grad-1: #fde4d2; --bg-grad-2: #f8ece2; --bg-grad-3: #fdf6f0;
+  --chrome-grad-1: #3a2518; --chrome-grad-2: #7a3b14;
+}
+:root[data-theme="red"] {
+  --theme-accent: #dc2626;  --theme-accent-strong: #b91c1c;
+  --theme-accent-soft: #fecaca; --theme-accent-tint: #fef2f2;
+  --bg-canvas: #fbf1f1; --bg-grad-1: #fcdede; --bg-grad-2: #f8e8e8; --bg-grad-3: #fdf3f3;
+  --chrome-grad-1: #3a1c1c; --chrome-grad-2: #7a1f1f;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     font-family: var(--font-sans);
     font-size: 13px;
     -webkit-font-smoothing: antialiased;
+    /* The themed mesh. Fixed, so it stays put while the content column scrolls
+       (the shell's <main> is made transparent for exactly this). Re-tints per
+       theme via --bg-* above. */
+    background-color: var(--bg-canvas);
+    background-image:
+      radial-gradient(1100px 780px at 12% -8%, var(--bg-grad-1), transparent 60%),
+      radial-gradient(1000px 720px at 108% 6%, var(--bg-grad-2), transparent 55%),
+      linear-gradient(180deg, var(--bg-grad-3), var(--bg-canvas) 70%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100%;
   }
 
   /* Inter carries every headline. Sentence case, tight tracking, no shouting. */
@@ -440,16 +527,32 @@
     color: #ffffff;
   }
   .cta-accent:hover {
-    background-color: #2f5cb8;
+    background-color: var(--theme-accent-strong);
+  }
+
+  /* ── Glass ──
+     The frosted-panel look as a single class, so a hand-rolled card that used
+     `bg-white` becomes glass by swapping that one token for `glass`. It sets
+     fill + blur + soft shadow only; the caller keeps its own rounding and
+     border. Do NOT put this on avatars, icon tiles, status chips, media
+     players or the certificate document — those want real opaque white. */
+  .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--shadow);
   }
 
   /* ── Panel ──
      The Spectra card: white, hairline, square, no shadow. Use it when a
      shadcn Card is not already in play. */
   .panel {
-    background: var(--spectra-surface);
-    border: 1px solid var(--spectra-border);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
     border-radius: var(--radius);
+    box-shadow: var(--shadow);
   }
   .panel:hover { border-color: var(--spectra-border-2); }
 

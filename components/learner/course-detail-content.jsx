@@ -217,7 +217,7 @@ export function CourseDetailContent({ courseId }) {
                 <AccordionItem
                   key={module.id}
                   value={`m-${module.id}`}
-                  className="border rounded-xl overflow-hidden bg-white shadow-sm"
+                  className="border rounded-xl overflow-hidden glass shadow-sm"
                 >
                   <AccordionTrigger className="hover:no-underline hover:bg-paper-warm px-0 py-0 w-full">
                     <Box className="flex items-center gap-3.5 w-full px-4 sm:px-5 py-4 text-left">

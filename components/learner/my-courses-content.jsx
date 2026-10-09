@@ -170,8 +170,9 @@ function CourseCard({ c }) {
         )}
       </Box>
 
-      {/* Card body */}
-      <Box className="flex flex-col flex-1 p-5 gap-3 bg-white">
+      {/* Card body — transparent so the glass Card shows through (the wrapper
+          is the frosted Card; an opaque body would cover it). */}
+      <Box className="flex flex-col flex-1 p-5 gap-3">
         {/* Category · Modules · Status — the same three facts, in the same
             order, as the admin Course Library card.
 
@@ -366,9 +367,9 @@ function Skeleton_() {
       <Skeleton className="h-10 rounded-lg" />
       <Box className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
         {[...Array(3)].map((_, i) => (
-          <Box key={i} className="flex flex-col overflow-hidden rounded-xl border">
+          <Box key={i} className="glass flex flex-col overflow-hidden rounded-xl border">
             <Skeleton className="h-44 rounded-none" />
-            <Box className="p-4 space-y-3 bg-white">
+            <Box className="p-4 space-y-3">
               <Skeleton className="h-3 w-20 rounded" />
               <Skeleton className="h-4 w-4/5 rounded" />
               <Skeleton className="h-2 w-full rounded" />

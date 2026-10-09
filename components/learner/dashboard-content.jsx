@@ -135,7 +135,7 @@ export function DashboardContent() {
     <Box className="space-y-5">
 
       {/* ── Welcome Banner ── */}
-      <Card className="px-6 py-5 border-0 shadow-sm bg-white">
+      <Card className="px-6 py-5 border-0 shadow-sm glass">
         <Box className="flex items-center justify-between gap-4 flex-wrap">
           <Box>
             <Text as="h1" className="text-xl font-bold">
