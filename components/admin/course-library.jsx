@@ -642,14 +642,14 @@ function CourseCard({
 
         <Text
           as="h3"
-          className="line-clamp-2 min-h-[2.4rem] cursor-pointer text-[14.5px] font-bold leading-snug tracking-tight text-ink hover:text-accent-blue"
+          className="line-clamp-2 min-h-[2rem] cursor-pointer text-[13px] font-bold leading-snug tracking-tight text-ink hover:text-accent-blue"
           title={course.name}
           onClick={onOpen}
         >
           {course.name}
         </Text>
 
-        <Box className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-text-3">
+        <Box className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-3">
           <Text as="span" className="inline-flex items-center gap-1">
             <CalendarDays className="size-3" />{formatDate(course.created_at)}
           </Text>
@@ -686,7 +686,7 @@ function CourseCard({
             <Text
               as="span"
               className={cn(
-                "block text-base font-bold leading-none",
+                "block text-sm font-bold leading-none",
                 enrolled === 0 ? "text-ink" : "text-accent-blue group-hover:underline",
               )}
             >
@@ -701,7 +701,7 @@ function CourseCard({
             { value: `${course.avg_score ?? 0}%`, label: "Avg score" },
           ].map((s) => (
             <Box key={s.label} className="flex-1 text-center">
-              <Text as="p" className="text-base font-bold leading-none text-ink">{s.value}</Text>
+              <Text as="p" className="text-sm font-bold leading-none text-ink">{s.value}</Text>
               <Text as="p" className="mt-1 font-mono text-[8.5px] font-semibold uppercase tracking-wider text-text-3">
                 {s.label}
               </Text>
@@ -710,7 +710,7 @@ function CourseCard({
         </Box>
 
         {/* ── Breakdown. Every figure is counted, never estimated. ── */}
-        <Box className="mt-2 flex flex-wrap items-center gap-3 text-[10.5px] text-text-2">
+        <Box className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-2">
           <Text as="span" className="inline-flex items-center gap-1.5">
             <Box className="size-2 shrink-0" style={{ background: BRAND.success }} />{done} completed
           </Text>
