@@ -120,23 +120,28 @@ function managerPreview(rows, people) {
       .map((p) => [String(p.email).toLowerCase(), `${p.first_name} ${p.last_name}`]),
   );
 
-  const seenInFile = new Map();
+  // Every email in the file, ANY position — not just rows above. The import
+  // now creates a manager before their reports whatever the row order, so a
+  // manager listed at the bottom resolves just like one at the top, and the
+  // preview must not red-flag it as unknown.
+  const inFile = new Map();
+  (rows ?? []).forEach((row) => {
+    const own = String(row.email ?? "").trim().toLowerCase();
+    if (own) {
+      inFile.set(own, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || own);
+    }
+  });
+
   return (rows ?? []).map((row) => {
     const own = String(row.email ?? "").trim().toLowerCase();
     const email = String(row.manager ?? "").trim().toLowerCase();
-    const entry = (() => {
-      if (!email) return { state: "none", label: "—" };
-      if (email === own) return { state: "self", label: "Cannot be their own manager" };
-      const existing = byEmail.get(email);
-      if (existing) return { state: "found", label: existing };
-      const inFile = seenInFile.get(email);
-      if (inFile) return { state: "pending", label: inFile };
-      return { state: "unknown", label: email };
-    })();
-    if (own) {
-      seenInFile.set(own, `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || own);
-    }
-    return entry;
+    if (!email) return { state: "none", label: "—" };
+    if (email === own) return { state: "self", label: "Cannot be their own manager" };
+    const existing = byEmail.get(email);
+    if (existing) return { state: "found", label: existing };
+    const fileName = inFile.get(email);
+    if (fileName) return { state: "pending", label: fileName };
+    return { state: "unknown", label: email };
   });
 }
 
@@ -2039,7 +2044,7 @@ export function AdminEmployeesContent() {
                     <table className="w-full text-xs">
                       <thead className="bg-muted/20 sticky top-0">
                         <tr>
-                          {["Employee ID", "First Name", "Last Name", "Email", "Department", "Location", "Job Role", "Manager", "Password"].map((h) => (
+                          {["Employee ID", "First Name", "Last Name", "Email", "Department", "Location", "Job Role", "Job Level", "Manager", "Password"].map((h) => (
                             <th key={h} className="px-3 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -2054,6 +2059,7 @@ export function AdminEmployeesContent() {
                             <td className="px-3 py-2">{r.department || "—"}</td>
                             <td className="px-3 py-2">{r.location || "—"}</td>
                             <td className="px-3 py-2">{r.job_role || "—"}</td>
+                            <td className="px-3 py-2">{r.job_level || "—"}</td>
                             {/*
                               The file said an email; this says a NAME. That
                               swap is the whole point of the column — an

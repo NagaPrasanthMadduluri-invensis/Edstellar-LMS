@@ -73,7 +73,7 @@ function CardAction({ icon: Icon, label, onClick, danger = false, disabled = fal
       disabled={disabled}
       onClick={(event) => { event.stopPropagation(); onClick?.(); }}
       className={cn(
-        "flex flex-1 items-center justify-center gap-1.5 border-r border-line py-2.5",
+        "flex flex-1 items-center justify-center gap-1.5 border-r border-line py-2",
         "text-[11.5px] font-semibold transition-colors duration-150 last:border-r-0",
         disabled
           ? "cursor-not-allowed bg-surface-2 text-text-3/50"
@@ -108,8 +108,8 @@ function LibrarySkeleton() {
     <Box className="space-y-4">
       <Skeleton className="h-[86px] w-full" />
       <Skeleton className="h-11 w-full" />
-      <Box className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[360px]" />)}
+      <Box className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[300px]" />)}
       </Box>
     </Box>
   );
@@ -477,7 +477,7 @@ export function CourseLibrary() {
           </Text>
         </Box>
       ) : (
-        <Box className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Box className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((course, index) => (
             <CourseCard
               key={course.id}
@@ -593,14 +593,14 @@ function CourseCard({
       )}
     >
       {/* ── Artwork, with the select box and the importance ribbon over it ── */}
-      <Box className="relative h-[120px] shrink-0 cursor-pointer" onClick={onOpen}>
+      <Box className="relative h-[92px] shrink-0 cursor-pointer sm:h-[100px]" onClick={onOpen}>
         <CourseArt
           thumbnailUrl={course.thumbnail_url}
           alt=""
           scrim="light"
           priority={priority}
           className="h-full w-full"
-          sizes="(max-width: 768px) 100vw, 33vw"
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 25vw"
         />
         <label
           className="absolute left-2 top-2 flex size-[22px] cursor-pointer items-center justify-center border border-line bg-white"
@@ -626,7 +626,7 @@ function CourseCard({
       </Box>
 
       {/* ── Body ── */}
-      <Box className="flex flex-1 flex-col px-4 py-3">
+      <Box className="flex flex-1 flex-col px-3.5 py-2.5">
         <Box className="mb-2 flex flex-wrap items-center gap-1.5">
           {course.category && (
             <Pill bg={categoryTint(course.category)} fg={colour}>{course.category}</Pill>
@@ -666,7 +666,7 @@ function CourseCard({
         </Box>
 
         {/* ── Stats ── */}
-        <Box className="mt-3 flex items-center justify-between border-t border-line pt-3">
+        <Box className="mt-2.5 flex items-center justify-between border-t border-line pt-2.5">
           {/* Enrolled is a BUTTON — it opens the roster. The other two are
               plain figures, so only this one gets the affordance: an
               underline on hover and a pointer, rather than all three looking

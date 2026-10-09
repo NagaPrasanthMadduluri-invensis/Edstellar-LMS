@@ -22,6 +22,7 @@ import {
   fetchActionRequired,
   fetchAdminDashboard,
   fetchRecentActivity,
+  nudgeLearner,
 } from "@/services/api/admin/admin-api";
 import { BRAND, HAIRLINE, metricTone, NEUTRAL_TONE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
@@ -98,6 +99,19 @@ export function AdminDashboardContent() {
   const [actions, setActions] = useState(null);
   const [activity, setActivity] = useState(null);
   const [error, setError] = useState(null);
+  // Per-row nudge state, keyed `${user_id}:${course_id}`: "sending" | "done" | "error".
+  const [nudges, setNudges] = useState({});
+
+  const sendNudge = async (userId, courseId) => {
+    const key = `${userId}:${courseId}`;
+    setNudges((n) => ({ ...n, [key]: "sending" }));
+    try {
+      await nudgeLearner({ userId, courseId });
+      setNudges((n) => ({ ...n, [key]: "done" }));
+    } catch {
+      setNudges((n) => ({ ...n, [key]: "error" }));
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -413,14 +427,40 @@ export function AdminDashboardContent() {
                       </Text>
                       <Text as="p" className="truncate text-[11px] text-text-2">{a.reason}</Text>
                     </Box>
-                    {/* A label, not a button. Nudging is not built, and a
-                        button that does nothing is worse than no button. */}
-                    <Text
-                      as="span"
-                      className="shrink-0 border border-line px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-text-2"
-                    >
-                      {a.action}
-                    </Text>
+                    {/* A working Nudge button now that email transport exists
+                        (§10.30): it sends the learner a reminder to finish this
+                        course, by bell and inbox. "Nudged" and disabled once it
+                        lands, so an admin does not prod the same person twice. */}
+                    {(() => {
+                      const key = `${a.user_id}:${a.course_id}`;
+                      const state = nudges[key];
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={state === "sending" || state === "done"}
+                          onClick={() => sendNudge(a.user_id, a.course_id)}
+                          className="h-7 shrink-0 gap-1.5 px-2.5 text-[11px]"
+                          title={`Email ${a.name} a reminder to finish "${a.course_name}"`}
+                        >
+                          {state === "done" ? (
+                            <>
+                              <CheckCircle2 className="size-3.5 text-success" />
+                              Nudged
+                            </>
+                          ) : state === "sending" ? (
+                            "Sending…"
+                          ) : state === "error" ? (
+                            "Retry nudge"
+                          ) : (
+                            <>
+                              <Send className="size-3.5" />
+                              Nudge
+                            </>
+                          )}
+                        </Button>
+                      );
+                    })()}
                   </Box>
                 );
               })}

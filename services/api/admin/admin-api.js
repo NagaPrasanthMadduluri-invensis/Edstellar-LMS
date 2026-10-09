@@ -17,6 +17,14 @@ export async function fetchRecentActivity({ limit = 8 } = {}) {
   return apiClient(`/api/admin/dashboard/activity?limit=${limit}`);
 }
 
+/** Remind one learner to finish one course, from the Action Required panel. */
+export async function nudgeLearner({ userId, courseId }) {
+  return apiClient("/api/admin/dashboard/nudge", {
+    method: "POST",
+    body: { user_id: userId, course_id: courseId },
+  });
+}
+
 /* ── Analytics ── */
 
 /** Every series for one granularity, in one call — see the controller docblock. */

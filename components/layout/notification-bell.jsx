@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Award, Bell, BookOpen, CalendarCheck, CalendarClock, CalendarPlus, CalendarX,
-  CheckCircle2, MailWarning, Map as MapIcon, MessageSquare, Sparkles, Trophy,
-  UserCheck, UserPlus, Users,
+  Award, Bell, BellRing, BookOpen, CalendarCheck, CalendarClock, CalendarPlus,
+  CalendarX, CheckCircle2, MailWarning, Map as MapIcon, MessageSquare, Sparkles,
+  Trophy, UserCheck, UserPlus, Users,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
  * this codebase has already shipped once.
  */
 const ICONS = {
-  Award, BookOpen, CalendarCheck, CalendarClock, CalendarPlus, CalendarX,
+  Award, BellRing, BookOpen, CalendarCheck, CalendarClock, CalendarPlus, CalendarX,
   CheckCircle2, MailWarning, Map: MapIcon, MessageSquare, Sparkles, Trophy,
   UserCheck, UserPlus, Users,
 };
