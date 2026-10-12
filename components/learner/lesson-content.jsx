@@ -498,10 +498,12 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
 
   return (
     <Box className="space-y-4">
-      {/* Results card — shown once there is tracking data */}
+      {/* Results card — shown ONLY once there is an actual score. Before the
+          package is completed (or if it has no score) nothing is shown here, so
+          there is no "No results yet" placeholder. */}
       {tracking === undefined ? (
         <Skeleton className="h-28 rounded-xl" />
-      ) : tracking ? (
+      ) : tracking && scoreRaw !== null ? (
         <Card className="p-5">
           <Box className="flex items-start justify-between gap-4 flex-wrap">
             <Box className="space-y-3 flex-1 min-w-0">
@@ -555,17 +557,7 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
             </Button>
           </Box>
         </Card>
-      ) : (
-        <Card className="p-6 text-center border-dashed">
-          <Box className="w-12 h-12 rounded-2xl bg-paper-cream flex items-center justify-center mx-auto mb-3">
-            <FileArchive className="h-6 w-6 text-navy/70" />
-          </Box>
-          <Text as="p" className="text-sm font-semibold">No results yet</Text>
-          <Text as="p" className="text-xs text-muted-foreground mt-1">
-            Launch the course to begin — your score and progress will appear here.
-          </Text>
-        </Card>
-      )}
+      ) : null}
 
       {/* Launch / proceed */}
       <Card className="p-5">
@@ -937,50 +929,20 @@ export function LessonContent({ courseId, lessonId }) {
 
   return (
     <Box className="space-y-4">
-      {/* Sticky lesson toolbar — Back, "Lesson X of Y", and Prev/Next, always
-          reachable so a learner never has to return to the course page between
-          lessons. The negative margins cancel the shell's padding so the frosted
-          bar spans full width; z-30 keeps it under the z-50 top bar. */}
-      <Box className="sticky top-0 z-30 -mx-4 -mt-4 mb-2 flex items-center gap-2 border-b border-line/60 glass px-4 py-2 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6">
-        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/my-courses/${courseId}`)}>
-          <ArrowLeft className="h-4 w-4 sm:mr-1.5" />
-          <Text as="span" className="hidden sm:inline">Back to Course</Text>
+      {/* Just the Back-to-Course button — no full-width strip. Sticky so it is
+          always reachable, but z-10 keeps it BELOW the hover sidebar (z-30):
+          when the sidebar expands it covers this button rather than the button
+          floating on top of the nav. */}
+      <Box className="sticky top-2 z-10 mb-1 w-fit">
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1.5 bg-background shadow-sm"
+          onClick={() => router.push(`/my-courses/${courseId}`)}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Course
         </Button>
-        {data.position && data.total ? (
-          <Text as="span" className="mx-auto shrink-0 text-xs font-medium text-muted-foreground">
-            Lesson {data.position} of {data.total}
-          </Text>
-        ) : (
-          <Box className="mx-auto" />
-        )}
-        <Box className="flex shrink-0 items-center gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!data.prev_lesson}
-            title={data.prev_lesson ? `Previous: ${data.prev_lesson.title ?? ""}` : "This is the first lesson"}
-            onClick={() => data.prev_lesson && goToLesson(data.prev_lesson.id)}
-          >
-            <ChevronLeft className="h-4 w-4 sm:mr-1" />
-            <Text as="span" className="hidden sm:inline">Prev</Text>
-          </Button>
-          {hasNextLesson ? (
-            <Button
-              size="sm"
-              className="bg-navy hover:bg-navy-soft text-paper disabled:opacity-50"
-              disabled={!nextReachable}
-              title={nextReachable ? `Next: ${nextLessonTitle ?? ""}` : "Complete this lesson to continue"}
-              onClick={() => nextReachable && goToLesson(data.next_lesson_id)}
-            >
-              <Text as="span" className="hidden sm:inline">Next</Text>
-              <ChevronRight className="h-4 w-4 sm:ml-1" />
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => router.push(`/my-courses/${courseId}`)}>
-              Finish
-            </Button>
-          )}
-        </Box>
       </Box>
 
       {/* Content + the collapsible playlist sidebar. */}

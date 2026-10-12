@@ -10,13 +10,14 @@ import { Progress } from "@/components/ui/progress";
 import {
   BookOpen, CheckCircle2, Clock, TrendingUp, ArrowRight,
   Play, ClipboardList, Package, Calendar, ChevronRight,
-  Settings,
+  Settings, Award, Trophy, AlertTriangle, PartyPopper,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { CourseCard } from "@/components/shared/course-card";
 import { fetchDashboard } from "@/services/api/learner/learner-api";
 import { CourseRewardStrip } from "@/components/learner/course-reward";
 import { DashboardUpcomingSessions } from "@/components/learner/dashboard-upcoming-sessions";
@@ -105,39 +106,54 @@ export function DashboardContent() {
     rank = 1, rank_of = 1, badges = 0, skill_tags = [],
     continue_learning, journey = { courses: [], completed: 0, total: 0 },
     upcoming_deadlines = [], recent_activity = [], recentAttempts = [],
+    latest_badge = null, overdue_items = [],
   } = data;
 
   const inProgressCount = stats.in_progress_courses ?? 0;
   const yetToStart      = stats.yet_to_start ?? 0;
 
+  // Cards for the Continue Learning row: in-progress courses first, falling
+  // back to the single continue_learning course (an assigned one to start).
+  const inProgressCourses = enrolled_courses.filter((c) => c.status === "in-progress");
+  const continueItems =
+    inProgressCourses.length > 0
+      ? inProgressCourses.slice(0, 3)
+      : continue_learning
+        ? [continue_learning]
+        : [];
+
+  // KPI tiles — each a soft tint from the EXISTING palette (no new colours):
+  // Total Assigned → accent, In Progress → warning, Completed → success,
+  // Hours → danger (it carries the behind/ahead-of-goal signal).
+  const completionPct = stats.assigned_courses
+    ? Math.round(((stats.completed_courses ?? 0) / stats.assigned_courses) * 100)
+    : 0;
+  const hoursToGoal = Math.max(0, (stats.hours_goal ?? 10) - (stats.hours_this_month ?? 0));
   const statCards = [
     {
       value: stats.assigned_courses ?? 0,
       label: "Total Assigned",
       sub: yetToStart > 0 ? `${yetToStart} yet to start` : "All in progress",
-      icon: Package,
-      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
+      icon: Package, tile: "bg-accent-tint", iconColor: "text-accent-blue",
     },
     {
       value: inProgressCount,
       label: "In Progress",
-      sub: "+ Active courses",
-      icon: TrendingUp,
-      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
+      sub: "Active courses", subTone: "up",
+      icon: TrendingUp, tile: "bg-warning/10", iconColor: "text-warning",
     },
     {
       value: stats.completed_courses ?? 0,
       label: "Completed",
-      sub: stats.assigned_courses ? `${Math.round(((stats.completed_courses ?? 0) / stats.assigned_courses) * 100)}% completion` : "0% completion",
-      icon: CheckCircle2,
-      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
+      sub: `${completionPct}% completion`, subTone: "up",
+      icon: CheckCircle2, tile: "bg-success/10", iconColor: "text-success",
     },
     {
       value: `${stats.hours_this_month ?? 0}h`,
       label: "Hours This Month",
-      sub: `+${Math.max(0, (stats.hours_goal ?? 10) - (stats.hours_this_month ?? 0)).toFixed(1)}h to goal`,
-      icon: Clock,
-      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
+      sub: hoursToGoal > 0 ? `${hoursToGoal.toFixed(1)}h to goal` : "Goal reached",
+      subTone: hoursToGoal > 0 ? "down" : "up",
+      icon: Clock, tile: "bg-danger/10", iconColor: "text-danger",
     },
   ];
 
@@ -205,119 +221,169 @@ export function DashboardContent() {
         </Box>
       </Box>
 
-      {/* ── Stats Bar (gradient) ── */}
-      <Box className="bg-navy rounded-xl px-4 py-4 flex flex-wrap items-center gap-3 sm:px-6">
-        <Box className="flex flex-wrap items-center gap-4 text-white basis-full sm:flex-1 sm:basis-auto sm:gap-8">
-          <Box>
-            <Text as="p" className="text-2xl font-extrabold leading-none text-white">{points}</Text>
-            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Points</Text>
-          </Box>
-          <Box className="w-px h-8 bg-white/30" />
-          <Box>
-            <Box className="flex items-baseline gap-1">
-              <Text as="p" className="text-2xl font-extrabold leading-none text-white">#{rank}</Text>
-              <Text as="span" className="text-sm opacity-75 text-white">of {rank_of}</Text>
-            </Box>
-            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Rank</Text>
-          </Box>
-          <Box className="w-px h-8 bg-white/30" />
-          <Box>
-            <Box className="flex items-baseline gap-1.5">
-              <Text as="p" className="text-2xl font-extrabold leading-none text-white">{badges}</Text>
-              <Text as="span" className="text-lg">🏅</Text>
-            </Box>
-            <Text as="p" className="text-[10px] font-semibold uppercase tracking-widest opacity-75 mt-0.5 text-white">Badges</Text>
-          </Box>
-        </Box>
-        {/* /achievements, not /certifications. The strip beside it reads
-            Points · Rank · Badges — all three live on My Achievements, and a
-            button whose label names one page while landing on another is the
-            §10.3.1.2 failure with the destination rather than the control. */}
-        <Link href="/achievements">
-          <Button variant="ghost" className="text-white/90 hover:text-white hover:bg-white/10 text-sm gap-1 shrink-0">
-            View achievements <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
-        </Link>
-      </Box>
-
-      {/* ── 4 Stat Cards ── */}
-      <Box className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {statCards.map((s) => (
-          <Card key={s.label} className="relative overflow-hidden p-5">
-            <Box className="flex flex-col gap-1">
-              <Box className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1 ${s.iconBg}`}>
-                <s.icon className={`h-5 w-5 ${s.iconColor}`} />
+      {/* ── Attention strip: overdue + a fresh badge win. Shown just above the
+          Achievements KPIs, each cell only when there is something to say. ── */}
+      {(overdue_items.length > 0 || latest_badge) && (
+        <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {overdue_items.length > 0 && (
+            <Link
+              href="/my-courses"
+              className="flex items-center gap-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 transition-colors hover:bg-danger/15"
+            >
+              <AlertTriangle className="h-5 w-5 shrink-0 text-danger" />
+              <Box className="min-w-0 flex-1">
+                <Text as="p" className="text-sm font-bold text-ink">
+                  {overdue_items.length} item{overdue_items.length > 1 ? "s" : ""} overdue
+                </Text>
+                <Text as="p" className="truncate text-xs text-text-2">
+                  {overdue_items.slice(0, 2).map((o) => o.name).join(", ")}
+                  {overdue_items.length > 2 ? ` +${overdue_items.length - 2} more` : ""}
+                </Text>
               </Box>
-              <Text as="h2" className="text-3xl font-bold leading-none">{s.value}</Text>
-              <Text as="p" className="text-sm text-muted-foreground">{s.label}</Text>
-              <Text as="p" className="text-xs text-muted-foreground/70">{s.sub}</Text>
+              <Text as="span" className="shrink-0 text-xs font-bold text-danger">Review →</Text>
+            </Link>
+          )}
+          {latest_badge && (
+            <Box className="flex items-center gap-3 rounded-xl border border-warning/35 bg-warning/10 px-4 py-3">
+              <PartyPopper className="h-5 w-5 shrink-0 text-warning" />
+              <Box className="min-w-0 flex-1">
+                <Text as="p" className="text-sm font-bold text-ink">
+                  You earned the {latest_badge.label} badge!
+                </Text>
+                <Text as="p" className="truncate text-xs text-text-2">
+                  {latest_badge.description || "A fresh win — keep the momentum going."}
+                </Text>
+              </Box>
+              <Link href="/achievements" className="shrink-0">
+                <Button size="sm" className="bg-navy text-paper hover:bg-navy-soft">View achievements</Button>
+              </Link>
             </Box>
-            <Box className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-50 ${s.circle}`} />
+          )}
+        </Box>
+      )}
+
+      {/* ── KPI row: a wide Achievements tile + four stat tiles.
+          Replaces the old navy rank strip. Tints are existing palette colours
+          (cream / accent / warning / success / danger), no new hues. ── */}
+      <Box className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+        {/* Achievements — points / rank / badges, spanning two columns. */}
+        <Card className="col-span-2 flex flex-col justify-between border-2 border-accent-blue bg-paper-cream p-5">
+          <Box className="flex items-center justify-between gap-2">
+            <Box className="flex items-center gap-2.5 min-w-0">
+              <Box className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/70">
+                <Award className="h-4 w-4 text-warning" />
+              </Box>
+              <Text as="span" className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/70">
+                Achievements
+              </Text>
+            </Box>
+            <Link href="/achievements" className="shrink-0 text-[11.5px] font-bold text-accent-blue hover:underline">
+              View all →
+            </Link>
+          </Box>
+          <Box className="mt-4 flex items-end gap-5">
+            <Box>
+              <Text as="p" className="font-mono text-2xl font-extrabold leading-none text-ink">{points}</Text>
+              <Text as="p" className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">Points</Text>
+            </Box>
+            <Box className="h-9 w-px bg-line" />
+            <Box>
+              <Box className="flex items-baseline gap-1">
+                <Text as="p" className="font-mono text-2xl font-extrabold leading-none text-ink">#{rank}</Text>
+                <Text as="span" className="text-xs text-text-3">/ {rank_of}</Text>
+              </Box>
+              <Text as="p" className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">Rank</Text>
+            </Box>
+            <Box className="h-9 w-px bg-line" />
+            <Box>
+              <Box className="flex items-center gap-1.5">
+                <Text as="p" className="font-mono text-2xl font-extrabold leading-none text-ink">{badges}</Text>
+                <Trophy className="h-4 w-4 text-warning" />
+              </Box>
+              <Text as="p" className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">Badges</Text>
+            </Box>
+          </Box>
+        </Card>
+
+        {/* Four stat tiles — pastel tint, white icon square, value, label, sub. */}
+        {statCards.map((s) => (
+          <Card key={s.label} className={`flex flex-col gap-2 p-4 ${s.tile}`}>
+            <Box className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/70">
+              <s.icon className={`h-4 w-4 ${s.iconColor}`} />
+            </Box>
+            <Text as="p" className="mt-1 font-mono text-[26px] font-extrabold leading-none text-ink">{s.value}</Text>
+            <Text as="p" className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">{s.label}</Text>
+            <Text
+              as="p"
+              className={`text-[11px] font-medium ${s.subTone === "up" ? "text-success" : s.subTone === "down" ? "text-danger" : "text-text-3"}`}
+            >
+              {s.subTone === "up" ? "↑ " : s.subTone === "down" ? "↓ " : ""}{s.sub}
+            </Text>
           </Card>
         ))}
       </Box>
 
-      {/* ── Two-column grid ── */}
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* LEFT column */}
-        <Box className="space-y-4">
-
-          {/* Continue Learning */}
-          <Card className="gap-0 p-5">
-            <Box className="flex items-center justify-between mb-4">
-              <Text as="h3" className="text-base font-semibold">Continue Learning</Text>
-              <Text as="p" className="text-xs text-muted-foreground">Pick up where you left off</Text>
-            </Box>
-            {continue_learning ? (
-              <Box className="space-y-3">
-                <Box className="flex items-start gap-3">
-                  <Box className="w-10 h-10 rounded-lg bg-paper-cream flex items-center justify-center shrink-0 mt-0.5">
-                    <Settings className="h-5 w-5 text-navy/70" />
-                  </Box>
-                  <Box className="flex-1 min-w-0">
-                    <Text as="p" className="text-sm font-medium leading-snug">{continue_learning.course.name}</Text>
-                    <Box className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
-                      <Text as="span" className="text-xs text-muted-foreground">
-                        {continue_learning.course.total_lessons - continue_learning.course.completed_lessons} lessons left
-                        {continue_learning.due_date ? ` · Due: ${fmtDate(continue_learning.due_date)}` : ""}
-                      </Text>
-                    </Box>
-                  </Box>
-                </Box>
-                <Box className="space-y-1.5">
-                  <Box className="flex items-center justify-between">
-                    <Box className="flex-1 h-2 bg-muted rounded-full overflow-hidden mr-3">
-                      <Box className="h-full bg-navy rounded-full" style={{ width: `${continue_learning.progress_percentage}%` }} />
-                    </Box>
-                    <Text as="span" className="text-xs font-semibold text-navy shrink-0">{continue_learning.progress_percentage}%</Text>
-                  </Box>
-                </Box>
-                {/* The reason to press Continue, stated rather than left to be
-                    discovered when the leaderboard moves. */}
-                <CourseRewardStrip
-                  reward={continue_learning.reward}
-                  isSession={Boolean(continue_learning.session)}
-                />
-                <Link href={`/my-courses/${continue_learning.course.public_id ?? continue_learning.course.id}`}>
-                  <Button size="sm" className="h-9 bg-navy hover:bg-navy-soft text-paper gap-1.5 w-full mt-1">
-                    Continue <ArrowRight className="h-3.5 w-3.5" />
-                  </Button>
-                </Link>
-              </Box>
-            ) : (
-              <Box className="py-6 text-center">
-                <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-                <Text as="p" className="text-sm text-muted-foreground">No course in progress yet.</Text>
-                <Link href="/my-courses">
-                  <Button size="sm" variant="outline" className="mt-2 text-xs">Browse Courses</Button>
-                </Link>
-              </Box>
-            )}
+      {/* ── Continue learning — spotlight card row ── */}
+      <Box className="space-y-3">
+        <Box className="flex items-end justify-between gap-2">
+          <Box>
+            <Text as="h2" className="font-mono text-[12px] font-bold uppercase tracking-[0.14em] text-ink/70">Continue learning</Text>
+            <Text as="p" className="mt-0.5 text-xs text-muted-foreground">Pick up where you left off</Text>
+          </Box>
+          <Link href="/my-courses" className="shrink-0 text-xs font-bold text-accent-blue hover:underline">View all →</Link>
+        </Box>
+        {continueItems.length ? (
+          <Box className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {continueItems.map((c) => (
+              <CourseCard
+                key={c.enrollment_id ?? c.course.id}
+                href={`/my-courses/${c.course.public_id ?? c.course.id}`}
+                title={c.course.name}
+                category={c.category || "General"}
+                contentType={c.session ? "session" : undefined}
+                thumbnailUrl={c.course.thumbnail_url}
+                progress={c.session ? null : (c.progress_percentage ?? 0)}
+                flag={c.is_mandatory ? (c.category === "Compliance" ? "Compliance" : "Required") : null}
+                ctaLabel={(c.progress_percentage ?? 0) > 0 ? "Continue" : "Start"}
+              />
+            ))}
+          </Box>
+        ) : (
+          <Card className="border-dashed p-6 text-center">
+            <BookOpen className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
+            <Text as="p" className="text-sm text-muted-foreground">No course in progress yet.</Text>
+            <Link href="/my-courses"><Button size="sm" variant="outline" className="mt-2 text-xs">Browse Courses</Button></Link>
           </Card>
+        )}
+      </Box>
 
-          {/* Learning Journey */}
+      {/* ── Upcoming — courses due soon, as spotlight cards ── */}
+      {upcoming_deadlines.length > 0 && (
+        <Box className="space-y-3">
+          <Box>
+            <Text as="h2" className="font-mono text-[12px] font-bold uppercase tracking-[0.14em] text-ink/70">Upcoming</Text>
+            <Text as="p" className="mt-0.5 text-xs text-muted-foreground">Due soon</Text>
+          </Box>
+          <Box className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {upcoming_deadlines.map((d) => (
+              <CourseCard
+                key={d.course_id}
+                href={`/my-courses/${d.course_public_id ?? d.course_id}`}
+                title={d.name}
+                category={d.category || "General"}
+                thumbnailUrl={d.thumbnail_url}
+                eyebrow={`Due ${fmtDate(d.due_date)}`}
+                progress={typeof d.progress_percentage === "number" ? d.progress_percentage : null}
+                ctaLabel="Open"
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {/* ── Learning journey · Hours goal · Recent wins (compact) ── */}
+      <Box className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Learning Journey */}
           <Card className="gap-0 p-5">
             <Box className="flex items-center justify-between mb-1">
               <Text as="h3" className="text-base font-semibold">Learning Journey</Text>
@@ -391,14 +457,7 @@ export function DashboardContent() {
               </Box>
             )}
           </Card>
-
-          {/* Hours Goal lives in the LEFT column, under Learning Journey.
-              Upcoming Sessions joined the right column and left this one two
-              cards short, so the grid ended with ~300px of dead space beside
-              Recent Activity. Moving one panel across evens the two without
-              reordering anything a reader depends on — Hours Goal is a
-              progress figure, and progress is what this column already is. */}
-          {/* Hours Goal */}
+        {/* Hours Goal */}
           <Card className="gap-0 p-5">
             <Box className="flex items-center justify-between mb-3">
               <Box>
@@ -430,52 +489,7 @@ export function DashboardContent() {
               </Box>
             </Box>
           </Card>
-        </Box>
-
-        {/* RIGHT column */}
-        <Box className="space-y-4">
-
-          {/* Upcoming Sessions — top of the right column, so it lands beside
-              Continue Learning: the two answer "what now?" and "what next?",
-              and a learner scanning the fold should see both at once. */}
-          <DashboardUpcomingSessions />
-
-          {/* Upcoming Deadlines */}
-          <Card className="gap-0 p-5">
-            <Box className="flex items-center justify-between mb-4">
-              <Text as="h3" className="text-base font-semibold">Upcoming Deadlines</Text>
-              <Text as="p" className="text-xs text-muted-foreground">Courses due soon</Text>
-            </Box>
-            {upcoming_deadlines.length === 0 ? (
-              <Box className="py-4 text-center">
-                <Calendar className="h-6 w-6 mx-auto text-muted-foreground/30 mb-1" />
-                <Text as="p" className="text-xs text-muted-foreground">No upcoming deadlines</Text>
-              </Box>
-            ) : (
-              <Box className="space-y-3">
-                {upcoming_deadlines.map((d) => {
-                  const scfg = STATUS_CFG[d.status] || STATUS_CFG["assigned"];
-                  return (
-                    <Link key={d.course_id} href={`/my-courses/${d.course_public_id ?? d.course_id}`}>
-                      <Box className="flex items-center gap-3 hover:bg-muted/20 rounded-lg px-2 py-2 -mx-2 transition-colors">
-                        <Box className="w-8 h-8 rounded-lg bg-paper-cream flex items-center justify-center shrink-0">
-                          <Settings className="h-4 w-4 text-ink/45" />
-                        </Box>
-                        <Box className="flex-1 min-w-0">
-                          <Text as="p" className="text-sm font-medium truncate">{d.name}</Text>
-                          <Text as="p" className="text-xs text-muted-foreground">Due: {fmtDate(d.due_date)}</Text>
-                        </Box>
-                        <Badge className={cn("text-[10px] shrink-0 border-0", scfg.cls)}>{scfg.label}</Badge>
-                      </Box>
-                    </Link>
-                  );
-                })}
-              </Box>
-            )}
-          </Card>
-
-
-          {/* Recent Activity */}
+        {/* Recent Activity */}
           <Card className="gap-0 p-5">
             <Text as="h3" className="text-base font-semibold mb-4">Recent Activity</Text>
             {recent_activity.length === 0 ? (
@@ -502,9 +516,10 @@ export function DashboardContent() {
               </Box>
             )}
           </Card>
-
-        </Box>
       </Box>
+
+      {/* Live sessions you are booked onto. */}
+      <DashboardUpcomingSessions />
 
       {/* Surveys — under the two-column grid rather than inside a column, so
           it spans the full width and is not competing with a panel beside

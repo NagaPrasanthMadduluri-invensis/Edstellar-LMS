@@ -176,7 +176,7 @@ export function LocalVideoPlayer({
         ref={videoRef}
         src={src}
         controls
-        controlsList="nodownload nofullscreen"
+        controlsList="nodownload"
         disablePictureInPicture
         className="w-full h-full"
         preload="metadata"
