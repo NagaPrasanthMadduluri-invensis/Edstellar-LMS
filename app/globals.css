@@ -81,17 +81,19 @@
   --color-error: var(--brand-error);
 
   /* ── Typography ──
-     Inter          display, headlines, body, UI — one face does the lot
-     IBM Plex Mono  labels, eyebrows, section markers, technical text
+     Fraunces       display, headlines, hero/section titles — the serif voice
+     Inter          body, UI, supporting text
+     IBM Plex Mono  labels, eyebrows, section markers, stat numbers
 
-     `font-editorial` survives as a token so existing markup keeps
-     rendering, but Spectra has no serif: emphasis inside a headline is
-     upright Inter at a heavier weight, not an italic. */
-  --font-display: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-editorial: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+     The Harbor refresh (reference: spectra-lms-harbor) gives headings a
+     Fraunces serif voice. `font-editorial` is the emphasis clause inside a
+     hero title — Fraunces italic in the accent. Body stays Inter; labels and
+     stat numbers stay IBM Plex Mono (set per-element, not here). */
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-editorial: var(--font-fraunces), Georgia, "Times New Roman", serif;
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
-  --font-heading: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: var(--font-fraunces), Georgia, "Times New Roman", serif;
 
   /* ── shadcn semantic tokens, mapped onto the Spectra palette ── */
   --color-background: var(--background);
@@ -502,10 +504,11 @@
     min-height: 100%;
   }
 
-  /* Inter carries every headline. Sentence case, tight tracking, no shouting. */
+  /* Fraunces carries every headline — the Harbor serif voice. Sentence case,
+     no negative tracking (serifs read better at 0), weight 600. */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     font-weight: 600;
   }
 
@@ -535,13 +538,36 @@
 
 @layer components {
   /* ── Editorial emphasis ──
-     Spectra has no serif. The emphasis phrase inside a headline stays
-     upright Inter and gains weight instead of italics. */
+     The emphasis clause inside a hero title: Fraunces ITALIC. Colour is set
+     where it is used (page-header applies the accent), matching the reference's
+     italic emphasised clause. */
   .editorial {
     font-family: var(--font-editorial);
-    font-style: normal;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-style: italic;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  /* ── Learner Home hero photo (reference: .lhh-photo) ──
+     The cover image sits on the right of the split hero panel and fades in
+     from the left so it melts into the navy text panel. Shown md+ only; the
+     panel goes full-width on phones. */
+  /* The split-hero's dark panel tints with the active theme, like the chrome,
+     so it never clashes with the themed canvas (e.g. a green theme). */
+  .home-hero-panel {
+    background: linear-gradient(135deg, var(--chrome-grad-1), var(--chrome-grad-2));
+  }
+
+  .home-hero-photo {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 53%;
+    background-size: cover;
+    background-position: center;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.5) 6%, #000 16%);
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.5) 6%, #000 16%);
   }
 
   /* ── Eyebrow / section marker ── small, wide, quiet. */

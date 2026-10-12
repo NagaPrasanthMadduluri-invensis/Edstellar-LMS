@@ -16,6 +16,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { fetchDashboard } from "@/services/api/learner/learner-api";
 import { CourseRewardStrip } from "@/components/learner/course-reward";
 import { DashboardUpcomingSessions } from "@/components/learner/dashboard-upcoming-sessions";
@@ -67,6 +68,17 @@ function DashboardSkeleton() {
 }
 
 /* ── Main component ── */
+/** A hero stat chip: lucide icon + mono value + quiet label, on the navy panel. */
+function HeroChip({ icon: Icon, label, children }) {
+  return (
+    <Box className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white">
+      <Icon className="h-3.5 w-3.5 shrink-0 opacity-80" />
+      <Text as="span" className="font-mono font-bold text-inherit">{children}</Text>
+      <Text as="span" className="text-inherit opacity-70">{label}</Text>
+    </Box>
+  );
+}
+
 export function DashboardContent() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
@@ -104,60 +116,94 @@ export function DashboardContent() {
       label: "Total Assigned",
       sub: yetToStart > 0 ? `${yetToStart} yet to start` : "All in progress",
       icon: Package,
-      iconBg: "bg-paper-cream", iconColor: "text-navy", circle: "bg-paper-cream",
+      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
     },
     {
       value: inProgressCount,
       label: "In Progress",
       sub: "+ Active courses",
       icon: TrendingUp,
-      iconBg: "bg-paper-cream", iconColor: "text-ink/70", circle: "bg-paper-cream",
+      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
     },
     {
       value: stats.completed_courses ?? 0,
       label: "Completed",
       sub: stats.assigned_courses ? `${Math.round(((stats.completed_courses ?? 0) / stats.assigned_courses) * 100)}% completion` : "0% completion",
       icon: CheckCircle2,
-      iconBg: "bg-paper-cream", iconColor: "text-navy", circle: "bg-paper-cream",
+      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
     },
     {
       value: `${stats.hours_this_month ?? 0}h`,
       label: "Hours This Month",
       sub: `+${Math.max(0, (stats.hours_goal ?? 10) - (stats.hours_this_month ?? 0)).toFixed(1)}h to goal`,
       icon: Clock,
-      iconBg: "bg-paper-cream", iconColor: "text-navy", circle: "bg-paper-cream",
+      iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circle: "bg-accent-tint",
     },
   ];
 
   const hoursGoalPct = Math.min(Math.round(((stats.hours_this_month ?? 0) / (stats.hours_goal ?? 10)) * 100), 100);
 
+  // ── Harbor split-hero bits (reference: .lhh-hero2) ──
+  const firstName = user?.firstName || "Learner";
+  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  const nextUp = continue_learning;
+  const resumeHref = nextUp
+    ? `/my-courses/${nextUp.course.public_id ?? nextUp.course.id}`
+    : "/catalogue";
+  const resumeLabel = nextUp ? `Resume ${nextUp.course.name}` : "Explore the catalogue";
+  const heroSubline =
+    inProgressCount > 0
+      ? `You have ${inProgressCount} course${inProgressCount !== 1 ? "s" : ""} in progress — pick up where you left off.`
+      : yetToStart > 0
+        ? `You have ${yetToStart} assigned and waiting. Start today.`
+        : "Welcome back — ready to pick up where you left off?";
+
   return (
     <Box className="space-y-5">
 
-      {/* ── Welcome Banner ── */}
-      <Card className="px-6 py-5 border-0 shadow-sm glass">
-        <Box className="flex items-center justify-between gap-4 flex-wrap">
-          <Box>
-            <Text as="h1" className="text-xl font-bold">
-              {greet}, {user?.firstName || "Learner"} 👋
-            </Text>
-            <Text as="p" className="text-sm text-muted-foreground mt-0.5">
-              {inProgressCount > 0
-                ? <>You have <Text as="span" className="text-navy font-semibold">{inProgressCount} course{inProgressCount !== 1 ? "s" : ""} in progress</Text>{yetToStart > 0 ? <> and <Text as="span" className="text-navy font-semibold">{yetToStart} assigned</Text> and waiting</> : ""}.</>
-                : <>You have <Text as="span" className="text-navy font-semibold">{stats.assigned_courses ?? 0} course{(stats.assigned_courses ?? 0) !== 1 ? "s" : ""} assigned</Text>. Start learning today!</>}
-            </Text>
-          </Box>
-          {skill_tags.length > 0 && (
-            <Box className="flex items-center gap-2 flex-wrap">
-              {skill_tags.map((tag) => (
-                <Text key={tag} as="span" className="px-3 py-1 text-xs border border-border rounded-full text-ink/60 bg-white">
-                  {tag}
-                </Text>
-              ))}
+      {/* ── Date line ── */}
+      <Text as="p" className="px-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-text-2">
+        {today}
+      </Text>
+
+      {/* ── Split hero (reference: .lhh-hero2) — navy text panel on the left,
+          cover photo fading in on the right (md+). Greeting is Fraunces. ── */}
+      <Box className="home-hero-panel relative min-h-[232px] overflow-hidden rounded-2xl border border-line">
+        <Box
+          aria-hidden
+          className="home-hero-photo hidden md:block"
+          style={{ backgroundImage: "url('/home-hero.jpg')" }}
+        />
+        <Box className="relative z-[2] flex min-h-[232px] w-full flex-col justify-center p-7 text-white md:w-1/2 md:p-9">
+          <Box className="mb-4 flex items-center gap-3.5">
+            <UserAvatar src={user?.avatar} name={user?.name} className="size-12 shrink-0 ring-2 ring-white/30" />
+            <Box className="min-w-0">
+              <Text as="p" className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-white/60">
+                Welcome back
+              </Text>
+              <Text as="h1" className="text-[28px] font-semibold leading-[1.08] text-white">
+                {greet}, {firstName}.
+              </Text>
             </Box>
-          )}
+          </Box>
+          <Text as="p" className="mb-4 text-[13px] leading-relaxed text-white/85">
+            {heroSubline}
+          </Text>
+          <Link href={resumeHref} className="self-start">
+            <Button className="gap-2 bg-accent-blue text-white hover:brightness-110">
+              <Text as="span" className="max-w-[16rem] truncate text-inherit">{resumeLabel}</Text>
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </Button>
+          </Link>
+          <Box className="mt-4 flex flex-wrap gap-2.5">
+            <HeroChip icon={Clock} label="this month">{stats.hours_this_month ?? 0}h</HeroChip>
+            <HeroChip icon={BookOpen} label="in progress">{inProgressCount}</HeroChip>
+            {yetToStart > 0 && (
+              <HeroChip icon={Package} label="assigned">{yetToStart}</HeroChip>
+            )}
+          </Box>
         </Box>
-      </Card>
+      </Box>
 
       {/* ── Stats Bar (gradient) ── */}
       <Box className="bg-navy rounded-xl px-4 py-4 flex flex-wrap items-center gap-3 sm:px-6">

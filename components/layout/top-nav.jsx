@@ -4,7 +4,7 @@ import { PRODUCT_BY, PRODUCT_NAME } from "@/lib/brand";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,8 +70,11 @@ export function TopNav() {
       className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between gap-2 chrome-glass px-3 sm:px-4"
     >
       <Box className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <SidebarTrigger className="shrink-0 bg-transparent hover:bg-transparent" />
-        <Separator orientation="vertical" className="hidden h-6 text-white sm:block" />
+        {/* Mobile only. On desktop the sidebar is an icon rail that expands on
+            hover, so there is no manual toggle — below lg it is a sheet that
+            still needs one to open. */}
+        <SidebarTrigger className="shrink-0 bg-transparent hover:bg-transparent lg:hidden" />
+        <Separator orientation="vertical" className="hidden h-6 text-white sm:block lg:hidden" />
         {/* Two lines in the height of one: the topbar is 14 units tall and
             the byline sits under the name without growing it. `leading-none`
             on both is what makes that fit.
@@ -129,20 +132,11 @@ export function TopNav() {
             render={
               <Button
                 variant="ghost"
-                className="flex items-center gap-2 rounded-full bg-background p-1 pr-1 transition-colors hover:bg-muted sm:pr-3"
+                aria-label={user?.name || "Account"}
+                title={user?.name || "Account"}
+                className="flex items-center rounded-full bg-background p-1 transition-colors hover:bg-muted"
               >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.avatar || ""} alt={user?.name || "User"} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                    {user?.initials || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <Text
-                  as="span"
-                  className="hidden max-w-[10rem] truncate text-sm font-medium sm:inline-block"
-                >
-                  {user?.name || "User"}
-                </Text>
+                <UserAvatar src={user?.avatar} name={user?.name} className="h-8 w-8" />
               </Button>
             }
           />

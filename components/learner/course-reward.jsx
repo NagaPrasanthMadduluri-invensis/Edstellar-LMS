@@ -14,22 +14,12 @@ import { cn } from "@/lib/utils";
  * beside every assignment, so the promise here is the same arithmetic the
  * board pays out (`server/src/modules/leaderboard/points.ts`).
  *
- * ON NAVY THE ACCENT IS `accent-soft`, NOT `accent-blue` (TASTE §10.1).
- * This panel used `text-lime`, a legacy alias the Spectra migration remapped
- * to `accent-blue` — a colour meant for LIGHT surfaces. On this navy strip it
- * measures 3.73:1, and the points figure it colours is the one thing the
- * panel exists to show. `accent-soft` is 11.36:1 against the same navy.
- *
- * Neither green nor ochre is an option here despite reading as "positive":
- * `success` is 2.29:1 on navy and fails outright, and `warning`/`rust` are
- * 3.23:1 — worse than the blue being replaced. The palette's light tints are
- * what work on dark chrome, which is the whole reason `accent-soft` exists.
- *
- * Always a navy surface, in every state. The strip is an incentive, not a
- * status chip — the card already carries status in its badge and bar — so it
- * keeps one treatment and changes only its wording. That is also what makes
- * `accent-soft` the right emphasis colour throughout — it exists for exactly
- * this, the accent read on a dark field.
+ * The compact strip (CourseRewardStrip) is a LIGHT, theme-tinted panel — a
+ * subtle `accent-tint` fill with `accent-blue` figures, so it follows the
+ * active theme and reads cleanly on a light card. It shows only the headline
+ * (overall points gained / to be gained) and, if any, one short badge line —
+ * no per-source breakdown. The hero line below stays on the dark course hero
+ * and keeps `accent-soft` (TASTE §10.1: the accent read on a dark field).
  */
 
 /**
@@ -122,7 +112,9 @@ function badgeNudge(badge) {
 export function CourseRewardStrip({ reward, isComplete = false, isSession = false, className }) {
   if (!reward || reward.totalPoints <= 0) return null;
 
-  const { icon: Icon, label, value, sub } = headline(reward, { isComplete, isSession });
+  // Just the headline — overall points gained / to be gained. The per-source
+  // breakdown ("Course 100 · early +75 · …") is deliberately not shown here.
+  const { icon: Icon, label, value } = headline(reward, { isComplete, isSession });
   const nudge = reward.onTimeBadge
     ? { icon: Zap, text: `Finish by ${reward.onTimeBadge.by} for the ${reward.onTimeBadge.title} badge` }
     : reward.unlocksBadge
@@ -130,25 +122,25 @@ export function CourseRewardStrip({ reward, isComplete = false, isSession = fals
       : null;
 
   return (
-    <Box className={cn("surface-dark rounded-lg px-3 py-2.5 space-y-1", className)}>
-      <Box className="flex items-baseline justify-between gap-2">
+    <Box className={cn("rounded-lg border border-accent-blue/15 bg-accent-tint px-3 py-2", className)}>
+      {/* One row: label on the left, points on the right. */}
+      <Box className="flex items-center justify-between gap-2">
         <Box className="flex items-center gap-1.5 min-w-0">
-          <Icon className="h-3.5 w-3.5 shrink-0 text-accent-soft self-center" />
-          <Text as="span" className="font-mono text-[10px] uppercase tracking-[0.14em] text-paper/60 truncate">
+          <Icon className="h-3.5 w-3.5 shrink-0 text-accent-blue" />
+          <Text as="span" className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-3 truncate">
             {label}
           </Text>
         </Box>
-        <Text as="span" className="font-display text-base font-bold tabular-nums text-accent-soft shrink-0">
+        <Text as="span" className="font-display text-base font-bold tabular-nums text-accent-blue shrink-0">
           {value}
         </Text>
       </Box>
 
-      <Text as="p" className="text-[11px] leading-tight text-paper/60">{sub}</Text>
-
+      {/* Badge line only — short, no explanation. */}
       {nudge && (
-        <Box className="flex items-start gap-1.5 border-t border-paper/15 pt-1.5 mt-1.5">
-          <nudge.icon className="h-3 w-3 shrink-0 text-accent-soft mt-[2px]" />
-          <Text as="p" className="text-[11px] leading-tight text-paper/80">{nudge.text}</Text>
+        <Box className="mt-1.5 flex items-center gap-1.5">
+          <nudge.icon className="h-3 w-3 shrink-0 text-accent-blue" />
+          <Text as="span" className="truncate text-[11px] leading-tight text-text-2">{nudge.text}</Text>
         </Box>
       )}
     </Box>

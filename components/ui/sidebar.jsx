@@ -131,12 +131,13 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  hoverExpand = false,
   className,
   children,
   dir,
   ...props
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpenMobile, setOpen } = useSidebar()
 
   if (collapsible === "none") {
     return (
@@ -174,6 +175,49 @@ function Sidebar({
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
       </Sheet>
+    );
+  }
+
+  // Hover-expand icon rail (desktop). The reserved space stays at icon width
+  // whether or not the rail is hovered, so expanding OVERLAYS the page instead
+  // of shoving it sideways on every mouse-in. `state` still flips on hover
+  // (via setOpen), which is what lets the nav swap between its icon-only and
+  // full renders — see `SidebarNavSections` in `layout/sidebar-nav.jsx`.
+  if (hoverExpand) {
+    return (
+      <div
+        className="group peer hidden text-sidebar-foreground lg:block"
+        data-state={state}
+        data-collapsible={state === "collapsed" ? collapsible : ""}
+        data-variant={variant}
+        data-side={side}
+        data-slot="sidebar"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+      >
+        <div
+          data-slot="sidebar-gap"
+          className="relative w-(--sidebar-width-icon)"
+        />
+        <div
+          data-slot="sidebar-container"
+          data-side={side}
+          className={cn(
+            "fixed top-14 bottom-0 z-30 hidden w-(--sidebar-width-icon) transition-[width] duration-300 ease-in-out data-[side=left]:left-0 data-[side=right]:right-0 lg:flex",
+            "group-data-[state=expanded]:w-(--sidebar-width) group-data-[state=expanded]:shadow-2xl",
+            className,
+          )}
+          {...props}
+        >
+          <div
+            data-sidebar="sidebar"
+            data-slot="sidebar-inner"
+            className="flex size-full flex-col border-sidebar-border chrome-glass group-data-[side=left]:border-r group-data-[side=right]:border-l"
+          >
+            {children}
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -357,7 +401,7 @@ function SidebarContent({
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-x-hidden group-data-[collapsible=icon]:overflow-y-auto",
         className
       )}
       {...props} />

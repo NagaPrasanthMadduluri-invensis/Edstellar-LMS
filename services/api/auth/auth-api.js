@@ -92,6 +92,9 @@ export function normalizeUser(apiUser) {
     lastName,
     name: `${firstName} ${lastName}`.trim(),
     email: apiUser.email,
+    // Optional profile picture; null → the anonymous silhouette. Kept in step
+    // with `lib/session.js`, which builds the same shape for the SSR shell.
+    avatar: apiUser.avatar_url || null,
     role: apiUser.role || "learner",
     // Three portals since `specs/rbac.md` decision 6. Kept in step with
     // `lib/session.js`, which computes the same label for the server-rendered

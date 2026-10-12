@@ -25,6 +25,23 @@ export async function updateMyProfile({ data }) {
   return apiClient("/api/auth/profile", { method: "PATCH", body: data });
 }
 
+/**
+ * Upload an optional profile picture. Returns `{ url }`, a stored path the
+ * caller then saves through `updateMyProfile({ data: { avatar_url } })` — the
+ * same two-step shape as a course thumbnail (upload, then record it on save).
+ * Reachable by any authenticated role.
+ */
+export async function uploadMyAvatar(file) {
+  const form = new FormData();
+  form.append("image", file);
+  return apiClient("/api/media/avatar", { method: "POST", body: form });
+}
+
+/** Drop an uploaded avatar whose profile edit was then cancelled. Best-effort. */
+export async function discardMyAvatar(url) {
+  return apiClient("/api/media/avatar", { method: "DELETE", body: { url } });
+}
+
 /** The caller's OWN organization. No id — it comes from their token. */
 export async function fetchMyOrganization() {
   return apiClient("/api/admin/organization");

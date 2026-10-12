@@ -27,7 +27,9 @@ import Box from "@/components/ui/box";
 export function PortalShell({ user, sidebar, children }) {
   return (
     <AuthProvider initialUser={user}>
-      <SidebarProvider>
+      {/* Collapsed by default: the desktop sidebar is an icon rail that expands
+          on hover (see `components/ui/sidebar.jsx`, hoverExpand). */}
+      <SidebarProvider defaultOpen={false}>
         <Box className="flex h-full flex-col">
           {/* Above the topbar and outside the scroll container, so a support
               session is visible on every page of every portal without each

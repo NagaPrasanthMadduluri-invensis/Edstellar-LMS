@@ -20,6 +20,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { CourseArt } from "@/components/shared/course-art";
+import { CourseCard as SpotlightCourseCard } from "@/components/shared/course-card";
 import { CourseRewardStrip } from "@/components/learner/course-reward";
 import { BRAND } from "@/lib/brand";
 import { categoryColor, categoryTint } from "@/lib/course-taxonomy";
@@ -131,213 +132,44 @@ function formatTimeRange(start, end) {
 
 /* ── Course card (grid, vertical) ── */
 function CourseCard({ c }) {
-  const base = STATUS_CFG[c.status] || STATUS_CFG.assigned;
-  // A live session overrides only the wording and the chip; the button colour
-  // and bar treatment still come from the shared status config.
-  const st = c.session
-    ? { ...base, ...(SESSION_STATUS_CFG[c.session.status] ?? SESSION_STATUS_CFG.upcoming) }
-    : base;
-  const durationLabel = c.totalMinutes >= 60
-    ? `${Math.floor(c.totalMinutes / 60)}h${c.totalMinutes % 60 > 0 ? ` ${c.totalMinutes % 60}m` : ""}`
-    : c.totalMinutes > 0 ? `${c.totalMinutes}m` : null;
+  const isComplete = c.status === "completed";
+  const reward = c.reward;
+  // Overall points — gained if finished, otherwise what is on the table. No
+  // badge line here (the card shows only points and progress).
+  const points =
+    reward && reward.totalPoints > 0
+      ? isComplete
+        ? `${reward.earnedPoints} pts earned`
+        : `${reward.totalPoints} pts to earn`
+      : null;
+  const flag = c.isMandatory
+    ? c.category === "Compliance"
+      ? "Compliance"
+      : "Required"
+    : null;
 
-  // `py-0 gap-0` on the Card: the primitive adds py-4 and gap-4 of its own,
-  // and the art and body below already carry their own spacing. Without it the
-  // padding is paid twice — a white band above the artwork instead of the
-  // picture meeting the card's edge, and the same strip again underneath.
+  // Above the title: modules count + status. The category/mandatory marker is
+  // NOT repeated here — it already shows as the top-right flag.
+  const modules = c.modulesCount ?? 0;
+  const statusLabel = isComplete
+    ? "Completed"
+    : c.status === "assigned"
+      ? "Not started"
+      : "In progress";
+  const eyebrow = `${modules} module${modules === 1 ? "" : "s"} · ${statusLabel}`;
+
   return (
-    <Card className="py-0 gap-0 overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200 border border-border">
-      {/* Course art. Replaces a flat paper panel with two decorative blobs and
-          a generic category icon — three things competing to fill a slot that
-          now carries a real picture. Light scrim so the title stays readable
-          and the off-palette illustration reads as tinted artwork. */}
-      <Box className="relative h-44 overflow-hidden shrink-0 bg-paper-warm">
-        <CourseArt
-          thumbnailUrl={c.course.thumbnail_url}
-          contentType={c.contentType}
-          alt={c.course.name}
-          scrim="light"
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="absolute inset-0"
-        />
-
-        {c.isMandatory && (
-          <Box className="absolute bottom-3 left-3">
-            <Badge className="text-[10px] font-bold bg-error text-white border-0 px-1.5 py-0.5 shadow-sm">
-              MANDATORY
-            </Badge>
-          </Box>
-        )}
-      </Box>
-
-      {/* Card body — transparent so the glass Card shows through (the wrapper
-          is the frosted Card; an opaque body would cover it). */}
-      <Box className="flex flex-col flex-1 p-5 gap-3">
-        {/* Category · Modules · Status — the same three facts, in the same
-            order, as the admin Course Library card.
-
-            The third chip is the LEARNER'S status, not the course's publish
-            state. The admin's reads "Published" because an admin can be
-            looking at a draft; a learner only ever sees published courses
-            (`c.is_active = 1` in the query), so the same chip here would say
-            the same word on every card and carry no information. What they
-            need to know is where THEY stand.
-
-            It used to sit over the artwork as a floating badge. Keeping both
-            would print the same word twice on one card, so it moved into the
-            row rather than being duplicated. */}
-        <Box className="flex flex-wrap items-center gap-1.5">
-          {c.category && (
-            <Pill bg={categoryTint(c.category)} fg={categoryColor(c.category)}>
-              {c.category}
-            </Pill>
-          )}
-          <Pill bg="var(--spectra-surface-3)" fg="var(--spectra-text-2)">
-            Modules: {c.modulesCount ?? 0}
-          </Pill>
-          <Pill bg={st.pillBg} fg={st.pillFg}>{st.label}</Pill>
-        </Box>
-
-        {/* Title */}
-        <Text as="h3" className="text-sm font-bold leading-snug line-clamp-2 -mt-1 text-ink">
-          {c.course.name}
-        </Text>
-
-        {/* Where the training stands. A live session has no progress the
-            learner can move — a 0% bar would read as their own inaction — so
-            it shows when and where the sitting is instead. */}
-        {c.session ? (
-          <Box className="space-y-1.5 rounded-lg border border-navy/15 bg-paper-warm px-3 py-2.5">
-            <Box className="flex items-center gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5 shrink-0 text-ink/70" />
-              <Text as="span" className="text-xs font-semibold text-ink">
-                {c.session.date_label}
-              </Text>
-              <Text as="span" className="text-xs text-muted-foreground">
-                {formatTimeRange(c.session.start_time, c.session.end_time)}
-              </Text>
-            </Box>
-            {c.session.venue && (
-              <Box className="flex items-center gap-1.5">
-                {c.session.type === "Virtual" ? (
-                  <Video className="h-3.5 w-3.5 shrink-0 text-ink/70" />
-                ) : (
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-ink/70" />
-                )}
-                <Text as="span" className="text-xs text-muted-foreground truncate">
-                  {c.session.venue}
-                </Text>
-              </Box>
-            )}
-            {c.session.trainer && (
-              <Box className="flex items-center gap-1.5">
-                <UserCircle className="h-3.5 w-3.5 shrink-0 text-ink/70" />
-                <Text as="span" className="text-xs text-muted-foreground truncate">
-                  {c.session.trainer}
-                </Text>
-              </Box>
-            )}
-            {c.status !== "completed" && (
-              <Text as="p" className="text-[11px] text-ink/50 pt-0.5">
-                Your trainer marks this complete after the session.
-              </Text>
-            )}
-          </Box>
-        ) : (
-          <Box className="space-y-1.5">
-            <Box className="flex items-center justify-between">
-              <Text as="span" className="text-xs text-muted-foreground">
-                {c.status === "assigned"
-                  ? "Not started yet"
-                  : c.status === "completed"
-                  ? "All lessons done"
-                  : "Progress"}
-              </Text>
-              {c.status !== "assigned" && (
-                <Text as="span" className={cn("text-xs font-bold tabular-nums", st.pctCls)}>
-                  {c.progressPct}%
-                </Text>
-              )}
-            </Box>
-            <Box className="h-2 bg-paper-cream rounded-full overflow-hidden">
-              <Box
-                className={cn("h-full rounded-full transition-all duration-500", st.barCls)}
-                style={{ width: `${c.status === "assigned" ? 0 : c.progressPct}%` }}
-              />
-            </Box>
-          </Box>
-        )}
-
-        {/* What finishing this pays. Sits under the progress bar and above the
-            meta row so the incentive reads as part of "where you are", not as
-            another fact about the course. */}
-        <CourseRewardStrip
-          reward={c.reward}
-          isComplete={c.status === "completed"}
-          isSession={Boolean(c.session)}
-        />
-
-        {/* Meta row */}
-        <Box className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
-          {durationLabel && (
-            <Box className="flex items-center gap-1.5 font-medium">
-              <Clock className="h-3.5 w-3.5 shrink-0" />
-              <Text as="span">{durationLabel}</Text>
-            </Box>
-          )}
-          {c.dueFmt && (
-            <Box className="flex items-center gap-1.5">
-              <Flag className="h-3.5 w-3.5 shrink-0 text-ink/70" />
-              <Text as="span">Due {c.dueFmt}</Text>
-            </Box>
-          )}
-          {c.assignedFmt && !c.dueFmt && (
-            <Box className="flex items-center gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-              <Text as="span">Assigned {c.assignedFmt}</Text>
-            </Box>
-          )}
-          {c.bestScore !== null && (
-            <Text as="span" className={cn("font-semibold", c.hasFailed ? "text-error" : "text-navy")}>
-              {c.hasFailed ? `✗ ${c.bestScore}%` : `✓ ${c.bestScore}%`}
-            </Text>
-          )}
-        </Box>
-
-        {/* CTA.
-            A second button appears ONLY when a certificate actually exists for
-            this course — `certificateId` is null for a session training, which
-            never auto-issues one (§10.7), and for a revoked one. "Completed"
-            does not imply a certificate, so keying the button off the status
-            would send a learner to a page their course is not on. */}
-        <Box className="mt-auto flex items-stretch gap-2 pt-1">
-          {/* Side by side when there is a certificate, full width when not.
-              `flex-1 min-w-0` on both, so the pair splits the card evenly and
-              neither label is pushed out — a fixed width would break the
-              moment a status label got longer than "Review Course". */}
-          <Link href={`/my-courses/${c.course.public_id ?? c.course.id}`} className="block min-w-0 flex-1">
-            <Button className={cn("h-10 w-full gap-2 text-sm font-semibold", st.btnCls)}>
-              {st.btnLabel}
-              <ArrowRight className="h-4 w-4 shrink-0" />
-            </Button>
-          </Link>
-          {c.certificateId && (
-            <Link
-              href={`/certifications?certificate=${c.certificatePublicId ?? c.certificateId}`}
-              className="block min-w-0 flex-1"
-            >
-              <Button
-                variant="outline"
-                className="h-10 w-full gap-2 border-navy/25 text-sm font-semibold text-navy hover:bg-paper-cream"
-              >
-                <Award className="h-4 w-4 shrink-0" />
-                Certificate
-              </Button>
-            </Link>
-          )}
-        </Box>
-      </Box>
-    </Card>
+    <SpotlightCourseCard
+      href={`/my-courses/${c.course.public_id ?? c.course.id}`}
+      title={c.course.name}
+      category={c.category || "General"}
+      eyebrow={eyebrow}
+      contentType={c.contentType}
+      thumbnailUrl={c.course.thumbnail_url}
+      progress={c.session ? null : c.status === "assigned" ? 0 : c.progressPct}
+      points={points}
+      flag={flag}
+    />
   );
 }
 
@@ -438,12 +270,16 @@ export function MyCoursesContent() {
   const activeFilterCount = (statusFilter !== "all" ? 1 : 0) + (search ? 1 : 0);
 
   const overviewCards = [
-    { icon: Layers,        iconBg: "bg-paper-cream",  iconColor: "text-navy",  circleBg: "bg-paper-cream",  value: ov.totalAssigned, label: "Total Assigned",  sub: `${ov.assigned} yet to start`              },
-    { icon: TrendingUp,    iconBg: "bg-paper-cream",   iconColor: "text-ink/70",   circleBg: "bg-paper-cream",   value: ov.inProgress,    label: "In Progress",     sub: "Currently active"                          },
-    { icon: CheckCircle2,  iconBg: "bg-paper-cream", iconColor: "text-navy", circleBg: "bg-paper-cream", value: ov.completed,     label: "Completed",       sub: `${ov.totalAssigned > 0 ? Math.round(ov.completed / ov.totalAssigned * 100) : 0}% completion rate` },
-    { icon: Award,         iconBg: "bg-paper-cream",  iconColor: "text-ink/70",  circleBg: "bg-paper-cream",  value: ov.avgScore !== null ? `${ov.avgScore}%` : "—", label: "Avg Score", sub: "Across assessments" },
+    // Neutral bubbles take the themed accent tint (bg-accent-tint / text-accent-blue
+    // both resolve through --spectra-accent -> --theme-accent, so they re-colour with
+    // the chosen VIBGYOR theme). "Failed" keeps its danger hue — status hues are never
+    // themed (design-palette.md §10).
+    { icon: Layers,        iconBg: "bg-accent-tint",  iconColor: "text-accent-blue",  circleBg: "bg-accent-tint",  value: ov.totalAssigned, label: "Total Assigned",  sub: `${ov.assigned} yet to start`              },
+    { icon: TrendingUp,    iconBg: "bg-accent-tint",   iconColor: "text-accent-blue",   circleBg: "bg-accent-tint",   value: ov.inProgress,    label: "In Progress",     sub: "Currently active"                          },
+    { icon: CheckCircle2,  iconBg: "bg-accent-tint", iconColor: "text-accent-blue", circleBg: "bg-accent-tint", value: ov.completed,     label: "Completed",       sub: `${ov.totalAssigned > 0 ? Math.round(ov.completed / ov.totalAssigned * 100) : 0}% completion rate` },
+    { icon: Award,         iconBg: "bg-accent-tint",  iconColor: "text-accent-blue",  circleBg: "bg-accent-tint",  value: ov.avgScore !== null ? `${ov.avgScore}%` : "—", label: "Avg Score", sub: "Across assessments" },
     { icon: AlertTriangle, iconBg: "bg-error/10",     iconColor: "text-error",     circleBg: "bg-error/10",     value: ov.failed,        label: "Failed",          sub: "Need retake"                               },
-    { icon: Calendar,      iconBg: "bg-paper-cream",    iconColor: "text-navy",    circleBg: "bg-paper-cream",    value: ov.nextDeadline?.short || "—", label: "Next Deadline", sub: ov.nextDeadline ? ov.nextDeadline.courseName : "No upcoming deadlines" },
+    { icon: Calendar,      iconBg: "bg-accent-tint",    iconColor: "text-accent-blue",    circleBg: "bg-accent-tint",    value: ov.nextDeadline?.short || "—", label: "Next Deadline", sub: ov.nextDeadline ? ov.nextDeadline.courseName : "No upcoming deadlines" },
   ];
 
   return (

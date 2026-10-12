@@ -1,14 +1,15 @@
-import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { Inter, IBM_Plex_Mono, Fraunces } from "next/font/google";
 import { PRODUCT_FULL } from "@/lib/brand";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import "./globals.css";
 
-/* Two typefaces, each with one job — the Spectra pairing.
-   Inter          — headlines, display, body copy, UI, supporting text
-   IBM Plex Mono  — labels, eyebrows, section markers, technical text
+/* Three typefaces, each with one job — the Harbor pairing.
+   Fraunces       — headlines and display titles (serif voice)
+   Inter          — body copy, UI, supporting text
+   IBM Plex Mono  — labels, eyebrows, section markers, stat numbers
 
-   There is no serif. Emphasis inside a headline is upright Inter at a
-   heavier weight (the `.editorial` class in globals.css), not an italic. */
+   The emphasis clause inside a hero title is Fraunces ITALIC in the accent
+   (`.editorial`/`em` in globals.css), matching the reference. */
 
 const inter = Inter({
   variable: "--font-inter",
@@ -21,6 +22,14 @@ const plexMono = IBM_Plex_Mono({
   variable: "--font-plex-mono",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 
@@ -54,7 +63,7 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${plexMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       {/* suppressHydrationWarning: next-themes sets data-theme on <html> before
           hydration, so the server/client attribute differ by design. */}

@@ -11,7 +11,7 @@ import { trainerNav } from "@/lib/nav-config";
 
 export function TrainerSidebar() {
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="icon" hoverExpand>
       <SidebarContent>
         <SidebarNavGroup items={trainerNav.main} />
       </SidebarContent>

@@ -219,7 +219,7 @@ export function CourseDetailContent({ courseId }) {
                   value={`m-${module.id}`}
                   className="border rounded-xl overflow-hidden glass shadow-sm"
                 >
-                  <AccordionTrigger className="hover:no-underline hover:bg-paper-warm px-0 py-0 w-full">
+                  <AccordionTrigger className="hover:no-underline hover:bg-paper-warm px-0 py-0 w-full items-center [&>svg]:mr-4 [&>svg]:self-center">
                     <Box className="flex items-center gap-3.5 w-full px-4 sm:px-5 py-4 text-left">
                       {/* Module number. A tile rather than a bare digit, and it
                           carries the state: filled navy once the module is

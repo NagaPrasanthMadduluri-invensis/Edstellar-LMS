@@ -984,8 +984,8 @@ export function LessonContent({ courseId, lessonId }) {
       </Box>
 
       {/* Content + the collapsible playlist sidebar. */}
-      <Box className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-        <Box className="min-w-0 space-y-4">
+      <Box className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
+        <Box className="min-w-0 space-y-4 lg:order-2">
       {/* Lesson Header */}
       <Card className="overflow-hidden">
         <CardContent className="p-5">
@@ -1172,7 +1172,7 @@ export function LessonContent({ courseId, lessonId }) {
         {/* Collapsible lesson playlist — current highlighted, ticks for done,
             padlocks for locked, one-click jump. Sticky on wide screens. */}
         {data.playlist?.length ? (
-          <Box className="lg:sticky lg:top-16">
+          <Box className="lg:order-1 lg:sticky lg:top-16">
             <LessonPlaylist playlist={data.playlist} courseId={courseId} />
           </Box>
         ) : null}

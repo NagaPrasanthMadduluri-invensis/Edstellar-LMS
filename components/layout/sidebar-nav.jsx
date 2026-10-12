@@ -68,10 +68,29 @@ function useVisibleItems(items) {
 export function SidebarNavGroup({ label, items }) {
   const pathname = usePathname();
   const closeOnNavigate = useCloseOnNavigate();
+  const { state, isMobile } = useSidebar();
   const visible = useVisibleItems(items);
 
   // A group whose every item is hidden must not leave its heading behind.
   if (visible.length === 0) return null;
+
+  // Collapsed icon rail (trainer / platform): icons only, no heading.
+  if (state === "collapsed" && !isMobile) {
+    return (
+      <Box as="nav" className="flex flex-col px-2 pt-2 pb-1">
+        {visible.map((item) => (
+          <RailIcon
+            key={item.title}
+            href={item.href}
+            icon={item.icon}
+            title={item.title}
+            active={isActiveHref(pathname, item.href)}
+            onNavigate={closeOnNavigate}
+          />
+        ))}
+      </Box>
+    );
+  }
 
   return (
     <SidebarGroup>
@@ -103,6 +122,41 @@ export function SidebarNavFooter({ items }) {
   const pathname = usePathname();
   const closeOnNavigate = useCloseOnNavigate();
   const { logout } = useAuth();
+  const { state, isMobile } = useSidebar();
+
+  // Collapsed icon rail: icons only, logout still an action rather than a link.
+  if (state === "collapsed" && !isMobile) {
+    return (
+      <Box className="flex flex-col px-2 py-1">
+        {items?.map((item) => {
+          const isLogout = item.href === "/logout";
+          const active = !isLogout && isActiveHref(pathname, item.href);
+          return isLogout ? (
+            <Box
+              as="button"
+              key={item.title}
+              type="button"
+              onClick={logout}
+              title={item.title}
+              aria-label={item.title}
+              className={cn(railIconClass, railIdle, "cursor-pointer")}
+            >
+              {item.icon && <item.icon />}
+            </Box>
+          ) : (
+            <RailIcon
+              key={item.title}
+              href={item.href}
+              icon={item.icon}
+              title={item.title}
+              active={active}
+              onNavigate={closeOnNavigate}
+            />
+          );
+        })}
+      </Box>
+    );
+  }
 
   return (
     <SidebarMenu>
@@ -156,6 +210,38 @@ const itemActive =
 
 const headingClass =
   "mt-3 flex w-full items-center justify-between px-2 pt-2 pb-1 text-left text-[10px] font-bold uppercase tracking-[0.09em] outline-hidden select-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
+
+/**
+ * One icon in the COLLAPSED rail. When the sidebar is a narrow icon strip (not
+ * hovered), every row — section items AND one-page heading-links — renders as a
+ * single centred icon with the label as its tooltip. Section headings have no
+ * icon, so they are dropped from the rail and reappear when it expands on hover.
+ */
+const railIconClass =
+  "mx-auto mb-0.5 flex size-9 items-center justify-center rounded-md transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring [&_svg]:size-[18px] [&_svg]:shrink-0";
+const railIdle = "text-on-navy-4 hover:bg-navy-deep hover:text-on-navy-3";
+const railActive = "bg-sidebar-accent text-accent-soft";
+
+function RailIcon({ href, icon: Icon, title, active, onNavigate }) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      title={title}
+      aria-label={title}
+      aria-current={active ? "page" : undefined}
+      className={cn(railIconClass, active ? railActive : railIdle)}
+    >
+      {Icon ? (
+        <Icon />
+      ) : (
+        <Text as="span" className="text-[10px] font-bold uppercase text-inherit">
+          {(title ?? "").slice(0, 2)}
+        </Text>
+      )}
+    </Link>
+  );
+}
 
 function NavItem({ item, active, onNavigate }) {
   return (
@@ -231,8 +317,36 @@ function useOpenSections(sections, pathname) {
 export function SidebarNavSections({ sections }) {
   const pathname = usePathname();
   const closeOnNavigate = useCloseOnNavigate();
+  const { state, isMobile } = useSidebar();
   const visible = useVisibleSections(sections);
   const [open, toggle] = useOpenSections(visible, pathname);
+
+  // Collapsed icon rail: flatten every section to its icons, drop the text-only
+  // headings. The full sectioned nav returns the moment the rail is hovered.
+  if (state === "collapsed" && !isMobile) {
+    const rows = [];
+    visible.forEach((section) => {
+      if (section.link) {
+        rows.push({ href: section.link.href, icon: section.link.icon, title: section.link.title });
+      } else {
+        section.items.forEach((item) =>
+          rows.push({ href: item.href, icon: item.icon, title: item.title }),
+        );
+      }
+    });
+    return (
+      <Box as="nav" className="flex flex-col px-2 pt-2 pb-3">
+        {rows.map((row) => (
+          <RailIcon
+            key={row.href}
+            {...row}
+            active={isActiveHref(pathname, row.href)}
+            onNavigate={closeOnNavigate}
+          />
+        ))}
+      </Box>
+    );
+  }
 
   return (
     <Box as="nav" className="flex flex-col px-3 pt-1.5 pb-3">
@@ -305,6 +419,24 @@ export function SidebarNavSections({ sections }) {
 /** The reference's footer: one outlined Sign Out button, full width. */
 export function SidebarSignOut({ label = "Sign Out", icon: Icon }) {
   const { logout } = useAuth();
+  const { state, isMobile } = useSidebar();
+
+  // Collapsed icon rail: a single centred icon button.
+  if (state === "collapsed" && !isMobile) {
+    return (
+      <Box
+        as="button"
+        type="button"
+        onClick={logout}
+        title={label}
+        aria-label={label}
+        className={cn(railIconClass, railIdle, "cursor-pointer")}
+      >
+        {Icon && <Icon />}
+      </Box>
+    );
+  }
+
   return (
     <Box
       as="button"

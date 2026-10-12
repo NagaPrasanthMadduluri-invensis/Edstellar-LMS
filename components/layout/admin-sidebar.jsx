@@ -18,7 +18,7 @@ import { adminNav } from "@/lib/nav-config";
 export function AdminSidebar() {
   const [signOut] = adminNav.footer;
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="icon" hoverExpand>
       <SidebarContent>
         <SidebarNavSections sections={adminNav.sections} />
       </SidebarContent>

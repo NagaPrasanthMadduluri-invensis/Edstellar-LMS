@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Briefcase, Building2, CalendarDays, Clock, KeyRound, Mail, MapPin,
-  Pencil, Phone, Users,
+  Briefcase, Building2, CalendarDays, Clock, KeyRound, Loader2, Mail, MapPin,
+  Pencil, Phone, Trash2, Upload, Users,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -13,13 +13,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UserAvatar } from "@/components/shared/user-avatar";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { fetchMyProfile, updateMyProfile } from "@/services/api/profile-api";
+import {
+  fetchMyProfile, updateMyProfile, uploadMyAvatar, discardMyAvatar,
+} from "@/services/api/profile-api";
 import {
   getEmailPreferences,
   updateEmailPreferences,
@@ -69,6 +73,7 @@ export function MyProfileDialog({ open, onOpenChange }) {
   const [profile, setProfile] = useState(null);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(null);
+  const { refreshUser } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -107,7 +112,14 @@ export function MyProfileDialog({ open, onOpenChange }) {
             <ProfileForm
               profile={profile}
               onCancel={() => setEditing(false)}
-              onSaved={(next) => { setProfile(next); setEditing(false); }}
+              onSaved={(next) => {
+                setProfile(next);
+                setEditing(false);
+                // Pull the new name/picture into the session so the top bar and
+                // dashboard update without a reload. Best-effort: a save just
+                // succeeded on this cookie, so /auth/me will too.
+                refreshUser?.();
+              }}
             />
           ) : (
             <ProfileView
@@ -125,17 +137,16 @@ export function MyProfileDialog({ open, onOpenChange }) {
 /* ── Read ────────────────────────────────────────────────────────────────── */
 
 function ProfileView({ profile: p, onEdit, onClose }) {
-  const initials =
-    `${p.first_name?.[0] ?? ""}${p.last_name?.[0] ?? ""}`.toUpperCase() || "U";
-
   return (
     <>
       {/* The navy header from the reference. `accent-soft` for the role chip,
           never `accent-blue` — the accent is unreadable on navy (§10.1). */}
       <Box className="surface-dark flex items-center gap-3.5 px-5 py-4">
-        <Box className="flex size-12 shrink-0 items-center justify-center border border-white/25 bg-white/10">
-          <Text as="span" className="text-[15px] font-bold text-white">{initials}</Text>
-        </Box>
+        <UserAvatar
+          src={p.avatar_url}
+          name={`${p.first_name} ${p.last_name}`}
+          className="size-12 shrink-0 ring-1 ring-white/25"
+        />
         <Box className="min-w-0">
           <Text as="p" className="truncate text-[16px] font-bold text-white">
             {p.first_name} {p.last_name}
@@ -427,12 +438,64 @@ function ProfileForm({ profile: p, onCancel, onSaved }) {
     job_role: p.job_role ?? "",
     job_level: p.job_level ?? "",
     location: p.location ?? "",
+    avatar_url: p.avatar_url ?? null,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  // A picture uploaded but not yet saved. Discarded if the edit is cancelled or
+  // the photo is replaced, so an abandoned upload does not orphan a file.
+  const stagedUpload = useRef(null);
 
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
   const ready = form.first_name.trim() && form.last_name.trim();
+
+  async function pickPhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked after an error
+    if (!file) return;
+    setError(null);
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      setError("Use a JPG, PNG, WebP or GIF image.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Image must be 2 MB or smaller.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { url } = await uploadMyAvatar(file);
+      // Replacing a still-unsaved upload: drop the previous one.
+      if (stagedUpload.current && stagedUpload.current !== url) {
+        discardMyAvatar(stagedUpload.current).catch(() => {});
+      }
+      stagedUpload.current = url;
+      set("avatar_url", url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removePhoto() {
+    if (stagedUpload.current) {
+      discardMyAvatar(stagedUpload.current).catch(() => {});
+      stagedUpload.current = null;
+    }
+    set("avatar_url", null);
+  }
+
+  function cancel() {
+    // An upload the person decided not to keep.
+    if (stagedUpload.current) {
+      discardMyAvatar(stagedUpload.current).catch(() => {});
+      stagedUpload.current = null;
+    }
+    onCancel();
+  }
 
   async function save() {
     setSaving(true);
@@ -448,8 +511,14 @@ function ProfileForm({ profile: p, onCancel, onSaved }) {
           job_role: form.job_role.trim() || null,
           job_level: form.job_level || null,
           location: form.location || null,
+          // null clears the picture; a stored path sets it. The server drops
+          // the previously-saved file when it changes.
+          avatar_url: form.avatar_url,
         },
       });
+      // Saved — this upload is now the persisted avatar, so it must not be
+      // discarded by cancel/unmount cleanup.
+      stagedUpload.current = null;
       onSaved(profile);
     } catch (e) {
       setError(e.message);
@@ -461,6 +530,54 @@ function ProfileForm({ profile: p, onCancel, onSaved }) {
   return (
     <>
       <Box className="space-y-3.5 px-5 py-4">
+        {/* Optional profile picture. Falls back to the anonymous silhouette, so
+            the preview is never empty. */}
+        <Box className="flex items-center gap-4">
+          <UserAvatar
+            src={form.avatar_url}
+            name={`${form.first_name} ${form.last_name}`}
+            className="size-16 shrink-0"
+          />
+          <Box className="space-y-1.5">
+            <Box className="flex flex-wrap items-center gap-2">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+                onChange={pickPhoto}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="gap-1.5"
+              >
+                {uploading ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Upload className="size-3.5" />
+                )}
+                {uploading ? "Uploading…" : form.avatar_url ? "Change photo" : "Upload photo"}
+              </Button>
+              {form.avatar_url && !uploading && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={removePhoto}
+                  className="gap-1.5 text-text-2 hover:text-danger"
+                >
+                  <Trash2 className="size-3.5" />Remove
+                </Button>
+              )}
+            </Box>
+            <Text as="p" className="text-[11px] text-text-3">
+              Optional. JPG, PNG, WebP or GIF, up to 2 MB.
+            </Text>
+          </Box>
+        </Box>
+
         <Box className="grid gap-3 sm:grid-cols-2">
           <Box className="space-y-1.5">
             <Label>First name</Label>
@@ -536,10 +653,10 @@ function ProfileForm({ profile: p, onCancel, onSaved }) {
       </Box>
 
       <DialogFooter className="mx-0 mb-0 border-t border-line px-5 py-3">
-        <Button variant="outline" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button variant="outline" onClick={cancel} disabled={saving}>Cancel</Button>
         <Button
           onClick={save}
-          disabled={saving || !ready}
+          disabled={saving || uploading || !ready}
           className="cursor-pointer rounded-none bg-navy text-accent-soft hover:bg-accent-blue hover:text-white"
         >
           {saving ? "Saving…" : "Save changes"}

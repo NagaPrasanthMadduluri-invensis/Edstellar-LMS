@@ -132,7 +132,12 @@ export function NotificationBell() {
           <Button
             variant="ghost"
             size="icon"
-            className="relative cursor-pointer"
+            // White on the dark chrome at rest. The ghost variant flips bg to
+            // `muted` (light) and text to `foreground` (ink) on hover and while
+            // open (aria-expanded), so the icon must INHERIT that colour rather
+            // than force white — otherwise it is white-on-light and invisible
+            // the moment the panel opens.
+            className="relative cursor-pointer text-white"
             aria-label={
               unread > 0
                 ? `Notifications, ${unread} unread`
@@ -140,7 +145,7 @@ export function NotificationBell() {
             }
             title={unread > 0 ? `${unread} unread` : "Notifications"}
           >
-            <Bell className="h-5 w-5 text-white" />
+            <Bell className="h-5 w-5 text-current" />
             {/* Once seen, the badge is GONE — not a zero, not a grey dot.
                 The bell alone is the read state. */}
             {badge && unread > 0 && (

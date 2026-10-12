@@ -17,7 +17,7 @@ import { learnerNav } from "@/lib/nav-config";
 export function LearnerSidebar() {
   const [signOut] = learnerNav.footer;
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="icon" hoverExpand>
       <SidebarContent>
         <SidebarNavSections sections={learnerNav.sections} />
       </SidebarContent>

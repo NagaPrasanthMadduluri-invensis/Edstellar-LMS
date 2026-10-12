@@ -11,7 +11,7 @@ import { platformNav } from "@/lib/nav-config";
 
 export function PlatformSidebar() {
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="icon" hoverExpand>
       <SidebarContent>
         <SidebarNavGroup label="Platform" items={platformNav.main} />
       </SidebarContent>
