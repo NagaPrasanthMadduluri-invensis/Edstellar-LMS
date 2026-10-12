@@ -19,7 +19,7 @@ export function AdminSidebar() {
   const [signOut] = adminNav.footer;
   return (
     <Sidebar collapsible="icon" hoverExpand>
-      <SidebarContent>
+      <SidebarContent className="overflow-visible">
         <SidebarNavSections sections={adminNav.sections} />
       </SidebarContent>
       <SidebarSeparator />

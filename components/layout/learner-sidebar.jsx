@@ -18,7 +18,7 @@ export function LearnerSidebar() {
   const [signOut] = learnerNav.footer;
   return (
     <Sidebar collapsible="icon" hoverExpand>
-      <SidebarContent>
+      <SidebarContent className="overflow-visible">
         <SidebarNavSections sections={learnerNav.sections} />
       </SidebarContent>
       <SidebarSeparator />

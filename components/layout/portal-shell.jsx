@@ -27,8 +27,9 @@ import Box from "@/components/ui/box";
 export function PortalShell({ user, sidebar, children }) {
   return (
     <AuthProvider initialUser={user}>
-      {/* Collapsed by default: the desktop sidebar is an icon rail that expands
-          on hover (see `components/ui/sidebar.jsx`, hoverExpand). */}
+      {/* Default-closed icon rail on desktop; a collapsible group opens its
+          items in a flyout popup on hover (see `layout/sidebar-nav.jsx`,
+          FlyoutSection). On mobile it is an off-canvas sheet from the top bar. */}
       <SidebarProvider defaultOpen={false}>
         <Box className="flex h-full flex-col">
           {/* Above the topbar and outside the scroll container, so a support

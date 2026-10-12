@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 
 import {
   SidebarGroup,
@@ -204,9 +205,9 @@ export function SidebarNavFooter({ items }) {
 const itemClass =
   "mb-0.5 flex w-full items-center gap-2.5 border-l-2 px-2.5 py-[9px] text-left text-[12.5px] font-medium transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0";
 const itemIdle =
-  "border-transparent text-on-navy-4 hover:bg-navy-deep hover:text-on-navy-3";
+  "border-transparent text-on-navy-4 hover:bg-white/12 hover:text-white";
 const itemActive =
-  "border-accent-blue bg-sidebar-accent font-semibold text-accent-soft";
+  "border-accent-blue bg-white/16 font-semibold text-white";
 
 const headingClass =
   "mt-3 flex w-full items-center justify-between px-2 pt-2 pb-1 text-left text-[10px] font-bold uppercase tracking-[0.09em] outline-hidden select-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
@@ -219,8 +220,8 @@ const headingClass =
  */
 const railIconClass =
   "mx-auto mb-0.5 flex size-9 items-center justify-center rounded-md transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring [&_svg]:size-[18px] [&_svg]:shrink-0";
-const railIdle = "text-on-navy-4 hover:bg-navy-deep hover:text-on-navy-3";
-const railActive = "bg-sidebar-accent text-accent-soft";
+const railIdle = "text-on-navy-4 hover:bg-white/12 hover:text-white";
+const railActive = "bg-white/16 text-white";
 
 function RailIcon({ href, icon: Icon, title, active, onNavigate }) {
   return (
@@ -256,6 +257,72 @@ function NavItem({ item, active, onNavigate }) {
         {item.title}
       </Text>
     </Link>
+  );
+}
+
+/**
+ * A collapsible section (shown when the pillar is expanded) rendered as a single
+ * labelled row with a ▸, whose items appear in a megamenu flyout to the right on
+ * hover — matching the reference HTML's `.topnav-group` + `.megamenu`.
+ *
+ * The flyout is a DOM CHILD (not portalled) positioned `left-full`, so hovering
+ * it is still "inside" the pillar: the rail does not collapse while the flyout
+ * is open (equivalent to the reference's `.menu-open`). It needs the sidebar
+ * content to NOT clip overflow — see the `overflow-visible` on SidebarContent in
+ * the learner/admin sidebars. A `pl` bridge keeps the hover contiguous (no gap).
+ */
+function FlyoutSection({ section, pathname, onNavigate }) {
+  const Icon = section.items[0]?.icon;
+  const active = section.items.some((it) => isActiveHref(pathname, it.href));
+
+  return (
+    <Box className="group/fly relative">
+      <Box
+        as="button"
+        type="button"
+        aria-haspopup="true"
+        className={cn(itemClass, "cursor-pointer", active ? itemActive : itemIdle)}
+      >
+        {Icon && <Icon />}
+        <Text as="span" className="flex-1 truncate text-left text-[length:inherit] text-inherit">
+          {section.label}
+        </Text>
+        <ChevronRight className="size-3.5 shrink-0 opacity-70" />
+      </Box>
+
+      <Box className="invisible absolute left-full top-0 z-20 pl-2 opacity-0 transition-opacity duration-100 group-hover/fly:visible group-hover/fly:opacity-100">
+        <Box className="min-w-[210px] rounded-xl border border-white/10 chrome-glass p-2 shadow-2xl">
+          <Text
+            as="p"
+            className="px-2 pb-1.5 pt-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-on-navy-5"
+          >
+            {section.label}
+          </Text>
+          {section.items.map((it) => {
+            const a = isActiveHref(pathname, it.href);
+            return (
+              <Link
+                key={it.href}
+                href={it.href}
+                onClick={onNavigate}
+                aria-current={a ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12.5px] font-medium transition-colors [&_svg]:size-4 [&_svg]:shrink-0",
+                  a
+                    ? "bg-white/16 text-white"
+                    : "text-on-navy-3 hover:bg-white/12 hover:text-white",
+                )}
+              >
+                <it.icon />
+                <Text as="span" className="truncate text-[length:inherit] text-inherit">
+                  {it.title}
+                </Text>
+              </Link>
+            );
+          })}
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
@@ -321,29 +388,50 @@ export function SidebarNavSections({ sections }) {
   const visible = useVisibleSections(sections);
   const [open, toggle] = useOpenSections(visible, pathname);
 
-  // Collapsed icon rail: flatten every section to its icons, drop the text-only
-  // headings. The full sectioned nav returns the moment the rail is hovered.
+  // Default (desktop): a closed icon rail. Standalone rows are icons; a
+  // collapsible group is one icon that opens its items in a flyout on hover.
   if (state === "collapsed" && !isMobile) {
-    const rows = [];
-    visible.forEach((section) => {
-      if (section.link) {
-        rows.push({ href: section.link.href, icon: section.link.icon, title: section.link.title });
-      } else {
-        section.items.forEach((item) =>
-          rows.push({ href: item.href, icon: item.icon, title: item.title }),
-        );
-      }
-    });
     return (
       <Box as="nav" className="flex flex-col px-2 pt-2 pb-3">
-        {rows.map((row) => (
-          <RailIcon
-            key={row.href}
-            {...row}
-            active={isActiveHref(pathname, row.href)}
-            onNavigate={closeOnNavigate}
-          />
-        ))}
+        {visible.map((section, index) => {
+          if (section.link) {
+            return (
+              <RailIcon
+                key={section.link.href}
+                href={section.link.href}
+                icon={section.link.icon}
+                title={section.link.title}
+                active={isActiveHref(pathname, section.link.href)}
+                onNavigate={closeOnNavigate}
+              />
+            );
+          }
+          if (!section.label) {
+            return section.items.map((item) => (
+              <RailIcon
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                title={item.title}
+                active={isActiveHref(pathname, item.href)}
+                onNavigate={closeOnNavigate}
+              />
+            ));
+          }
+          // Collapsible group → one icon (its first item's). Hovering the rail
+          // expands it (hoverExpand), where the group's items show inline.
+          const first = section.items[0];
+          return first ? (
+            <RailIcon
+              key={section.label}
+              href={first.href}
+              icon={first.icon}
+              title={section.label}
+              active={section.items.some((it) => isActiveHref(pathname, it.href))}
+              onNavigate={closeOnNavigate}
+            />
+          ) : null;
+        })}
       </Box>
     );
   }
@@ -353,18 +441,21 @@ export function SidebarNavSections({ sections }) {
       {visible.map((section, index) => {
         if (section.link) {
           const active = isActiveHref(pathname, section.link.href);
+          // A one-page heading-link, rendered as a labelled row (it has an icon
+          // for the rail/flyout model) rather than a bare heading.
+          const LinkIcon = section.link.icon;
           return (
             <Link
               key={section.link.href}
               href={section.link.href}
               onClick={closeOnNavigate}
               aria-current={active ? "page" : undefined}
-              className={cn(
-                headingClass,
-                active ? "text-accent-soft" : "text-on-navy-5 hover:text-on-navy-3",
-              )}
+              className={cn(itemClass, active ? itemActive : itemIdle)}
             >
-              {section.link.title}
+              {LinkIcon ? <LinkIcon /> : null}
+              <Text as="span" className="flex-1 truncate text-[length:inherit] text-inherit">
+                {section.link.title}
+              </Text>
             </Link>
           );
         }
@@ -382,6 +473,20 @@ export function SidebarNavSections({ sections }) {
           return <Box key={`top-${index}`}>{items}</Box>;
         }
 
+        // Desktop (rail expanded on hover): the group is one row whose items
+        // open in a megamenu flyout to the right on hover (like the HTML).
+        if (!isMobile) {
+          return (
+            <FlyoutSection
+              key={section.label}
+              section={section}
+              pathname={pathname}
+              onNavigate={closeOnNavigate}
+            />
+          );
+        }
+
+        // Mobile (sheet): keep the click-to-expand accordion.
         const isOpen = !!open[section.label];
         const groupId = `nav-section-${index}`;
         return (

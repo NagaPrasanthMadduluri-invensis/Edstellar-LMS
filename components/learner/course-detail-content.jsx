@@ -100,6 +100,26 @@ export function CourseDetailContent({ courseId }) {
     null;
   const firstContentType = allLessons[0]?.content_type ?? null;
 
+  // Total runtime, when the lessons carry durations, for the hero meta and the
+  // side card's "includes" list.
+  const totalMinutes = modules.reduce(
+    (s, m) => s + (m.lessons || []).reduce((t, l) => t + (l.duration_minutes || 0), 0),
+    0,
+  );
+  const durationLabel =
+    totalMinutes >= 60
+      ? `${Math.floor(totalMinutes / 60)}h${totalMinutes % 60 ? ` ${totalMinutes % 60}m` : ""}`
+      : totalMinutes > 0
+        ? `${totalMinutes}m`
+        : "";
+
+  // Skills/tags — tolerate an array, a comma-separated string, or nothing.
+  const skills = Array.isArray(course.tags)
+    ? course.tags
+    : typeof course.tags === "string" && course.tags.trim()
+      ? course.tags.split(",").map((t) => t.trim()).filter(Boolean)
+      : [];
+
   return (
     <Box className="space-y-5">
       {/* ── Back ── */}
@@ -108,102 +128,53 @@ export function CourseDetailContent({ courseId }) {
         Back to My Courses
       </Button>
 
-      {/* ── Course hero ──
-          A dark band carrying the course art, one editorial line, the metadata
-          and the primary action. It replaces a cream tile with the course
-          initials in it, which occupied the most prominent slot on the page and
-          said nothing. Progress is the lime rule along the bottom edge — lime
-          is the single accent and only ever appears on a dark surface. */}
-      <Box className="relative overflow-hidden rounded-2xl bg-navy">
-        <CourseArt
-          thumbnailUrl={course.thumbnail_url}
-          contentType={firstContentType}
-          alt={course.name}
-          scrim="dark"
-          priority
-          sizes="100vw"
-          className="absolute inset-0"
-        />
-
-        <Box className="relative px-6 py-7 sm:px-8 sm:py-9">
-          <Text as="span" className="font-mono text-[11px] uppercase tracking-[0.18em] text-paper/55">
-            {isComplete ? "Completed" : progress > 0 ? "In progress" : "Not started"}
-          </Text>
-
-          <Text as="h1" className="mt-2 text-2xl sm:text-3xl font-bold leading-tight text-paper max-w-3xl">
-            {course.name}
-          </Text>
-
-          {course.description && (
-            <Text as="p" className="mt-2 text-sm text-paper/70 leading-relaxed max-w-2xl">
-              {course.description}
+      {/* ── Course hero (edX-style gradient band) ── */}
+      <Box className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-deep via-navy to-navy-soft px-6 py-7 text-paper sm:px-9 sm:py-9">
+        <Box className="flex flex-wrap items-center gap-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent-soft">
+          {course.is_mandatory && (
+            <Text as="span" className="rounded bg-accent-blue px-2 py-0.5 font-extrabold text-white">
+              {course.category === "Compliance" ? "Compliance" : "Required"}
             </Text>
           )}
-
-          {/* Metadata as one mono line — it was three grey icon pairs before,
-              competing with the title for attention. */}
-          <Text as="p" className="mt-5 font-mono text-[11px] uppercase tracking-[0.14em] text-paper/55">
-            {modules.length} module{modules.length !== 1 ? "s" : ""}
-            {"  ·  "}{totalLessons} lesson{totalLessons !== 1 ? "s" : ""}
-            {assessments.length > 0 && `  ·  ${assessments.length} assessment${assessments.length !== 1 ? "s" : ""}`}
-            {completedLessons > 0 && !isComplete && `  ·  ${completedLessons} done`}
+          <Text as="span">{course.category || "General"}</Text>
+        </Box>
+        <Text as="h1" className="mt-3 max-w-3xl text-2xl font-semibold leading-tight text-paper sm:text-[30px]">
+          {course.name}
+        </Text>
+        {course.description && (
+          <Text as="p" className="mt-3 max-w-2xl text-sm leading-relaxed text-paper/85">
+            {course.description}
           </Text>
-
-          {/* What the course pays, on the same dark surface as the rest of the
-              hero — the learner should know before pressing Start, not find
-              out when the leaderboard moves. */}
-          <CourseRewardHeroLine
-            reward={reward}
-            isComplete={isComplete}
-            isSession={course.session_id != null}
-          />
-
-          <Box className="mt-6 flex items-end justify-between gap-6 flex-wrap">
-            <Box>
-              {/* The one italic phrase on the page (TASTE §10.2). */}
-              <Text as="p" className="font-editorial italic text-lg text-lime-soft leading-snug">
-                {isComplete
-                  ? "You have finished this one."
-                  : progress > 0
-                    ? "Pick up where you left off."
-                    : "Ready when you are."}
-              </Text>
-              {nextLesson && !isComplete && (
-                <Text as="p" className="mt-1 text-sm text-paper/70 truncate max-w-md">
-                  Next: {nextLesson.title}
-                </Text>
-              )}
-            </Box>
-
-            {nextLesson ? (
-              <Button
-                onClick={() => router.push(`/my-courses/${courseId}/lessons/${nextLesson.public_id ?? nextLesson.id}`)}
-                className="bg-lime text-navy hover:bg-lime-soft font-semibold shrink-0"
-              >
-                {isComplete ? "Review course" : progress > 0 ? "Continue" : "Start course"}
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            ) : null}
-          </Box>
+        )}
+        <Box className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[12px] tracking-[0.02em] text-paper/80">
+          <Text as="span"><b className="text-paper">{modules.length}</b> module{modules.length !== 1 ? "s" : ""}</Text>
+          <Text as="span"><b className="text-paper">{totalLessons}</b> lesson{totalLessons !== 1 ? "s" : ""}</Text>
+          {assessments.length > 0 && (
+            <Text as="span"><b className="text-paper">{assessments.length}</b> assessment{assessments.length !== 1 ? "s" : ""}</Text>
+          )}
+          {durationLabel && <Text as="span"><b className="text-paper">{durationLabel}</b> total</Text>}
+          <Text as="span" className="uppercase">{isComplete ? "Completed" : progress > 0 ? "In progress" : "Not started"}</Text>
         </Box>
-
-        {/* Progress rule. A full-width hairline that fills — the old version was
-            a 0%-wide bar inside an empty track, which made "no progress yet"
-            the loudest thing on the page. */}
-        <Box className="relative h-1 w-full bg-paper/15">
-          <Box
-            className="h-full bg-lime transition-[width] duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </Box>
-        <Box className="relative flex items-center justify-between px-6 sm:px-8 py-2.5 bg-navy-soft">
-          <Text as="span" className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper/55">
-            {completedLessons} of {totalLessons} lesson{totalLessons !== 1 ? "s" : ""} complete
-          </Text>
-          <Text as="span" className="font-mono text-sm text-accent-soft tabular-nums">{progress}%</Text>
-        </Box>
+        <CourseRewardHeroLine reward={reward} isComplete={isComplete} isSession={course.session_id != null} />
       </Box>
 
+      {/* ── Two-column edX layout: main sections + sticky side card ── */}
+      <Box className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <Box className="min-w-0 space-y-6">
+          {skills.length > 0 && (
+            <Box>
+              <Text as="h2" className="mb-3 font-mono text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink">
+                Skills you&apos;ll gain
+              </Text>
+              <Box className="flex flex-wrap gap-2">
+                {skills.map((t) => (
+                  <Text key={t} as="span" className="rounded-full bg-accent-tint px-3 py-1.5 text-xs font-semibold text-accent-blue">
+                    {t}
+                  </Text>
+                ))}
+              </Box>
+            </Box>
+          )}
       {/* ── Course Content ── */}
       {modules.length > 0 && (
         <Box>
@@ -537,11 +508,111 @@ export function CourseDetailContent({ courseId }) {
         </Box>
       )}
 
-      {/* ── Feedback ──
-          Under the assessments, and deliberately OUTSIDE the block above: a
-          course with no assessment still asks for feedback. The card renders
-          nothing at all when this course asks for none. */}
+      {/* ── About this course ── */}
+      {course.description && (
+        <Box>
+          <Text as="h2" className="mb-3 font-mono text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink">
+            About this course
+          </Text>
+          <Text as="p" className="text-sm leading-relaxed text-text-2">{course.description}</Text>
+        </Box>
+      )}
+
+      {/* ── Instructor — only when the payload carries one. The courses table
+          has no instructor column today, so this stays hidden until a course
+          actually ships one; the heading never renders empty. ── */}
+      {(course.instructor_name ?? course.instructor) && (
+        <Box>
+          <Text as="h2" className="mb-3 font-mono text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink">
+            Instructor
+          </Text>
+          <Box className="flex items-start gap-3.5">
+            <Box className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-tint">
+              <Users className="h-5 w-5 text-accent-blue" />
+            </Box>
+            <Box className="min-w-0">
+              <Text as="p" className="text-sm font-semibold text-ink">
+                {course.instructor_name ?? course.instructor}
+              </Text>
+              {(course.instructor_title ?? course.instructor_role) && (
+                <Text as="p" className="text-xs text-text-3">
+                  {course.instructor_title ?? course.instructor_role}
+                </Text>
+              )}
+              {(course.instructor_bio ?? course.instructor_about) && (
+                <Text as="p" className="mt-1.5 text-sm leading-relaxed text-text-2">
+                  {course.instructor_bio ?? course.instructor_about}
+                </Text>
+              )}
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* ── Feedback — the course's own feedback form; renders nothing when the
+          course asks for none. ── */}
       <CourseFeedbackCard courseId={courseId} />
+        </Box>
+
+        {/* ── Sticky side card: cover, progress, primary action, what's included ── */}
+        <Box className="lg:sticky lg:top-20">
+          <Card className="gap-0 overflow-hidden p-0">
+            <Box className="relative h-40">
+              <CourseArt
+                thumbnailUrl={course.thumbnail_url}
+                contentType={firstContentType}
+                alt={course.name}
+                scrim="light"
+                sizes="340px"
+                className="absolute inset-0"
+              />
+            </Box>
+            <Box className="p-4">
+              {progress > 0 && (
+                <Box className="mb-3">
+                  <Box className="mb-1 flex justify-between text-[11px] text-text-3">
+                    <Text as="span">Your progress</Text>
+                    <Text as="span" className="font-bold text-accent-blue">{progress}%</Text>
+                  </Box>
+                  <Box className="h-1.5 overflow-hidden rounded-full bg-surface-3">
+                    <Box className="h-full rounded-full bg-accent-blue" style={{ width: `${progress}%` }} />
+                  </Box>
+                </Box>
+              )}
+              {nextLesson && (
+                <Link href={`/my-courses/${courseId}/lessons/${nextLesson.public_id ?? nextLesson.id}`} className="block">
+                  <Button className="w-full gap-1.5 bg-navy text-paper hover:bg-navy-soft">
+                    {isComplete ? "Review course" : progress > 0 ? "Continue learning" : "Start course"}
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              )}
+              <Text as="p" className="mt-2 text-center text-[11px] text-text-3">
+                {isComplete ? "You have completed this course" : "Self-paced \u00b7 learn anytime"}
+              </Text>
+              <Box as="ul" className="mt-4 flex flex-col gap-2.5 border-t border-line pt-4">
+                {durationLabel && <Include icon={Clock}>{durationLabel} of content</Include>}
+                <Include icon={Package}>
+                  {modules.length} module{modules.length !== 1 ? "s" : ""} · {totalLessons} lesson{totalLessons !== 1 ? "s" : ""}
+                </Include>
+                {assessments.length > 0 && <Include icon={ClipboardList}>Graded assessment</Include>}
+                <Include icon={Award}>Certificate on completion</Include>
+                <Include icon={Play}>Access on web &amp; mobile</Include>
+              </Box>
+            </Box>
+          </Card>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+/** One line in the course side-card's "includes" list. */
+function Include({ icon: Icon, children }) {
+  return (
+    <Box as="li" className="flex items-center gap-2.5 text-[12.5px] text-text-2">
+      <Icon className="h-[15px] w-[15px] shrink-0 text-accent-blue" />
+      <Text as="span" className="text-[length:inherit] text-inherit">{children}</Text>
     </Box>
   );
 }
