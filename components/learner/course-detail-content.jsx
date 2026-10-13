@@ -16,13 +16,13 @@ import {
 import {
   PlayCircle, CheckCircle2, ArrowLeft, BookOpen, ClipboardList,
   ChevronRight, Clock, Award, RotateCcw, Lock, FileArchive, Package,
-  Play, FileText, Users,
+  Play, FileText, Users, Star,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchCourseDetail } from "@/services/api/learner/learner-api";
+import { fetchCourseDetail, fetchCourseReviews } from "@/services/api/learner/learner-api";
 import { CourseArt } from "@/components/shared/course-art";
 import { CourseRewardHeroLine } from "@/components/learner/course-reward";
 import { CourseFeedbackCard } from "@/components/learner/course-feedback-card";
@@ -66,11 +66,20 @@ export function CourseDetailContent({ courseId }) {
   const router = useRouter();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  // Reviews load on their own, after the page. A failure here leaves the
+  // section absent — a broken reviews fetch must not take the course page with
+  // it, the same call the feedback card makes.
+  const [reviews, setReviews] = useState(null);
 
   useEffect(() => {
     if (!user) return;
     fetchCourseDetail({ courseId }).then(setData).catch((e) => setError(e.message));
   }, [user, user, courseId]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchCourseReviews({ courseId }).then(setReviews).catch(() => setReviews(null));
+  }, [user, courseId]);
 
   if (error) {
     return (
@@ -136,7 +145,7 @@ export function CourseDetailContent({ courseId }) {
               {course.category === "Compliance" ? "Compliance" : "Required"}
             </Text>
           )}
-          <Text as="span">{course.category || "General"}</Text>
+          <Text as="span" className="text-[length:inherit] text-inherit">{course.category || "General"}</Text>
         </Box>
         <Text as="h1" className="mt-3 max-w-3xl text-2xl font-semibold leading-tight text-paper sm:text-[30px]">
           {course.name}
@@ -146,14 +155,14 @@ export function CourseDetailContent({ courseId }) {
             {course.description}
           </Text>
         )}
-        <Box className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[12px] tracking-[0.02em] text-paper/80">
-          <Text as="span"><b className="text-paper">{modules.length}</b> module{modules.length !== 1 ? "s" : ""}</Text>
-          <Text as="span"><b className="text-paper">{totalLessons}</b> lesson{totalLessons !== 1 ? "s" : ""}</Text>
+        <Box className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[12px] tracking-[0.02em] text-paper/85">
+          <Text as="span" className="text-[length:inherit] text-inherit"><b className="text-paper">{modules.length}</b> module{modules.length !== 1 ? "s" : ""}</Text>
+          <Text as="span" className="text-[length:inherit] text-inherit"><b className="text-paper">{totalLessons}</b> lesson{totalLessons !== 1 ? "s" : ""}</Text>
           {assessments.length > 0 && (
-            <Text as="span"><b className="text-paper">{assessments.length}</b> assessment{assessments.length !== 1 ? "s" : ""}</Text>
+            <Text as="span" className="text-[length:inherit] text-inherit"><b className="text-paper">{assessments.length}</b> assessment{assessments.length !== 1 ? "s" : ""}</Text>
           )}
-          {durationLabel && <Text as="span"><b className="text-paper">{durationLabel}</b> total</Text>}
-          <Text as="span" className="uppercase">{isComplete ? "Completed" : progress > 0 ? "In progress" : "Not started"}</Text>
+          {durationLabel && <Text as="span" className="text-[length:inherit] text-inherit"><b className="text-paper">{durationLabel}</b> total</Text>}
+          <Text as="span" className="text-[length:inherit] uppercase text-accent-soft">{isComplete ? "Completed" : progress > 0 ? "In progress" : "Not started"}</Text>
         </Box>
         <CourseRewardHeroLine reward={reward} isComplete={isComplete} isSession={course.session_id != null} />
       </Box>
@@ -549,6 +558,91 @@ export function CourseDetailContent({ courseId }) {
         </Box>
       )}
 
+      {/* ── Learner reviews — the ratings and comments other learners left,
+          derived from the course feedback they gave. Absent until at least one
+          rated review exists, rather than an empty panel. ── */}
+      {reviews && reviews.count > 0 && (
+        <Box>
+          <Text as="h2" className="mb-3 font-mono text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink">
+            Learner reviews
+          </Text>
+
+          {/* Headline average + the 5★→1★ distribution. */}
+          <Card className="mb-4 p-4 sm:p-5">
+            <Box className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <Box className="shrink-0 text-center sm:w-36">
+                <Text as="p" className="font-mono text-4xl font-bold leading-none text-ink tabular-nums">
+                  {Number(reviews.average ?? 0).toFixed(1)}
+                </Text>
+                <Box className="mt-1.5 flex justify-center">
+                  <Stars value={Math.round(reviews.average ?? 0)} />
+                </Box>
+                <Text as="p" className="mt-1 text-xs text-text-3">
+                  {reviews.count} review{reviews.count !== 1 ? "s" : ""}
+                </Text>
+              </Box>
+
+              <Box className="min-w-0 flex-1 space-y-1.5">
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const n = reviews.distribution?.[String(star)] ?? 0;
+                  const pct = reviews.count ? Math.round((n / reviews.count) * 100) : 0;
+                  return (
+                    <Box key={star} className="flex items-center gap-2.5">
+                      <Text as="span" className="w-6 shrink-0 text-right font-mono text-[11px] text-text-3 tabular-nums">
+                        {star}★
+                      </Text>
+                      <Box className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3">
+                        <Box className="h-full rounded-full bg-warning" style={{ width: `${pct}%` }} />
+                      </Box>
+                      <Text as="span" className="w-5 shrink-0 text-right font-mono text-[11px] text-text-3 tabular-nums">
+                        {n}
+                      </Text>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          </Card>
+
+          {/* One card per rated response. */}
+          <Box className="divide-y divide-line">
+            {reviews.reviews.map((r) => (
+              <Box key={r.id} className="py-4 first:pt-0">
+                <Box className="flex items-start gap-3">
+                  <Box className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-tint">
+                    <Text as="span" className="font-mono text-[11px] font-bold text-accent-blue">
+                      {r.initials}
+                    </Text>
+                  </Box>
+                  <Box className="min-w-0 flex-1">
+                    <Box className="flex items-start justify-between gap-3">
+                      <Box className="min-w-0">
+                        <Text as="p" className="text-sm font-semibold text-ink">{r.name}</Text>
+                        <Box className="mt-0.5">
+                          <Stars value={r.rating} size="sm" />
+                        </Box>
+                      </Box>
+                      {r.date && (
+                        <Text as="span" className="shrink-0 text-xs text-text-3">
+                          {new Date(r.date).toLocaleDateString(undefined, {
+                            day: "numeric", month: "short", year: "numeric",
+                          })}
+                        </Text>
+                      )}
+                    </Box>
+                    {r.comment && (
+                      <Text as="p" className="mt-2 text-sm leading-relaxed text-text-2">
+                        {r.comment}
+                      </Text>
+                    )}
+                  </Box>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+
       {/* ── Feedback — the course's own feedback form; renders nothing when the
           course asks for none. ── */}
       <CourseFeedbackCard courseId={courseId} />
@@ -603,6 +697,22 @@ export function CourseDetailContent({ courseId }) {
           </Card>
         </Box>
       </Box>
+    </Box>
+  );
+}
+
+/** Five stars, filled in the ochre the feedback pages already use for a
+ *  rating (§10.3), up to `value`. */
+function Stars({ value, size = "md" }) {
+  const dim = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  return (
+    <Box className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star
+          key={n}
+          className={cn(dim, n <= value ? "fill-warning text-warning" : "text-line-strong")}
+        />
+      ))}
     </Box>
   );
 }
