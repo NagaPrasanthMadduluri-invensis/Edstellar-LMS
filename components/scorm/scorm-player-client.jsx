@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Loader2, AlertCircle, CheckCircle2, BookOpen, ArrowRight } from "lucide-react";
+import { X, Loader2, AlertCircle, CheckCircle2, BookOpen, ArrowRight, Maximize2, Minimize2 } from "lucide-react";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
@@ -99,6 +99,11 @@ export function ScormPlayerClient({
   const apiRef  = useRef(null);
   const saveRef = useRef(null); // debounced save fn
   const recorderRef = useRef(null); // granular data-model delta recorder
+  const iframeRef = useRef(null); // the SCORM content frame, for fullscreen
+
+  // Whether the content frame is currently fullscreen, so the button can
+  // toggle its icon and label. Tracks the real browser state (Esc also exits).
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [pkg,      setPkg]      = useState(null);
   const [tracking, setTracking] = useState(null);
@@ -299,6 +304,28 @@ export function ScormPlayerClient({
   // Fill the sized parent when embedded; own the viewport when standalone.
   const frameH = embedded ? "h-full" : "h-screen";
 
+  /*
+   * Fullscreen the CONTENT frame, so an interactive activity gets the whole
+   * screen instead of the 82vh panel it is embedded in. Fullscreen is requested
+   * on the iframe element itself; its window.parent is unchanged, so the SCORM
+   * API bridge keeps working. Esc (or the button) returns to the panel.
+   */
+  const toggleFullscreen = () => {
+    const el = iframeRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      el.requestFullscreen?.();
+    }
+  };
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
   /* ── Loading ── */
   if (status === "loading") {
     return (
@@ -348,6 +375,19 @@ export function ScormPlayerClient({
           {saveMsg === "save failed" && (
             <Text as="span" className="text-xs text-error">Save failed</Text>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit fullscreen" : "View fullscreen"}
+            aria-label={isFullscreen ? "Exit fullscreen" : "View fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            <Text as="span" className="hidden sm:inline">
+              {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            </Text>
+          </Button>
           <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={handleExit}>
             <X className="h-4 w-4" />
             <Text as="span" className="hidden sm:inline">Exit</Text>
@@ -357,6 +397,7 @@ export function ScormPlayerClient({
 
       {/* ── SCORM iframe ── */}
       <iframe
+        ref={iframeRef}
         src={iframeSrc}
         title={pkg.title}
         className="flex-1 w-full border-0"
