@@ -82,7 +82,18 @@ function readCompleted(api, recorder) {
   );
 }
 
-export function ScormPlayerClient({ packageId, courseId = null, nextLessonId = null }) {
+export function ScormPlayerClient({
+  packageId,
+  courseId = null,
+  nextLessonId = null,
+  // Embedded mode: the player renders INSIDE the lesson page (a sized panel)
+  // rather than as its own full-screen popup window. Exit and Next Lesson then
+  // hand back to the lesson via these callbacks instead of closing a window or
+  // navigating this one. Tracking, saving and resume are identical either way.
+  embedded = false,
+  onExit = null,
+  onNextLesson = null,
+}) {
   const { user } = useAuth();
   const router = useRouter();
   const apiRef  = useRef(null);
@@ -260,6 +271,12 @@ export function ScormPlayerClient({ packageId, courseId = null, nextLessonId = n
    */
   const handleExit = async () => {
     await saveThenLeave();
+    // Embedded: hand back to the lesson, which closes the panel and refreshes
+    // the gate (Launch → Review / Next Lesson) from the tracking just saved.
+    if (embedded) {
+      onExit?.();
+      return;
+    }
     window.close();
     setTimeout(() => router.back(), 150);
   };
@@ -272,13 +289,20 @@ export function ScormPlayerClient({ packageId, courseId = null, nextLessonId = n
    */
   const handleNextLesson = async () => {
     await saveThenLeave();
+    if (embedded) {
+      onNextLesson?.();
+      return;
+    }
     window.location.href = `/my-courses/${courseId}/lessons/${nextLessonId}`;
   };
+
+  // Fill the sized parent when embedded; own the viewport when standalone.
+  const frameH = embedded ? "h-full" : "h-screen";
 
   /* ── Loading ── */
   if (status === "loading") {
     return (
-      <Box className="flex h-screen items-center justify-center bg-background gap-3">
+      <Box className={cn("flex items-center justify-center bg-background gap-3", frameH)}>
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         <Text as="span" className="text-sm text-muted-foreground">Loading SCORM content…</Text>
       </Box>
@@ -288,10 +312,10 @@ export function ScormPlayerClient({ packageId, courseId = null, nextLessonId = n
   /* ── Error ── */
   if (status === "error") {
     return (
-      <Box className="flex h-screen flex-col items-center justify-center gap-4">
+      <Box className={cn("flex flex-col items-center justify-center gap-4", frameH)}>
         <AlertCircle className="h-10 w-10 text-error" />
         <Text as="h2" className="text-base font-semibold">Failed to load SCORM package</Text>
-        <Button variant="outline" onClick={() => router.back()}>Go Back</Button>
+        <Button variant="outline" onClick={() => (embedded ? onExit?.() : router.back())}>Go Back</Button>
       </Box>
     );
   }
@@ -301,7 +325,7 @@ export function ScormPlayerClient({ packageId, courseId = null, nextLessonId = n
   const iframeSrc     = `/scorm/${pkg.package_dir}/${pkg.entry_point}`;
 
   return (
-    <Box className="flex flex-col h-screen bg-background overflow-hidden">
+    <Box className={cn("flex flex-col bg-background overflow-hidden", frameH)}>
 
       {/* ── Top bar ── */}
       <Box className="flex items-center justify-between px-4 h-12 border-b bg-card shrink-0 gap-3">

@@ -22,6 +22,7 @@ import { fetchLessonContent, markLessonComplete } from "@/services/api/learner/l
 import { YoutubePlayer, isYouTubeUrl, extractYouTubeId } from "@/components/learner/youtube-player";
 import { LocalVideoPlayer, isVideoFile } from "@/components/learner/local-video-player";
 import { LessonPlaylist } from "@/components/learner/lesson-playlist";
+import { ScormPlayerClient } from "@/components/scorm/scorm-player-client";
 import { toEmbedUrl } from "@/lib/video-embed";
 
 /** Seconds the autoplay end-card counts down before advancing. */
@@ -446,6 +447,9 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
   const { user } = useAuth();
   const [tracking, setTracking] = useState(undefined);
   const [refreshing, setRefreshing] = useState(false);
+  // The player now opens INLINE, right here in the lesson, rather than in a
+  // popup window. `playing` swaps the launch card for the embedded player.
+  const [playing, setPlaying] = useState(false);
 
   const loadTracking = useCallback(async () => {
     if (!user || !lesson.scorm_package_id) return;
@@ -477,24 +481,45 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
 
   const launchLabel = !isAttempted ? "Launch Course" : "Resume Course";
 
+  // Launch by the package's PUBLIC uuid, not the sequential id (0046); fall
+  // back to the integer id only for an older payload without it.
+  const playerId = lesson.scorm_package_public_id ?? lesson.scorm_package_id;
+
   /*
-   * Open the player in its OWN popup window, not in this tab. The learner keeps
-   * the course page behind them, and the player closes itself on Exit. The
-   * course and next lesson ride in the query string so the player can offer
-   * "Next Lesson" on completion (scorm-player-client reads them).
+   * Opening the player just mounts it INLINE (see `playing` below) — no popup,
+   * no new tab. The learner stays on the lesson page; Exit closes the panel and
+   * refreshes the gate, Next Lesson navigates in place.
    */
-  const openPlayer = () => {
-    const params = new URLSearchParams({ courseId: String(courseId) });
-    if (nextLessonId) params.set("nextLessonId", String(nextLessonId));
-    // Launch by the package's PUBLIC uuid, not the sequential id (0046); fall
-    // back to the integer id only for an older payload without it.
-    const playerId = lesson.scorm_package_public_id ?? lesson.scorm_package_id;
-    window.open(
-      `/scorm-player/${playerId}?${params.toString()}`,
-      `scorm_${playerId}`,
-      "popup=yes,width=1200,height=840",
-    );
+  const openPlayer = () => setPlaying(true);
+
+  /* Closing the inline player: refresh tracking + the lesson so a package that
+   * reported completion flips the gate from Launch to Review / Next Lesson. */
+  const closePlayer = async () => {
+    setPlaying(false);
+    await handleRefresh();
   };
+
+  // ── Inline player ── the whole SCORM runtime, mounted in the lesson rather
+  // than a popup window. It owns its own tracking, saving and resume, so a
+  // learner who exits mid-way is put back where they left off on next launch.
+  if (playing) {
+    return (
+      <Card className="h-[82dvh] overflow-hidden p-0">
+        <ScormPlayerClient
+          packageId={playerId}
+          courseId={courseId}
+          nextLessonId={nextLessonId}
+          embedded
+          onExit={closePlayer}
+          onNextLesson={() =>
+            nextLessonId
+              ? router.push(`/my-courses/${courseId}/lessons/${nextLessonId}`)
+              : router.push(`/my-courses/${courseId}`)
+          }
+        />
+      </Card>
+    );
+  }
 
   return (
     <Box className="space-y-4">
@@ -567,7 +592,7 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
               {isCompleted ? "Course completed." : "Ready to start?"}
             </Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">
-              The course opens in a new window.
+              The course opens right here. Your place is saved if you exit partway.
             </Text>
           </Box>
           {/*
@@ -579,7 +604,7 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
           {isCompleted ? (
             <Box className="flex items-center gap-2 shrink-0 flex-wrap">
               <Button variant="outline" onClick={openPlayer}>
-                <ExternalLink className="h-4 w-4 mr-1.5" />
+                <PlayCircle className="h-4 w-4 mr-1.5" />
                 Review course
               </Button>
               {nextLessonId ? (
@@ -601,7 +626,7 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
             </Box>
           ) : (
             <Button onClick={openPlayer} className="shrink-0 bg-navy hover:bg-navy-soft text-paper">
-              <ExternalLink className="h-4 w-4 mr-1.5" />
+              <PlayCircle className="h-4 w-4 mr-1.5" />
               {launchLabel}
             </Button>
           )}

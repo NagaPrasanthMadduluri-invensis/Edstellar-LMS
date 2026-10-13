@@ -22,7 +22,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchCourseDetail, fetchCourseReviews } from "@/services/api/learner/learner-api";
+import { fetchCourseDetail, fetchCourseReviews, fetchCatalogue } from "@/services/api/learner/learner-api";
 import { CourseArt } from "@/components/shared/course-art";
 import { CourseRewardHeroLine } from "@/components/learner/course-reward";
 import { CourseFeedbackCard } from "@/components/learner/course-feedback-card";
@@ -70,6 +70,9 @@ export function CourseDetailContent({ courseId }) {
   // section absent — a broken reviews fetch must not take the course page with
   // it, the same call the feedback card makes.
   const [reviews, setReviews] = useState(null);
+  // Self-enrol courses + sessions for the "Recommended" side panel. A failed
+  // fetch leaves it absent, like reviews.
+  const [catalogue, setCatalogue] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -80,6 +83,11 @@ export function CourseDetailContent({ courseId }) {
     if (!user) return;
     fetchCourseReviews({ courseId }).then(setReviews).catch(() => setReviews(null));
   }, [user, courseId]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchCatalogue().then(setCatalogue).catch(() => setCatalogue(null));
+  }, [user]);
 
   if (error) {
     return (
@@ -128,6 +136,31 @@ export function CourseDetailContent({ courseId }) {
     : typeof course.tags === "string" && course.tags.trim()
       ? course.tags.split(",").map((t) => t.trim()).filter(Boolean)
       : [];
+
+  // Recommended — the self-enrol catalogue (courses + sessions), minus this
+  // course, a few at a time. Courses first, then sessions.
+  const recommended = [
+    ...(catalogue?.courses ?? [])
+      .filter((c) => c.id !== course.id && c.public_id !== course.public_id)
+      .map((c) => ({
+        key: `c-${c.id}`,
+        kind: "course",
+        title: c.name,
+        meta: c.category || "Course",
+        thumbnailUrl: c.thumbnail_url,
+        contentType: null,
+        href: c.is_enrolled && c.public_id ? `/my-courses/${c.public_id}` : "/catalogue",
+      })),
+    ...(catalogue?.sessions ?? []).map((s) => ({
+      key: `s-${s.id}`,
+      kind: "session",
+      title: s.title,
+      meta: s.session_type === "Virtual" ? "Live · Virtual" : "Live · In person",
+      thumbnailUrl: s.thumbnail_url,
+      contentType: "session",
+      href: "/catalogue",
+    })),
+  ].slice(0, 5);
 
   return (
     <Box className="space-y-5">
@@ -648,8 +681,8 @@ export function CourseDetailContent({ courseId }) {
       <CourseFeedbackCard courseId={courseId} />
         </Box>
 
-        {/* ── Sticky side card: cover, progress, primary action, what's included ── */}
-        <Box className="lg:sticky lg:top-20">
+        {/* ── Sticky side column: the course card, then recommendations ── */}
+        <Box className="space-y-5 lg:sticky lg:top-20">
           <Card className="gap-0 overflow-hidden p-0">
             <Box className="relative h-40">
               <CourseArt
@@ -695,6 +728,52 @@ export function CourseDetailContent({ courseId }) {
               </Box>
             </Box>
           </Card>
+
+          {/* ── Recommended — the self-enrol catalogue (courses + sessions),
+              so a learner can pick up something else from right here. Absent
+              when nothing is open to join. ── */}
+          {recommended.length > 0 && (
+            <Card className="p-4">
+              <Text as="h2" className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/70">
+                Recommended courses
+              </Text>
+              <Box className="space-y-1">
+                {recommended.map((item) => (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    className="group flex items-center gap-3 rounded-lg p-1.5 transition-colors hover:bg-surface-2"
+                  >
+                    <Box className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md">
+                      <CourseArt
+                        thumbnailUrl={item.thumbnailUrl}
+                        contentType={item.contentType}
+                        alt={item.title}
+                        scrim="light"
+                        sizes="56px"
+                        className="absolute inset-0"
+                      />
+                    </Box>
+                    <Box className="min-w-0 flex-1">
+                      <Text as="p" className="truncate text-[13px] font-semibold text-ink group-hover:text-accent-blue">
+                        {item.title}
+                      </Text>
+                      <Text as="p" className="truncate text-[11px] text-text-3">
+                        {item.meta}
+                      </Text>
+                    </Box>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-text-3 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                ))}
+              </Box>
+              <Link
+                href="/catalogue"
+                className="mt-2 block text-center text-[11px] font-semibold text-accent-blue hover:underline"
+              >
+                Browse the catalogue →
+              </Link>
+            </Card>
+          )}
         </Box>
       </Box>
     </Box>

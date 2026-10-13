@@ -21,6 +21,10 @@ export async function fetchCourseReviews({ courseId }) {
   return apiClient(`/api/learner/courses/${courseId}/reviews`);
 }
 
+export async function fetchCatalogue() {
+  return apiClient("/api/learner/catalogue");
+}
+
 export async function fetchLessonContent({ lessonId }) {
   return apiClient(`/api/learner/lessons/${lessonId}`);
 }
