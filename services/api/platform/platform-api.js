@@ -32,6 +32,31 @@ export async function respondToServiceRequest({ requestId, data }) {
   });
 }
 
+/* ── Referrals, across every tenant ── */
+
+export async function fetchPlatformReferrals({ status, organizationId } = {}) {
+  const query = new URLSearchParams();
+  if (status) query.set("status", status);
+  if (organizationId) query.set("organization_id", String(organizationId));
+  const qs = query.toString();
+  return apiClient(`/api/platform/referrals${qs ? `?${qs}` : ""}`);
+}
+
+export async function fetchPlatformReferral({ referralId }) {
+  return apiClient(`/api/platform/referrals/${referralId}`);
+}
+
+/**
+ * Move a referral along, write the note its referrer reads back, and link the
+ * tenant it became when marking it converted.
+ */
+export async function respondToReferral({ referralId, data }) {
+  return apiClient(`/api/platform/referrals/${referralId}`, {
+    method: "PATCH",
+    body: data,
+  });
+}
+
 /* ── Tenant directory ── */
 
 /**
