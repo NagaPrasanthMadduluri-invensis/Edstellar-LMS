@@ -214,7 +214,7 @@ export function AdminLeaderboardContent() {
       <Card className="overflow-x-auto">
         <Box className="px-6 py-4 border-b">
           <Text as="h3" className="text-base font-bold">Full Rankings</Text>
-          <Text as="p" className="text-xs text-muted-foreground">Score = 60% course completion + 40% learning hours (normalised)</Text>
+          <Text as="p" className="text-xs text-muted-foreground">Top 3 by points earned; everyone below is ranked by course completion.</Text>
         </Box>
 
         <Box className="grid min-w-[56rem] grid-cols-[48px_1fr_130px_110px_110px_160px_100px_110px] gap-0 px-5 py-2.5 border-b bg-muted/30">

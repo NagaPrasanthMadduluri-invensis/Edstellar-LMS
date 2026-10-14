@@ -171,8 +171,23 @@ export function LeaderboardContent() {
     if (!data) return [];
     let list = [...data.allLearners];
     if (deptFilter !== "All Departments") list = list.filter((l) => l.dept === deptFilter);
-    if (period === "month") list.sort((a, b) => b.monthPoints - a.monthPoints || b.badges - a.badges);
-    else list.sort((a, b) => b.allTimePoints - a.allTimePoints || b.badges - a.badges);
+    if (period === "month") {
+      list.sort((a, b) => b.monthPoints - a.monthPoints || b.badges - a.badges);
+    } else {
+      // Top 3 by points, everyone from 4th down by course completion (§10.5).
+      const byPoints = [...list].sort(
+        (a, b) => b.allTimePoints - a.allTimePoints || b.badges - a.badges,
+      );
+      const rest = byPoints
+        .slice(3)
+        .sort(
+          (a, b) =>
+            (b.completionPct ?? 0) - (a.completionPct ?? 0) ||
+            b.allTimePoints - a.allTimePoints ||
+            b.badges - a.badges,
+        );
+      list = [...byPoints.slice(0, 3), ...rest];
+    }
     return list.map((l, i) => ({ ...l, displayRank: i + 1 }));
   }, [data, period, deptFilter]);
 
@@ -341,6 +356,7 @@ export function LeaderboardContent() {
                 <th className="text-left text-[11px] font-semibold text-muted-foreground py-2 px-3">LEARNER</th>
                 <th className="text-left text-[11px] font-semibold text-muted-foreground py-2 px-3">DEPARTMENT</th>
                 <th className="text-left text-[11px] font-semibold text-muted-foreground py-2 px-3">BADGES</th>
+                <th className="text-left text-[11px] font-semibold text-muted-foreground py-2 px-3">COMPLETION</th>
                 <th className="text-left text-[11px] font-semibold text-muted-foreground py-2 pl-3 pr-5">POINTS</th>
               </tr>
             </thead>
@@ -371,6 +387,7 @@ export function LeaderboardContent() {
                   <td className="py-3 px-3 text-sm">
                     {l.badges > 0 ? `${l.badges} 🏅` : <Text as="span" className="text-muted-foreground/40">—</Text>}
                   </td>
+                  <td className="py-3 px-3 text-sm font-medium">{l.completionPct ?? 0}%</td>
                   <td className="py-3 pl-3 pr-5">
                     <Text as="p" className={cn("text-sm font-bold", l.isYou ? "text-navy" : "text-navy")}>
                       {period === "alltime" ? l.allTimePoints : l.monthPoints}
@@ -380,7 +397,7 @@ export function LeaderboardContent() {
               ))}
               {filteredRankings.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No learners found.</td>
+                  <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">No learners found.</td>
                 </tr>
               )}
             </tbody>
