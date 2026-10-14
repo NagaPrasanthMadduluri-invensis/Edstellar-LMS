@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertTriangle, BookOpen, Building2, CalendarCheck, CalendarClock,
-  CheckCircle2, Lock, Users,
+  CheckCircle2, Lock, MessageSquare, Users,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -11,6 +11,7 @@ import Text from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -171,6 +172,35 @@ function OrgView({ org: o, canEdit, onEdit }) {
         </Box>
 
         <Box>
+          <Text as="p" className="mb-2 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
+            Modules
+          </Text>
+          <Box className="flex items-center gap-3 border border-line bg-surface px-3.5 py-3">
+            <Box className="flex size-8 shrink-0 items-center justify-center bg-accent-tint text-accent-blue">
+              <MessageSquare className="size-4" />
+            </Box>
+            <Box className="min-w-0 flex-1">
+              <Text as="p" className="text-[13px] font-semibold text-ink">
+                Learning Community
+              </Text>
+              <Text as="p" className="text-[11px] text-text-3">
+                A shared space for your learners to ask questions, share
+                achievements and discuss.
+              </Text>
+            </Box>
+            <Text
+              as="span"
+              className={cn(
+                "chip shrink-0",
+                o.community_enabled ? "chip-complete" : "chip-idle",
+              )}
+            >
+              {o.community_enabled ? "On" : "Off"}
+            </Text>
+          </Box>
+        </Box>
+
+        <Box>
           <Box className="mb-2 flex items-center gap-1.5">
             <Lock className="size-3 text-text-3" />
             <Text as="p" className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
@@ -280,6 +310,7 @@ function OrgForm({ org: o, onCancel, onSaved }) {
     name: o.name ?? "",
     industry: o.industry ?? "",
     region: o.region ?? "",
+    community_enabled: o.community_enabled !== false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -295,6 +326,7 @@ function OrgForm({ org: o, onCancel, onSaved }) {
           name: form.name.trim(),
           industry: form.industry.trim() || null,
           region: form.region.trim() || null,
+          community_enabled: form.community_enabled,
         },
       });
       onSaved(organization);
@@ -333,6 +365,25 @@ function OrgForm({ org: o, onCancel, onSaved }) {
               placeholder="e.g. India · South"
             />
           </Box>
+        </Box>
+
+        <Box className="flex items-center gap-3 border border-line bg-surface px-3.5 py-3">
+          <Box className="flex size-8 shrink-0 items-center justify-center bg-accent-tint text-accent-blue">
+            <MessageSquare className="size-4" />
+          </Box>
+          <Box className="min-w-0 flex-1">
+            <Label className="text-[13px]">Learning Community</Label>
+            <Text as="p" className="text-[11px] text-text-3">
+              {form.community_enabled
+                ? "Learners can post, reply and react. Turning this off hides the module from everyone."
+                : "The module is hidden from your learners. Turn it on to open the space."}
+            </Text>
+          </Box>
+          <Switch
+            checked={form.community_enabled}
+            onCheckedChange={(v) => set("community_enabled", v)}
+            aria-label="Learning Community"
+          />
         </Box>
 
         <Box className="flex items-start gap-2 border border-line bg-surface-2 px-3 py-2">

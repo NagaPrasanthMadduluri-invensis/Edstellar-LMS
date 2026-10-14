@@ -1,0 +1,55 @@
+import { apiClient } from "@/lib/api-client";
+
+/**
+ * Learning Community endpoints (learner side). Everything is org-scoped by the
+ * server; the browser carries the HttpOnly auth cookie.
+ */
+
+export async function fetchCommunityFeed({ type, cursor } = {}) {
+  const params = new URLSearchParams();
+  if (type && type !== "all") params.set("type", type);
+  if (cursor) params.set("cursor", cursor);
+  const qs = params.toString();
+  return apiClient(`/api/learner/community${qs ? `?${qs}` : ""}`);
+}
+
+export async function fetchCommunityPost({ postId }) {
+  return apiClient(`/api/learner/community/${postId}`);
+}
+
+export async function createCommunityPost({ type, title, body, certificateId }) {
+  return apiClient("/api/learner/community", {
+    method: "POST",
+    body: { type, title, body, certificateId },
+  });
+}
+
+export async function deleteCommunityPost({ postId }) {
+  return apiClient(`/api/learner/community/${postId}`, { method: "DELETE" });
+}
+
+export async function createCommunityReply({ postId, body }) {
+  return apiClient(`/api/learner/community/${postId}/replies`, {
+    method: "POST",
+    body: { body },
+  });
+}
+
+export async function deleteCommunityReply({ replyId }) {
+  return apiClient(`/api/learner/community/replies/${replyId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function likeCommunityPost({ postId }) {
+  return apiClient(`/api/learner/community/${postId}/like`, { method: "POST" });
+}
+
+export async function unlikeCommunityPost({ postId }) {
+  return apiClient(`/api/learner/community/${postId}/like`, { method: "DELETE" });
+}
+
+/** The learner's own certificates, for the achievement composer. */
+export async function fetchMyCertificates() {
+  return apiClient("/api/learner/certificates");
+}
