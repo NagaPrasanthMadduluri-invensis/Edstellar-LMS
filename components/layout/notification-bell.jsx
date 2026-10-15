@@ -122,7 +122,15 @@ export function NotificationBell() {
 
   function go(n) {
     setOpen(false);
-    if (n.link) router.push(n.link);
+    if (!n.link) return;
+    // A session's notification link may be a trusted EXTERNAL meeting URL (a
+    // virtual session's join link). The app router only handles internal
+    // routes, so open an external one in a new tab instead.
+    if (/^https?:\/\//i.test(n.link)) {
+      window.open(n.link, "_blank", "noopener,noreferrer");
+    } else {
+      router.push(n.link);
+    }
   }
 
   return (
