@@ -4,9 +4,11 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarHeader,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { SidebarNavSections, SidebarSignOut } from "@/components/layout/sidebar-nav";
+import { SidebarBrand } from "@/components/layout/sidebar-brand";
 import { learnerNav } from "@/lib/nav-config";
 
 /**
@@ -18,6 +20,10 @@ export function LearnerSidebar() {
   const [signOut] = learnerNav.footer;
   return (
     <Sidebar collapsible="icon" hoverExpand>
+      <SidebarHeader className="p-2">
+        <SidebarBrand />
+      </SidebarHeader>
+      <SidebarSeparator />
       <SidebarContent className="overflow-visible">
         <SidebarNavSections sections={learnerNav.sections} />
       </SidebarContent>

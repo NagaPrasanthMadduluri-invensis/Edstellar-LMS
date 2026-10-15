@@ -665,6 +665,22 @@
     backdrop-filter: blur(22px) saturate(160%);
   }
 
+  /* ── Theme OFF (neutral / plain) ──
+     The top-bar THEME toggle turns the colourful scene off. `data-plain` on
+     <html> drops the body mesh to a flat neutral canvas and flattens the chrome
+     gradient to a solid slate — "no gradient", while keeping the chrome dark
+     enough that the light on-navy text stays legible. The accent is NOT
+     neutralised, so links and focus still read. Hue (data-theme) is irrelevant
+     while plain; flip the toggle back and the chosen colour returns. */
+  html[data-plain] body {
+    background-image: none;
+    background-color: #f4f4f3;
+  }
+  html[data-plain] .chrome-glass {
+    background-color: #222838;
+    background-image: none;
+  }
+
   /* ── Frost (iOS vibrancy) ──
      The shared frosted-glass treatment: the blur+saturate filter, a bright
      hairline highlight, a top inner-highlight and a soft layered shadow, plus a

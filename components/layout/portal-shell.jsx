@@ -31,15 +31,17 @@ export function PortalShell({ user, sidebar, children }) {
           items in a flyout popup on hover (see `layout/sidebar-nav.jsx`,
           FlyoutSection). On mobile it is an off-canvas sheet from the top bar. */}
       <SidebarProvider defaultOpen={false}>
-        <Box className="flex h-full flex-col">
-          {/* Above the topbar and outside the scroll container, so a support
-              session is visible on every page of every portal without each
-              one remembering to say so. Renders nothing in an ordinary
-              session. */}
-          <SupportSessionBanner session={user?.impersonation} />
-          <TopNav />
-          <Box className="flex flex-1 overflow-hidden">
-            {sidebar}
+        {/* The sidebar is now a FULL-HEIGHT rail on the left (its header carries
+            the logo + name + theme strip); the top bar lives at the top of the
+            content column to its right, transparent over the themed body mesh. */}
+        <Box className="flex h-full">
+          {sidebar}
+          <Box className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {/* Outside the scroll container, so a support session is visible on
+                every page without each one remembering to say so. Renders
+                nothing in an ordinary session. */}
+            <SupportSessionBanner session={user?.impersonation} />
+            <TopNav />
             <Box
               as="main"
               className="min-w-0 flex-1 overflow-auto p-4 sm:p-5 lg:p-6"

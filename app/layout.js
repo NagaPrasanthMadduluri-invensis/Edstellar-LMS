@@ -67,6 +67,16 @@ export default function RootLayout({ children }) {
     >
       {/* suppressHydrationWarning: next-themes sets data-theme on <html> before
           hydration, so the server/client attribute differ by design. */}
+      {/* No-flash for the THEME on/off toggle (theme-toggle.jsx): apply the
+          persisted plain state before first paint, so an OFF viewer never sees
+          the colourful scene flash in. Mirrors what next-themes does for the
+          hue. Inert and tiny; failures fall back to themed. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "try{if(localStorage.getItem('spectra-chrome')==='plain')document.documentElement.setAttribute('data-plain','')}catch(e){}",
+        }}
+      />
       <body className="h-full">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

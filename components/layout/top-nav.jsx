@@ -1,9 +1,6 @@
 "use client";
 
-import { PRODUCT_BY, PRODUCT_NAME } from "@/lib/brand";
-
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   DropdownMenu,
@@ -16,13 +13,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Building2, KeyRound, LogOut, User } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { ThemeSwitcher } from "@/components/layout/theme-switcher";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { MyProfileDialog } from "@/components/shared/my-profile-dialog";
 // In `shared/`, not `admin/`: this shell is rendered by all four portals, and
 // TASTE §1.2 forbids portal-specific imports reaching across. Only a tenant
@@ -30,29 +28,41 @@ import { MyProfileDialog } from "@/components/shared/my-profile-dialog";
 import { OrganizationSettingsDialog } from "@/components/shared/organization-settings-dialog";
 
 /**
- * One product name in both portals.
+ * The top bar — transparent, sitting in the content column to the RIGHT of the
+ * full-height sidebar (the brand/logo lives in the sidebar header now, see
+ * `sidebar-brand.jsx`). It has no background of its own, so the themed body
+ * mesh shows straight through; its content is therefore DARK (the page behind
+ * is a light scene), unlike the dark chrome of the sidebar.
  *
- * The label used to be a prop, which let the two shells drift apart — admin
- * read "Edstellar Admin" and learner "Invensis LMS" — with a "powered by"
- * line under each. It is a constant now, so the two cannot disagree again.
- *
- * Responsive notes: the left group carries `min-w-0` and the title `truncate`,
- * so a narrow screen shortens the product name rather than pushing the avatar
- * and the sidebar trigger off the right edge. The trigger itself is the only
- * way to reach navigation under 768px, so it must never be the element that
- * overflows.
+ * Left: the live date (and, below lg, the sidebar trigger — the only way to
+ * reach the off-canvas nav on a phone). Right: the THEME on/off toggle, the
+ * bell, and the account menu (which still carries the fuller colour + scene
+ * picker; the sidebar strip is the quick hue switch).
  */
 export function TopNav() {
   const { user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
   const [orgOpen, setOrgOpen] = useState(false);
+  const [today, setToday] = useState("");
+
+  // Computed after mount: the server and the browser can sit in different time
+  // zones, and a date rendered on both would mismatch on hydration.
+  useEffect(() => {
+    setToday(
+      new Date().toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    );
+  }, []);
 
   /**
-   * Organization settings is a TENANT admin's screen. A platform admin has
-   * the whole Tenant Directory instead and no org of their own worth editing,
-   * and a learner or trainer has no business in it — the API answers 403 for
-   * all three, so the item is not offered rather than offered and refused
-   * (TASTE §10.3.1.2).
+   * Organization settings is a TENANT admin's screen. A platform admin has the
+   * whole Tenant Directory instead; a learner or trainer has no business in it —
+   * the API answers 403 for all three, so the item is not offered rather than
+   * offered and refused (TASTE §10.3.1.2).
    */
   const showOrgSettings = user?.role === "admin" && !user?.isPlatformAdmin;
 
@@ -67,67 +77,24 @@ export function TopNav() {
   return (
     <Box
       as="header"
-      className="sticky top-0 z-50 flex h-14 w-full shrink-0 items-center justify-between gap-2 chrome-glass px-3 sm:px-4"
+      className="relative z-20 flex h-14 w-full shrink-0 items-center justify-between gap-2 px-3 text-foreground sm:px-5"
     >
       <Box className="flex min-w-0 items-center gap-2 sm:gap-3">
-        {/* Mobile only. On desktop the sidebar is an icon rail that expands on
-            hover, so there is no manual toggle — below lg it is a sheet that
-            still needs one to open. */}
+        {/* Mobile only — on desktop the sidebar is a hover-expand rail. */}
         <SidebarTrigger className="shrink-0 bg-transparent hover:bg-transparent lg:hidden" />
-        <Separator orientation="vertical" className="hidden h-6 text-white sm:block lg:hidden" />
-        {/* Two lines in the height of one: the topbar is 14 units tall and
-            the byline sits under the name without growing it. `leading-none`
-            on both is what makes that fit.
-
-            THE BYLINE IS TRACKED OUT TO THE NAME'S WIDTH — letter-spacing, so
-            the gap opens between every letter rather than only between the two
-            words. `text-align-last: justify` was tried first and is the wrong
-            tool: with a two-word string it spreads the single word gap and
-            leaves "By          Edstellar".
-
-            The values are MEASURED, not guessed. At 18px "Spectra LMS" renders
-            105.8px and "By Edstellar" 56.4px at 10px, so 11 gaps need
-            (105.8 - 56.4) / 11 = 4.50px = 0.45em. The name is responsive
-            (`text-base` then `sm:text-lg`), which is why there are two values —
-            one tracking cannot match two name widths.
-
-            The negative margin-right cancels the trailing letter-space CSS adds
-            after the LAST character; without it the box overhangs the name by
-            one gap and the two lines stop being flush on the right.
-
-            Retune both numbers if either string changes. */}
-        <Box className="w-fit select-none">
-          <Text
-            as="h2"
-            className="whitespace-nowrap text-base font-semibold leading-none tracking-tight text-background sm:text-lg"
-          >
-            {PRODUCT_NAME}
-          </Text>
-          <Text
-            as="p"
-            className="mt-1 whitespace-nowrap text-[10px] font-medium leading-none text-accent-soft tracking-[0.343em] -mr-[0.343em] sm:tracking-[0.45em] sm:-mr-[0.45em]"
-          >
-            {PRODUCT_BY}
-          </Text>
-        </Box>
+        <Text
+          as="p"
+          className="truncate font-mono text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs"
+        >
+          {today}
+        </Text>
       </Box>
 
-      <Box className="flex shrink-0 items-center gap-1 sm:gap-2">
-        {/* Was a hardcoded `3` on a button with no handler — a badge that
-            never moved, in all four portals. Now real. */}
+      <Box className="flex shrink-0 items-center gap-1 sm:gap-3">
+        <ThemeToggle />
         <NotificationBell />
 
         <DropdownMenu>
-          {/* `render`, not `asChild`. Our menu primitive is Base UI, which
-              composes through a `render` prop — every other trigger in
-              `components/ui` already does this. `asChild` is the Radix API:
-              Base UI passed it straight to the DOM (hence "React does not
-              recognize the asChild prop") and still rendered its OWN button
-              around this one. A <button> inside a <button> is invalid HTML, so
-              the browser hoisted it out, the client tree no longer matched the
-              server's, and EVERY authenticated page threw a hydration error
-              and re-rendered its whole tree on the client — this component is
-              in all four portal shells. */}
           <DropdownMenuTrigger
             render={
               <Button
@@ -141,11 +108,6 @@ export function TopNav() {
             }
           />
           <DropdownMenuContent align="end" className="w-48">
-            {/* Every item here does something. "Profile" and "Settings"
-                previously had no handler and no href at all — two controls
-                that looked live, closed the menu and changed nothing, which
-                is the screen-that-lies failure the standards doc keeps
-                returning to. */}
             <DropdownMenuGroup>
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -169,9 +131,9 @@ export function TopNav() {
               />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            {/* The VIBGYOR picker. Plain buttons rather than menu items, so
-                choosing a theme does not close the menu — the point is to try a
-                few and see the page re-tint live. */}
+            {/* The fuller VIBGYOR + Scenes picker. Plain buttons, so choosing a
+                theme does not close the menu — the point is to try a few live.
+                The sidebar strip is the quick colour switch beside it. */}
             <Box className="px-2 py-1.5">
               <Text as="p" className="mb-1.5 text-[11px] font-medium text-muted-foreground">
                 Theme

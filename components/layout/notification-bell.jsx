@@ -145,7 +145,7 @@ export function NotificationBell() {
             // open (aria-expanded), so the icon must INHERIT that colour rather
             // than force white — otherwise it is white-on-light and invisible
             // the moment the panel opens.
-            className="relative cursor-pointer text-white"
+            className="relative cursor-pointer text-foreground"
             aria-label={
               unread > 0
                 ? `Notifications, ${unread} unread`

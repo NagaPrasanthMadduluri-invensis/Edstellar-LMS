@@ -203,7 +203,7 @@ function Sidebar({
           data-slot="sidebar-container"
           data-side={side}
           className={cn(
-            "fixed top-14 bottom-0 z-30 hidden w-(--sidebar-width-icon) transition-[width] duration-300 ease-in-out data-[side=left]:left-0 data-[side=right]:right-0 lg:flex",
+            "fixed top-0 bottom-0 z-30 hidden w-(--sidebar-width-icon) transition-[width] duration-300 ease-in-out data-[side=left]:left-0 data-[side=right]:right-0 lg:flex",
             "group-data-[state=expanded]:w-(--sidebar-width) group-data-[state=expanded]:shadow-2xl",
             className,
           )}
@@ -244,7 +244,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed top-14 bottom-0 z-10 hidden w-(--sidebar-width) transition-[left,right,width] duration-300 ease-in-out data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
+          "fixed top-0 bottom-0 z-10 hidden w-(--sidebar-width) transition-[left,right,width] duration-300 ease-in-out data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
