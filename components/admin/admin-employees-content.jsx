@@ -42,7 +42,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser, fetchSeatState, fetchOrgRoles, assignUserRole } from "@/services/api/admin/admin-api";
+import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser, fetchSeatState, fetchOrgRoles, assignUserRole, ensureTrainerRole } from "@/services/api/admin/admin-api";
 import { SeatUsagePanel } from "@/components/admin/seat-usage-panel";
 // The lists are per-tenant data now, curated by Edstellar at onboarding
 // (`0031`), so they are FETCHED rather than imported. `lib/workforce.js` is
@@ -53,6 +53,11 @@ import { progressFill } from "@/lib/brand";
 
 /** How a role's portal reads in a picker. One place, so it cannot drift. */
 const PORTAL_WORD = { admin: "Admin portal", learner: "Learner portal", trainer: "Trainer portal" };
+
+/* Sentinel value for the Add User role dropdown's "create the trainer role"
+   option, shown only when the org has no trainer role yet. Not a role id, so it
+   cannot collide with one. */
+const SETUP_TRAINER_VALUE = "__setup_trainer__";
 
 /** The Manage Users table page size. Must stay ≤ the server's `limit` cap (100). */
 const PAGE = 25;
@@ -774,6 +779,13 @@ export function AdminEmployeesContent() {
   const [roleChoice, setRoleChoice]         = useState("");
   const [roleSaving, setRoleSaving]         = useState(false);
   const [roleError, setRoleError]           = useState(null);
+  /* The trainer role is not seeded into every org (BACKEND_STRUCTURE §10.36 /
+     TRAINER_ROLE), so an org that has never run its own training has no trainer
+     row and the Add User dropdown cannot offer it. Rather than send the admin to
+     the roles screen, the dropdown offers "Trainer" and creates the role on
+     demand the first time it is picked. */
+  const [settingUpTrainer, setSettingUpTrainer] = useState(false);
+  const [trainerSetupError, setTrainerSetupError] = useState(null);
   const [saving, setSaving]                 = useState(false);
   const [formError, setFormError]           = useState(null);
   const [confirmToggle, setConfirmToggle]   = useState(null);
@@ -1101,6 +1113,33 @@ export function AdminEmployeesContent() {
   const createCostsSeat = rolePortal === "learner";
   const blockedBySeats = seatsFull && createCostsSeat;
 
+  /* Whether this org already has a trainer role. When it does not, the dropdown
+     offers a synthetic "set up trainer" option that creates it on pick. */
+  const hasTrainerRole = (orgRoles ?? []).some((r) => r.portal === "trainer");
+
+  /* A role dropdown change. The one special value is the synthetic trainer
+     option, which first creates the org's trainer role (idempotent) and then
+     selects it, so the admin never has to leave the dialog. */
+  const handleRoleChange = async (v) => {
+    setTrainerSetupError(null);
+    if (v === SETUP_TRAINER_VALUE) {
+      setSettingUpTrainer(true);
+      try {
+        const res = await ensureTrainerRole();
+        const roles = res?.roles ?? [];
+        setOrgRoles(roles);
+        const trainer = roles.find((r) => r.portal === "trainer");
+        setForm((p) => ({ ...p, role_id: trainer ? String(trainer.id) : "" }));
+      } catch (e) {
+        setTrainerSetupError(e?.message || "Could not set up the trainer role.");
+      } finally {
+        setSettingUpTrainer(false);
+      }
+      return;
+    }
+    setForm((p) => ({ ...p, role_id: v === "default" ? "" : v }));
+  };
+
   // Active options only. An empty array is a real state, not a loading one:
   // a tenant Edstellar has not given branch locations to yet genuinely has
   // none to offer, and the forms say so rather than showing a blank dropdown.
@@ -1207,7 +1246,7 @@ export function AdminEmployeesContent() {
               disabled={seatsFull}
               title={seatsFull ? "All licensed seats are in use — free one or request more above" : undefined}
               className="h-8 text-xs gap-1.5 bg-navy hover:bg-navy-soft text-paper"
-              onClick={() => { setForm(EMPTY_FORM); setFormError(null); setDialogOpen(true); }}
+              onClick={() => { setForm(EMPTY_FORM); setFormError(null); setTrainerSetupError(null); setDialogOpen(true); }}
             >
               <UserPlus className="h-3.5 w-3.5" />
               + Add User
@@ -1926,13 +1965,16 @@ export function AdminEmployeesContent() {
                 {orgRoles && orgRoles.length > 0 && (
                   <Field
                     id="nu-rolesel" label="Role"
-                    hint={createCostsSeat
-                      ? "Learners use a licensed seat."
-                      : `${selectedRole?.label ?? "This role"} does not use a seat — only active learners count.`}
+                    hint={settingUpTrainer
+                      ? "Setting up the trainer role…"
+                      : createCostsSeat
+                        ? "Learners use a licensed seat."
+                        : `${selectedRole?.label ?? "This role"} does not use a seat — only active learners count.`}
                   >
                     <Select
                       value={form.role_id ? String(form.role_id) : "default"}
-                      onValueChange={(v) => setForm((p) => ({ ...p, role_id: v === "default" ? "" : v }))}
+                      onValueChange={handleRoleChange}
+                      disabled={settingUpTrainer}
                     >
                       <SelectTrigger id="nu-rolesel" className="w-full text-sm">
                         <SelectValue>
@@ -1946,8 +1988,24 @@ export function AdminEmployeesContent() {
                             {r.label} — {PORTAL_WORD[r.portal] ?? r.portal}
                           </SelectItem>
                         ))}
+                        {/* The org has no trainer role yet. Offer to create it
+                            inline — the trainer role is created per org on
+                            demand, not seeded into every tenant. */}
+                        {!hasTrainerRole && (
+                          <SelectItem value={SETUP_TRAINER_VALUE}>
+                            Trainer — {PORTAL_WORD.trainer}
+                          </SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
+                    {trainerSetupError && (
+                      <Text as="p" className="mt-1 text-[11.5px] text-danger">{trainerSetupError}</Text>
+                    )}
+                    {selectedRole?.portal === "trainer" && (
+                      <Text as="p" className="mt-1 text-[11.5px] text-text-3">
+                        They get a welcome email to set a password, then sign in to the trainer portal. They can be picked as the trainer on a session.
+                      </Text>
+                    )}
                   </Field>
                 )}
               </Box>

@@ -871,6 +871,17 @@ export async function fetchOrgRoles() {
 }
 
 /**
+ * Create this org's trainer role on demand (idempotent), so an admin can
+ * onboard a trainer from the Add User dialog without first visiting the roles
+ * screen. The trainer role is not seeded into every org on purpose; this is the
+ * in-product equivalent of `scripts/create-org-role.mjs --trainer`. Returns the
+ * full, updated role list. Needs `manage_roles`.
+ */
+export async function ensureTrainerRole() {
+  return apiClient("/api/admin/roles/trainer", { method: "POST" });
+}
+
+/**
  * Move a user onto a role. The server rewrites `users.role` from the role's
  * portal, so the portal is never sent — the two columns cannot be made to
  * disagree from here.
