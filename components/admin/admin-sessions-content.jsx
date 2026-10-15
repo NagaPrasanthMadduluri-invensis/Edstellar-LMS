@@ -2116,13 +2116,13 @@ export function AdminSessionsContent() {
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Session Type</Label>
                 <Box className="flex gap-2">
-                  {["ILT", "Virtual"].map((type) => (
+                  {["ILT", "Virtual", "Webinar"].map((type) => (
                     <Button key={type} type="button" variant="outline" size="sm"
-                      className={cn("flex-1 h-10 text-sm font-medium transition-colors", form.session_type === type
-                        ? type === "ILT" ? "bg-paper-cream border-navy/20 text-navy" : "bg-paper-cream border-navy/20 text-navy"
+                      className={cn("flex-1 h-10 px-2 text-xs font-medium transition-colors", form.session_type === type
+                        ? "bg-paper-cream border-navy/20 text-navy"
                         : "bg-white text-muted-foreground")}
                       onClick={() => setForm((p) => ({ ...p, session_type: type }))}>
-                      {type === "ILT" ? <MapPin className="h-3.5 w-3.5 mr-1.5" /> : <Video className="h-3.5 w-3.5 mr-1.5" />}
+                      {type === "ILT" ? <MapPin className="h-3.5 w-3.5 mr-1" /> : <Video className="h-3.5 w-3.5 mr-1" />}
                       {sessionTypeLabel(type)}
                     </Button>
                   ))}
