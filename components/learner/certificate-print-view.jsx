@@ -169,6 +169,7 @@ function documentContent(cert) {
       theme: THEMES.path,
       pill: "Learning path · Multi-course",
       label: "Certificate of Achievement",
+      seal: { emoji: "🌟", l1: "Pathway", l2: "Certified" },
       metaWidth: 680,
       lead: "has successfully completed the structured learning path",
       subject: cert.journeyName,
@@ -187,6 +188,7 @@ function documentContent(cert) {
       theme: THEMES.session,
       pill: virtual ? "Virtual · Live, instructor-led" : "ILT · Live, instructor-led",
       label: "Certificate of Participation",
+      seal: { emoji: "🎓", l1: "Session", l2: "Attended" },
       metaWidth: 520,
       lead: "attended and actively participated in the live training session",
       subject: cert.session?.title || cert.courseName,
@@ -205,6 +207,7 @@ function documentContent(cert) {
     theme: THEMES.course,
     pill: "E-learning · Self-paced",
     label: "Certificate of Completion",
+    seal: { emoji: "🏆", l1: "Course", l2: "Certified" },
     metaWidth: 680,
     lead: "has successfully completed the e-learning course",
     subject: cert.courseName,
@@ -244,6 +247,9 @@ function certificateHtml(cert, { forPrint = false } = {}) {
       </div>`)
     .join("");
 
+  const s = c.seal || { emoji: "🏆", l1: "Course", l2: "Certified" };
+  const seal = `<div class="seal"><div class="seal-emoji">${s.emoji}</div><div class="seal-l1">${escapeHtml(s.l1)}</div><div class="seal-l2">${escapeHtml(s.l2)}</div></div>`;
+
   const pathBox = c.courses.length
     ? `<div class="path">
         <div class="path-title">Courses completed in this path</div>
@@ -274,36 +280,42 @@ function certificateHtml(cert, { forPrint = false } = {}) {
   .br { bottom:30px; right:30px; border-bottom-width:4px; border-right-width:4px; }
 
   .head { position:absolute; top:66px; left:88px; right:88px; display:flex; align-items:center; justify-content:space-between; }
-  .logo img { display:block; max-height:52px; max-width:280px; object-fit:contain; }
-  .wordmark { font-size:40px; font-weight:800; letter-spacing:-.02em; color:#111827; }
+  .logo img { display:block; max-height:44px; max-width:280px; object-fit:contain; }
+  .wordmark { font-size:30px; font-weight:800; letter-spacing:-.02em; color:#111827; }
   .pill { background:${t.soft}; color:${t.main}; font-size:13px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:8px 20px; border-radius:999px; white-space:nowrap; }
 
-  .body { position:absolute; top:130px; left:88px; right:88px; bottom:180px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  .body { position:absolute; top:110px; left:88px; right:88px; bottom:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
   .eyebrow { font-family: Georgia, "Times New Roman", serif; font-size:16px; font-weight:700; letter-spacing:.32em; text-transform:uppercase; color:${t.main}; }
-  .certify { font-family: Georgia, "Times New Roman", serif; font-style:italic; font-size:38px; color:${SLATE}; margin-top:20px; }
-  .name { font-family: Georgia, "Times New Roman", serif; font-weight:700; font-size:54px; color:${t.main}; margin-top:12px; line-height:1.15; }
-  .rule { width:420px; height:3px; margin:18px auto 22px; background:linear-gradient(90deg, rgba(255,255,255,0), ${t.to}, rgba(255,255,255,0)); }
+  .certify { font-family: Georgia, "Times New Roman", serif; font-style:italic; font-size:30px; color:${SLATE}; margin-top:12px; }
+  .name { font-family: Georgia, "Times New Roman", serif; font-weight:700; font-size:44px; color:${t.main}; margin-top:8px; line-height:1.15; }
+  .rule { width:420px; height:3px; margin:12px auto 16px; background:linear-gradient(90deg, rgba(255,255,255,0), ${t.to}, rgba(255,255,255,0)); }
   .lead { font-size:16px; color:${MUTED}; }
-  .subject { font-size:28px; font-weight:700; color:${INK}; margin-top:8px; }
+  .subject { font-size:24px; font-weight:700; color:${INK}; margin-top:6px; }
   .tag { font-size:16px; color:${MUTED}; margin-top:10px; }
-  .path { width:780px; margin:22px auto 0; background:#F8FAFC; border:1px solid #E5E7EB; border-radius:10px; padding:16px 28px 18px; }
-  .path-title { font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:${FAINT}; margin-bottom:12px; }
-  .path-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 32px; text-align:left; }
-  .path-item { display:flex; align-items:center; gap:12px; font-size:15px; color:${SLATE}; line-height:1.3; }
-  .num { flex:none; width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg, ${t.from}, ${t.to}); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .path { width:780px; margin:14px auto 0; background:#F8FAFC; border:1px solid #E5E7EB; border-radius:10px; padding:12px 28px 14px; }
+  .path-title { font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:${FAINT}; margin-bottom:8px; }
+  .path-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 32px; text-align:left; }
+  .path-item { display:flex; align-items:center; gap:12px; font-size:13.5px; color:${SLATE}; line-height:1.3; }
+  .num { flex:none; width:22px; height:22px; border-radius:50%; background:linear-gradient(135deg, ${t.from}, ${t.to}); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; }
   /* Per kind: narrow enough that a session's five details wrap 3 + 2 as the
      reference does, wide enough that a path's three never wrap at all. */
-  .meta { display:flex; flex-wrap:wrap; justify-content:center; gap:18px 48px; max-width:${c.metaWidth}px; margin-top:${c.courses.length ? 24 : 14}px; }
+  .meta { display:flex; flex-wrap:wrap; justify-content:center; gap:18px 48px; max-width:${c.metaWidth}px; margin-top:${c.courses.length ? 16 : 14}px; }
   .meta-item { text-align:center; }
   .meta-label { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:${FAINT}; margin-bottom:4px; }
   .meta-value { font-size:17px; font-weight:700; color:${INK}; }
 
-  .foot { position:absolute; left:88px; right:88px; bottom:44px; border-top:1px solid #E2E8F0; padding-top:44px; text-align:center; }
+  /* Seal above a centred signature — the reference footer. The gold seal is a
+     fixed emblem, not a palette token (it is a document, not a screen). */
+  .foot { position:absolute; left:88px; right:88px; bottom:34px; border-top:1px solid #E2E8F0; padding-top:18px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .seal { width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg, #B8860B, #8A6200); border:3px solid rgba(255,255,255,.6); box-shadow:0 5px 18px rgba(184,134,11,.32); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-transform:uppercase; text-align:center; }
+  .seal-emoji { font-size:18px; line-height:1; }
+  .seal-l1, .seal-l2 { font-size:7.5px; font-weight:800; letter-spacing:.06em; margin-top:1px; }
+  .sig { text-align:center; }
   .script { font-family: Georgia, "Times New Roman", serif; font-style:italic; font-size:26px; color:${t.main}; }
   .sig-line { width:244px; height:3px; background:${INK}; margin:6px auto 10px; }
   .sig-name { font-size:16px; font-weight:700; color:${INK}; }
   .sig-title { font-size:13.5px; color:${MUTED}; margin-top:2px; }
-  .code { position:absolute; right:88px; bottom:46px; font-size:10.5px; color:${FAINT}; letter-spacing:.04em; }
+  .code { position:absolute; right:88px; bottom:34px; font-size:10.5px; color:${FAINT}; letter-spacing:.04em; }
 
   .print-btn { position:fixed; top:16px; right:16px; background:${t.main}; color:#fff; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:700; cursor:pointer; font-family:Arial, Helvetica, sans-serif; }
   @media print {
@@ -341,10 +353,13 @@ ${forPrint ? `<button class="print-btn" onclick="window.print()">Download / Prin
   </div>
 
   <div class="foot">
-    <div class="script">${escapeHtml(signed.script)}</div>
-    <div class="sig-line"></div>
-    ${signed.name ? `<div class="sig-name">${escapeHtml(signed.name)}</div>` : ""}
-    <div class="sig-title">${escapeHtml(signed.title)}</div>
+    ${seal}
+    <div class="sig">
+      <div class="script">${escapeHtml(signed.script)}</div>
+      <div class="sig-line"></div>
+      ${signed.name ? `<div class="sig-name">${escapeHtml(signed.name)}</div>` : ""}
+      <div class="sig-title">${escapeHtml(signed.title)}</div>
+    </div>
   </div>
   <div class="code">Certificate ID: ${escapeHtml(cert.certificateCode || "—")}</div>
 </div>

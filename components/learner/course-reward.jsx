@@ -175,33 +175,32 @@ export function CourseRewardHeroLine({ reward, isComplete = false, isSession = f
         </Text>
       </Box>
 
-      {/* Breakdown and both badge nudges on ONE wrapping line, dot-separated,
-          rather than three stacked rows — far less vertical space, still
-          readable. Each chunk keeps its icon so the badges read as badges. */}
-      <Box className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-paper/75">
-        <Text as="span" className="text-[length:inherit] text-inherit">{sub}</Text>
+      {/* Breakdown and both badge nudges as ONE flowing paragraph, dot-
+          separated. It is plain inline text (not a flex row of inline-flex
+          chunks) so every phrase wraps at word boundaries on a narrow screen —
+          an inline-flex chunk cannot wrap its own text and stranded the bold
+          badge name on its own line / ran off the edge on mobile. The icons
+          are inline, so they sit with the words rather than forcing a column. */}
+      <Box className="mt-1.5 text-xs leading-relaxed text-paper/75">
+        {sub}
 
         {reward.onTimeBadge && (
           <>
-            <Text as="span" className="text-paper/30 text-[length:inherit]" aria-hidden>·</Text>
-            <Text as="span" className="inline-flex items-center gap-1 text-[length:inherit] text-inherit">
-              <Zap className="h-3.5 w-3.5 shrink-0 text-accent-soft" />
-              Finish by {reward.onTimeBadge.by} to earn the{" "}
-              <b className="font-semibold text-paper">{reward.onTimeBadge.title}</b> badge
-            </Text>
+            <span className="mx-1 text-paper/30" aria-hidden>·</span>
+            <Zap className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-accent-soft" />
+            Finish by {reward.onTimeBadge.by} to earn the{" "}
+            <b className="font-semibold text-paper">{reward.onTimeBadge.title}</b> badge
           </>
         )}
 
         {reward.unlocksBadge && (
           <>
-            <Text as="span" className="text-paper/30 text-[length:inherit]" aria-hidden>·</Text>
-            <Text as="span" className="inline-flex items-center gap-1 text-[length:inherit] text-inherit">
-              <Award className="h-3.5 w-3.5 shrink-0 text-accent-soft" />
-              {reward.unlocksBadge.coursesToGo <= 1
-                ? "Completing this earns the "
-                : `${reward.unlocksBadge.coursesToGo} more courses to the `}
-              <b className="font-semibold text-paper">{reward.unlocksBadge.title}</b> badge
-            </Text>
+            <span className="mx-1 text-paper/30" aria-hidden>·</span>
+            <Award className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-accent-soft" />
+            {reward.unlocksBadge.coursesToGo <= 1
+              ? "Completing this earns the "
+              : `${reward.unlocksBadge.coursesToGo} more courses to the `}
+            <b className="font-semibold text-paper">{reward.unlocksBadge.title}</b> badge
           </>
         )}
       </Box>

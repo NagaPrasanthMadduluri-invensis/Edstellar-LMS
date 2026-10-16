@@ -23,6 +23,7 @@ import { CourseRewardStrip } from "@/components/learner/course-reward";
 import { DashboardUpcomingSessions } from "@/components/learner/dashboard-upcoming-sessions";
 import { DashboardPendingSurveys } from "@/components/learner/dashboard-pending-surveys";
 import { DashboardRecommended } from "@/components/learner/dashboard-recommended";
+import { DashboardCohortPeers } from "@/components/learner/dashboard-cohort-peers";
 import { BRAND } from "@/lib/brand";
 
 /* ── helpers ── */
@@ -107,6 +108,7 @@ export function DashboardContent() {
     continue_learning, journey = { courses: [], completed: 0, total: 0 },
     upcoming_deadlines = [], recent_activity = [], recentAttempts = [],
     latest_badge = null, overdue_items = [],
+    cohort_leaderboard = null, learning_with_you = [],
   } = data;
 
   const inProgressCount = stats.in_progress_courses ?? 0;
@@ -517,6 +519,10 @@ export function DashboardContent() {
             )}
           </Card>
       </Box>
+
+      {/* Learning with you + the cohort leaderboard podium. Renders nothing
+          when there are no co-enrolled peers and no ranked learners. */}
+      <DashboardCohortPeers cohort={cohort_leaderboard} peers={learning_with_you} />
 
       {/* Live sessions you are booked onto. */}
       <DashboardUpcomingSessions />
