@@ -50,11 +50,13 @@ import {
   deleteCommunityPost,
   deleteCommunityReply,
   fetchCommunityFeed,
+  fetchCommunityLikers,
   fetchCommunityPost,
   fetchMyCertificates,
   likeCommunityPost,
   unlikeCommunityPost,
 } from "@/services/api/learner/community-api";
+import { UserAvatar } from "@/components/shared/user-avatar";
 
 const TYPE_TABS = [
   { key: "all", label: "All" },
@@ -215,6 +217,19 @@ export function CommunityPostCard({ post, onDeleted }) {
   const [sending, setSending] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [likersOpen, setLikersOpen] = useState(false);
+  const [likers, setLikers] = useState(null);
+
+  async function openLikers() {
+    setLikersOpen(true);
+    setLikers(null);
+    try {
+      const r = await fetchCommunityLikers({ postId: post.id });
+      setLikers(r.likers || []);
+    } catch {
+      setLikers([]);
+    }
+  }
 
   async function toggleLike() {
     const next = !liked;
@@ -359,17 +374,32 @@ export function CommunityPostCard({ post, onDeleted }) {
         </Box>
 
         <Box className="mt-4 flex items-center gap-4 border-t border-border pt-3">
-          <button
-            type="button"
-            onClick={toggleLike}
-            className={cn(
-              "inline-flex items-center gap-1.5 text-sm font-semibold transition-colors",
-              liked ? "text-error" : "text-ink/55 hover:text-ink",
-            )}
-          >
-            <Heart className={cn("h-4 w-4", liked && "fill-current")} />
-            {likeCount > 0 ? likeCount : ""} Like{likeCount === 1 ? "" : "s"}
-          </button>
+          {/* Heart toggles the like; the count text opens the list of likers. */}
+          <Box className="inline-flex items-center gap-1.5 text-sm font-semibold">
+            <button
+              type="button"
+              onClick={toggleLike}
+              aria-label={liked ? "Remove your like" : "Like this post"}
+              aria-pressed={liked}
+              className={cn(
+                "inline-flex items-center transition-colors",
+                liked ? "text-error" : "text-ink/55 hover:text-error",
+              )}
+            >
+              <Heart className={cn("h-4 w-4", liked && "fill-current")} />
+            </button>
+            <button
+              type="button"
+              onClick={openLikers}
+              disabled={likeCount === 0}
+              className={cn(
+                "transition-colors",
+                likeCount > 0 ? "text-ink/70 hover:text-ink hover:underline" : "cursor-default text-ink/55",
+              )}
+            >
+              {likeCount > 0 ? `${likeCount} ` : ""}Like{likeCount === 1 ? "" : "s"}
+            </button>
+          </Box>
           <button
             type="button"
             onClick={toggleReplies}
@@ -470,6 +500,38 @@ export function CommunityPostCard({ post, onDeleted }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Who liked this post */}
+      <Dialog open={likersOpen} onOpenChange={setLikersOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Liked by</DialogTitle>
+          </DialogHeader>
+          {likers === null ? (
+            <Box className="space-y-3 py-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Box key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-full" />
+                  <Skeleton className="h-3 w-32" />
+                </Box>
+              ))}
+            </Box>
+          ) : likers.length === 0 ? (
+            <Text as="p" className="py-6 text-center text-sm text-text-3">No likes yet.</Text>
+          ) : (
+            <Box className="max-h-80 overflow-y-auto">
+              {likers.map((p) => (
+                <Box key={p.user_id} className="flex items-center gap-3 py-2">
+                  <UserAvatar src={p.avatar} name={p.name} className="size-9 shrink-0" />
+                  <Text as="p" className="text-sm font-medium text-ink">
+                    {p.name}{p.is_me ? " (you)" : ""}
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

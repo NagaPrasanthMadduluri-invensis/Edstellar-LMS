@@ -49,6 +49,11 @@ export async function unlikeCommunityPost({ postId }) {
   return apiClient(`/api/learner/community/${postId}/like`, { method: "DELETE" });
 }
 
+/** The people who liked a post, newest first. */
+export async function fetchCommunityLikers({ postId }) {
+  return apiClient(`/api/learner/community/${postId}/likes`);
+}
+
 /** The learner's own certificates, for the achievement composer. */
 export async function fetchMyCertificates() {
   return apiClient("/api/learner/certificates");
