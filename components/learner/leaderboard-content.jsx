@@ -175,8 +175,17 @@ export function LeaderboardContent() {
       list.sort((a, b) => b.monthPoints - a.monthPoints || b.badges - a.badges);
     } else {
       // Top 3 by points, everyone from 4th down by course completion (§10.5).
+      // A points tie goes to whoever EARNED it first (earlier wins), matching
+      // the server — otherwise tied learners order arbitrarily.
+      const earnedFirst = (a, b) => {
+        const av = a.lastEarnedAt, bv = b.lastEarnedAt;
+        if (av === bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return av < bv ? -1 : 1;
+      };
       const byPoints = [...list].sort(
-        (a, b) => b.allTimePoints - a.allTimePoints || b.badges - a.badges,
+        (a, b) => b.allTimePoints - a.allTimePoints || earnedFirst(a, b) || b.badges - a.badges,
       );
       const rest = byPoints
         .slice(3)
@@ -184,6 +193,7 @@ export function LeaderboardContent() {
           (a, b) =>
             (b.completionPct ?? 0) - (a.completionPct ?? 0) ||
             b.allTimePoints - a.allTimePoints ||
+            earnedFirst(a, b) ||
             b.badges - a.badges,
         );
       list = [...byPoints.slice(0, 3), ...rest];
