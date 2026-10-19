@@ -17,6 +17,7 @@ import {
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { useAuth } from "@/hooks/use-auth";
+import { useUnreadMessages } from "@/hooks/use-unread-messages";
 import { cn } from "@/lib/utils";
 
 /**
@@ -223,15 +224,15 @@ const railIconClass =
 const railIdle = "text-on-navy-4 hover:bg-white/12 hover:text-white";
 const railActive = "bg-white/16 text-white";
 
-function RailIcon({ href, icon: Icon, title, active, onNavigate }) {
+function RailIcon({ href, icon: Icon, title, active, onNavigate, badge = 0 }) {
   return (
     <Link
       href={href}
       onClick={onNavigate}
       title={title}
-      aria-label={title}
+      aria-label={badge > 0 ? `${title} (${badge} unread)` : title}
       aria-current={active ? "page" : undefined}
-      className={cn(railIconClass, active ? railActive : railIdle)}
+      className={cn("relative", railIconClass, active ? railActive : railIdle)}
     >
       {Icon ? (
         <Icon />
@@ -239,6 +240,9 @@ function RailIcon({ href, icon: Icon, title, active, onNavigate }) {
         <Text as="span" className="text-[10px] font-bold uppercase text-inherit">
           {(title ?? "").slice(0, 2)}
         </Text>
+      )}
+      {badge > 0 && (
+        <Box as="span" className="absolute right-1 top-1 h-2 w-2 rounded-full border border-sidebar bg-accent-blue" />
       )}
     </Link>
   );
@@ -387,6 +391,9 @@ export function SidebarNavSections({ sections }) {
   const { state, isMobile } = useSidebar();
   const visible = useVisibleSections(sections);
   const [open, toggle] = useOpenSections(visible, pathname);
+  // Live unread-DM count, for the badge on a link that declares badge:"messages".
+  const unreadMessages = useUnreadMessages();
+  const badgeFor = (link) => (link?.badge === "messages" ? unreadMessages : 0);
 
   // Default (desktop): a closed icon rail. Standalone rows are icons; a
   // collapsible group is one icon that opens its items in a flyout on hover.
@@ -403,6 +410,7 @@ export function SidebarNavSections({ sections }) {
                 title={section.link.title}
                 active={isActiveHref(pathname, section.link.href)}
                 onNavigate={closeOnNavigate}
+                badge={badgeFor(section.link)}
               />
             );
           }
@@ -444,6 +452,7 @@ export function SidebarNavSections({ sections }) {
           // A one-page heading-link, rendered as a labelled row (it has an icon
           // for the rail/flyout model) rather than a bare heading.
           const LinkIcon = section.link.icon;
+          const badge = badgeFor(section.link);
           return (
             <Link
               key={section.link.href}
@@ -456,6 +465,14 @@ export function SidebarNavSections({ sections }) {
               <Text as="span" className="flex-1 truncate text-[length:inherit] text-inherit">
                 {section.link.title}
               </Text>
+              {badge > 0 && (
+                <Text
+                  as="span"
+                  className="flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-blue px-1 text-[10px] font-bold text-white"
+                >
+                  {badge > 9 ? "9+" : badge}
+                </Text>
+              )}
             </Link>
           );
         }

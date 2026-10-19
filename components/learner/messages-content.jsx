@@ -20,9 +20,62 @@ import {
   sendMessage,
 } from "@/services/api/learner/messages-api";
 
-/** Postgres timestamps are not ISO — repair the offset before Date sees it. */
+/* Postgres timestamps are not ISO — repair the offset before Date sees it. */
+function toDate(value) {
+  const d = new Date(String(value || "").trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00"));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 function when(value) {
-  return relativeTime(String(value || "").trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00"));
+  const d = toDate(value);
+  return d ? relativeTime(d) : "";
+}
+/* A local (not UTC) day key, so a separator falls on the reader's midnight. */
+function dayKey(value) {
+  const d = toDate(value);
+  return d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : "";
+}
+function dayLabel(value) {
+  const d = toDate(value);
+  if (!d) return "";
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* ── Presence (0055): green "Available" when online, else "Active … ago" ── */
+function PresenceLine({ online, lastSeen }) {
+  if (online) {
+    return (
+      <Box className="flex items-center gap-1.5">
+        <Box as="span" className="h-2 w-2 shrink-0 rounded-full bg-success" />
+        <Text as="span" className="text-[11px] font-medium text-success">Available</Text>
+      </Box>
+    );
+  }
+  return (
+    <Text as="span" className="text-[11px] text-text-3">
+      {lastSeen ? `Active ${when(lastSeen)}` : "Offline"}
+    </Text>
+  );
+}
+
+/* A small green dot over an avatar, shown only when the person is online. */
+function AvatarWithPresence({ src, name, online, className }) {
+  return (
+    <Box className="relative shrink-0">
+      <UserAvatar src={src} name={name} className={className} />
+      {online && (
+        <Box
+          as="span"
+          className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-surface bg-success"
+          aria-label="Available"
+        />
+      )}
+    </Box>
+  );
 }
 
 /* ── Conversation list ── */
@@ -46,14 +99,14 @@ function ConversationList({ items, activeId, onSelect }) {
             c.user_id === activeId && "bg-surface-2",
           )}
         >
-          <UserAvatar src={c.avatar_url} name={c.name} className="size-10 shrink-0" />
+          <AvatarWithPresence src={c.avatar_url} name={c.name} online={c.online} className="size-10" />
           <Box className="min-w-0 flex-1">
             <Box className="flex items-center justify-between gap-2">
               <Text as="p" className="truncate text-sm font-semibold text-ink">{c.name}</Text>
               <Text as="span" className="shrink-0 text-[10px] text-text-3">{when(c.last_message.at)}</Text>
             </Box>
             <Box className="flex items-center justify-between gap-2">
-              <Text as="p" className="truncate text-xs text-text-2">
+              <Text as="p" className={cn("truncate text-xs", c.unread > 0 ? "font-semibold text-ink" : "text-text-2")}>
                 {c.last_message.from_me ? "You: " : ""}{c.last_message.body}
               </Text>
               {c.unread > 0 && (
@@ -108,72 +161,100 @@ function Thread({ thread, loading, onSend, sending, onBack }) {
     );
   }
 
+  const firstName = thread.peer.name.split(" ")[0];
+  let lastDay = null;
+
   return (
-    <Box className="flex h-full flex-col">
-      {/* Header */}
-      <Box className="flex items-center gap-3 border-b border-line px-4 py-3">
+    <Box className="flex h-full min-h-0 flex-col">
+      {/* Header — avatar + name + presence line */}
+      <Box className="flex items-center gap-3 border-b border-line px-4 py-2.5">
         <button type="button" onClick={onBack} className="md:hidden" aria-label="Back to conversations">
           <ArrowLeft className="h-5 w-5 text-text-2" />
         </button>
-        <UserAvatar src={thread.peer.avatar_url} name={thread.peer.name} className="size-9 shrink-0" />
-        <Text as="p" className="truncate text-sm font-semibold text-ink">{thread.peer.name}</Text>
+        <AvatarWithPresence src={thread.peer.avatar_url} name={thread.peer.name} online={thread.peer.online} className="size-9" />
+        <Box className="min-w-0">
+          <Text as="p" className="truncate text-sm font-semibold leading-tight text-ink">{thread.peer.name}</Text>
+          <PresenceLine online={thread.peer.online} lastSeen={thread.peer.last_seen} />
+        </Box>
       </Box>
 
-      {/* Messages */}
-      <Box ref={scrollRef} className="flex-1 space-y-2.5 overflow-y-auto bg-surface-2/40 px-4 py-4">
+      {/* Messages — the ONLY thing that scrolls (min-h-0 lets it, not the page) */}
+      <Box ref={scrollRef} className="flex-1 min-h-0 space-y-2.5 overflow-y-auto bg-surface-2/40 px-4 py-4">
         {thread.messages.length === 0 ? (
           <Box className="flex h-full items-center justify-center">
             <Text as="p" className="text-center text-xs text-text-3">
-              No messages yet. Say hi to {thread.peer.name.split(" ")[0]} below.
+              No messages yet. Say hi to {firstName} below.
             </Text>
           </Box>
         ) : (
-          thread.messages.map((m) => (
-            <Box key={m.id} className={cn("flex", m.from_me ? "justify-end" : "justify-start")}>
-              <Box className="max-w-[78%]">
-                <Box
-                  className={cn(
-                    "rounded-2xl px-3.5 py-2 text-[13px] leading-snug",
-                    m.from_me
-                      ? "rounded-br-sm bg-accent-blue text-white"
-                      : "rounded-bl-sm bg-surface text-ink border border-line",
+          thread.messages.map((m) => {
+            const key = dayKey(m.at);
+            const showDay = key !== lastDay;
+            lastDay = key;
+            return (
+              <Box key={m.id}>
+                {showDay && (
+                  <Box className="my-3 flex items-center justify-center">
+                    <Text as="span" className="rounded-full bg-surface-3 px-2.5 py-0.5 text-[10px] font-medium text-text-3">
+                      {dayLabel(m.at)}
+                    </Text>
+                  </Box>
+                )}
+                <Box className={cn("flex items-end gap-2", m.from_me ? "justify-end" : "justify-start")}>
+                  {!m.from_me && (
+                    <UserAvatar src={thread.peer.avatar_url} name={thread.peer.name} className="size-6 shrink-0" />
                   )}
-                >
-                  <Text as="span" className="whitespace-pre-wrap break-words text-inherit">{m.body}</Text>
+                  <Box className="max-w-[78%]">
+                    <Box
+                      className={cn(
+                        "rounded-2xl px-3.5 py-2 text-[13px] leading-snug",
+                        m.from_me
+                          ? "rounded-br-sm bg-accent-blue text-white"
+                          : "rounded-bl-sm border border-line bg-surface text-ink",
+                      )}
+                    >
+                      <Text as="span" className="whitespace-pre-wrap break-words text-inherit">{m.body}</Text>
+                    </Box>
+                    <Text as="p" className={cn("mt-0.5 text-[10px] text-text-3", m.from_me ? "text-right" : "text-left")}>
+                      {when(m.at)}
+                    </Text>
+                  </Box>
                 </Box>
-                <Text as="p" className={cn("mt-0.5 text-[10px] text-text-3", m.from_me ? "text-right" : "text-left")}>
-                  {when(m.at)}
-                </Text>
               </Box>
-            </Box>
-          ))
+            );
+          })
         )}
       </Box>
 
       {/* Composer */}
-      <Box className="flex items-end gap-2 border-t border-line p-3">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          rows={1}
-          maxLength={MESSAGE_MAX_LENGTH}
-          placeholder={`Message ${thread.peer.name.split(" ")[0]}…`}
-          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-blue"
-        />
-        <Button
-          onClick={submit}
-          disabled={sending || input.trim().length === 0}
-          className="h-10 shrink-0 gap-1.5 bg-navy text-paper hover:bg-navy-soft"
-        >
-          <Send className="h-4 w-4" />
-          <Text as="span" className="hidden text-inherit sm:inline">Send</Text>
-        </Button>
+      <Box className="border-t border-line p-3">
+        <Box className="flex items-end gap-2">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={1}
+            maxLength={MESSAGE_MAX_LENGTH}
+            placeholder={`Message ${firstName}…`}
+            className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-blue"
+          />
+          <Button
+            onClick={submit}
+            disabled={sending || input.trim().length === 0}
+            className="h-10 shrink-0 gap-1.5 bg-navy text-paper hover:bg-navy-soft"
+          >
+            <Send className="h-4 w-4" />
+            <Text as="span" className="hidden text-inherit sm:inline">Send</Text>
+          </Button>
+        </Box>
+        <Text as="p" className="mt-1 px-1 text-[10px] text-text-3">
+          Enter to send · Shift + Enter for a new line
+        </Text>
       </Box>
     </Box>
   );
@@ -210,25 +291,22 @@ export function MessagesContent() {
   }, [withParam]);
 
   // Load (and mark read) the open thread; refresh the list so its unread clears.
-  const loadThread = useCallback(
-    (id) => {
-      if (!id) return;
-      setLoadingThread(true);
-      fetchThread(id)
-        .then((d) => setThread(d))
-        .catch((e) => setError(e.message))
-        .finally(() => setLoadingThread(false));
-    },
-    [],
-  );
+  const loadThread = useCallback((id) => {
+    if (!id) return;
+    setLoadingThread(true);
+    fetchThread(id)
+      .then((d) => setThread(d))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoadingThread(false));
+  }, []);
 
   useEffect(() => {
     if (!activeId) { setThread(null); return; }
     loadThread(activeId);
   }, [activeId, loadThread]);
 
-  // Light polling: the open thread and the list, so a reply lands without a
-  // refresh. No websocket here — a message is not a chat-app, and 15s is plenty.
+  // Light polling: the open thread and the list, so a reply (and presence)
+  // lands without a refresh. No websocket — a message is not a chat-app.
   useEffect(() => {
     if (!user) return undefined;
     const t = setInterval(() => {
@@ -280,10 +358,13 @@ export function MessagesContent() {
         </Card>
       )}
 
-      <Card className="gap-0 overflow-hidden p-0">
-        <Box className="grid min-h-[520px] md:grid-cols-[300px_1fr]">
-          {/* List — hidden on mobile when a thread is open. */}
-          <Box className={cn("border-line md:border-r", activeId && "hidden md:block")}>
+      {/* The card is capped to the viewport so only the thread body scrolls —
+          the header, composer, sidebar and page stay put. min-h keeps it usable
+          on short screens. */}
+      <Card className="h-[calc(100dvh-12rem)] min-h-[460px] gap-0 overflow-hidden p-0">
+        <Box className="grid h-full md:grid-cols-[300px_1fr]">
+          {/* List — its own scroll; hidden on mobile when a thread is open. */}
+          <Box className={cn("h-full min-h-0 overflow-y-auto border-line md:border-r", activeId && "hidden md:block")}>
             {conversations === null ? (
               <Box className="space-y-3 p-4">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -302,7 +383,7 @@ export function MessagesContent() {
           </Box>
 
           {/* Thread — hidden on mobile when no thread is open. */}
-          <Box className={cn("min-h-[520px]", !activeId && "hidden md:block")}>
+          <Box className={cn("h-full min-h-0", !activeId && "hidden md:block")}>
             <Thread
               thread={thread}
               loading={loadingThread}
