@@ -24,6 +24,9 @@ import { DashboardUpcomingSessions } from "@/components/learner/dashboard-upcomi
 import { DashboardPendingSurveys } from "@/components/learner/dashboard-pending-surveys";
 import { DashboardRecommended } from "@/components/learner/dashboard-recommended";
 import { DashboardCohortPeers } from "@/components/learner/dashboard-cohort-peers";
+import { DashboardQuickActions } from "@/components/learner/dashboard-quick-actions";
+import { DashboardGlance } from "@/components/learner/dashboard-glance";
+import { DashboardCommunity } from "@/components/learner/dashboard-community";
 import { BRAND } from "@/lib/brand";
 
 /* ── helpers ── */
@@ -109,6 +112,7 @@ export function DashboardContent() {
     upcoming_deadlines = [], recent_activity = [], recentAttempts = [],
     latest_badge = null, overdue_items = [],
     cohort_leaderboard = null, learning_with_you = [],
+    streak = 0, certificates = null, points_this_month = 0,
   } = data;
 
   const inProgressCount = stats.in_progress_courses ?? 0;
@@ -223,6 +227,9 @@ export function DashboardContent() {
         </Box>
       </Box>
 
+      {/* Quick actions — the common next step, one tap from Home. */}
+      <DashboardQuickActions />
+
       {/* ── Attention strip: overdue + a fresh badge win. Shown just above the
           Achievements KPIs, each cell only when there is something to say. ── */}
       {(overdue_items.length > 0 || latest_badge) && (
@@ -324,6 +331,13 @@ export function DashboardContent() {
           </Card>
         ))}
       </Box>
+
+      {/* At a glance — messages, certificates, streak, points this month. */}
+      <DashboardGlance
+        certificates={certificates}
+        streak={streak}
+        pointsThisMonth={points_this_month}
+      />
 
       {/* ── Continue learning — spotlight card row ── */}
       <Box className="space-y-3">
@@ -531,6 +545,9 @@ export function DashboardContent() {
           it spans the full width and is not competing with a panel beside
           it. It renders nothing when there is nothing pending. */}
       <DashboardPendingSurveys />
+
+      {/* Latest community posts — renders nothing when the module is off/empty. */}
+      <DashboardCommunity />
 
       {/* Recommended courses, last: it is the only block on the page about
           something the learner has NOT been given, so it sits below
