@@ -3,6 +3,7 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import {
   loginUser,
+  verifyMfa,
   registerUser,
   logoutUser,
   getCurrentUser,
@@ -40,55 +41,71 @@ export function AuthProvider({ children, initialUser }) {
     };
   }, [initialUser]);
 
-  /** Login → server sets the cookie → redirect by role. */
+  /**
+   * Once a user is established (direct login or MFA verify): unconsented users
+   * go to /consent, everyone else to their portal.
+   *
+   * The destination is a FULL document navigation, not `router.replace()`.
+   *
+   * The App Router keeps a client-side Router Cache of RSC payloads. If this
+   * browser touched a protected route before signing in — the normal way to
+   * arrive at the login page — the cached payload for that route is a
+   * REDIRECT BACK TO /login, produced while there was no session.
+   * `router.replace(destination)` can serve that stale payload, so a
+   * successful login bounces straight back to /login even though the cookie is
+   * valid. `router.refresh()` races with it. A hard navigation has no cache to
+   * replay and re-runs every Server Component layout against the new cookie.
+   * It costs one page load, once, at the only moment that is unarguably fine.
+   */
+  const finishSignIn = useCallback((data) => {
+    const normalizedUser = normalizeUser(data?.user);
+    // normalizeUser returns null for a response that carried no user, and
+    // reading .role off that produced a bare TypeError that said nothing
+    // about the cause. Say what was actually wrong instead.
+    if (!normalizedUser) {
+      throw new Error(
+        "Signed in, but the server's response carried no user, so there is " +
+          "no role to route on. The API may not be reachable.",
+      );
+    }
+    setUser(normalizedUser);
+
+    const destination = normalizedUser.consentRequired
+      ? "/consent"
+      : normalizedUser.role === "admin"
+        ? "/admin/dashboard"
+        : normalizedUser.role === "trainer"
+          ? "/trainer/sessions"
+          : "/dashboard";
+
+    window.location.assign(destination);
+    return { user: normalizedUser };
+  }, []);
+
+  /**
+   * Login → server sets the cookie → redirect. An admin with MFA gets NO cookie
+   * yet: the response is `{ mfa_required, mfa_token }` and this resolves
+   * `{ mfaRequired: true, mfaToken }` WITHOUT navigating, so the form can show
+   * its inline code step (a navigation would lose the token).
+   */
   const login = useCallback(
     async ({ email, password }) => {
       const data = await loginUser({ email, password });
-      const normalizedUser = normalizeUser(data.user);
-      // normalizeUser returns null for a response that carried no user, and
-      // reading .role off that produced a bare TypeError that said nothing
-      // about the cause. Say what was actually wrong instead.
-      if (!normalizedUser) {
-        throw new Error(
-          "Signed in, but the server's response carried no user, so there is " +
-            "no role to route on. The API may not be reachable.",
-        );
+      if (data?.mfa_required) {
+        return { mfaRequired: true, mfaToken: data.mfa_token };
       }
-      setUser(normalizedUser);
-
-      const destination =
-        normalizedUser.role === "admin"
-          ? "/admin/dashboard"
-          : normalizedUser.role === "trainer"
-            ? "/trainer/sessions"
-            : "/dashboard";
-
-      /**
-       * A FULL document navigation, not `router.replace()`.
-       *
-       * The App Router keeps a client-side Router Cache of RSC payloads. If
-       * this browser touched a protected route before signing in — which is
-       * the normal way to arrive at the login page — the cached payload for
-       * that route is a REDIRECT BACK TO /login, produced while there was no
-       * session. `router.replace(destination)` can serve that stale payload,
-       * so a successful login bounces straight back to the login page even
-       * though the cookie is now valid and `/api/auth/me` answers 200.
-       *
-       * `router.refresh()` was meant to cover it, but it races: `replace()`
-       * has already begun navigating from the cache by the time the refresh
-       * invalidates it. That is the "logged in, waited a few seconds, ended up
-       * back on /login" shape, and it is indistinguishable in the browser from
-       * a genuine session failure.
-       *
-       * A hard navigation has no cache to replay and re-runs every Server
-       * Component layout against the new cookie. It costs one page load, once,
-       * at the only moment in the app where that is unarguably fine.
-       */
-      window.location.assign(destination);
-
-      return { user: normalizedUser };
+      return finishSignIn(data);
     },
-    [],
+    [finishSignIn],
+  );
+
+  /** Second factor: a 6-digit TOTP or a recovery code. Sets the cookie. */
+  const completeMfa = useCallback(
+    async (mfaToken, code) => {
+      const data = await verifyMfa({ mfa_token: mfaToken, code });
+      return finishSignIn(data);
+    },
+    [finishSignIn],
   );
 
   const register = useCallback(
@@ -153,6 +170,7 @@ export function AuthProvider({ children, initialUser }) {
       user,
       loading,
       login,
+      completeMfa,
       register,
       logout,
       refreshUser,
@@ -165,7 +183,7 @@ export function AuthProvider({ children, initialUser }) {
        */
       token: null,
     }),
-    [user, loading, login, register, logout, refreshUser],
+    [user, loading, login, completeMfa, register, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

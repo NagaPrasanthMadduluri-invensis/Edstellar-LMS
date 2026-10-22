@@ -59,7 +59,12 @@ function SessionExpiredNotice() {
 }
 
 function LoginForm() {
-  const { login } = useAuth();
+  const { login, completeMfa } = useAuth();
+  // Set when the password was right but this admin has a second factor. The
+  // token is held here, never in storage, and the step renders inline.
+  const [mfaToken, setMfaToken] = useState(null);
+  const [code, setCode] = useState("");
+  const [useRecovery, setUseRecovery] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -73,7 +78,15 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      await login({ email, password });
+      if (mfaToken) {
+        await completeMfa(mfaToken, code.trim());
+      } else {
+        const result = await login({ email, password });
+        if (result?.mfaRequired) {
+          setMfaToken(result.mfaToken);
+          setPassword("");
+        }
+      }
     } catch (err) {
       if (err.errors) {
         setFieldErrors(err.errors);
@@ -97,7 +110,7 @@ function LoginForm() {
           </Text>
         </CardTitle>
         <Text as="p" className="text-muted-foreground text-sm">
-          Sign in to your account
+          {mfaToken ? "Two-factor authentication" : "Sign in to your account"}
         </Text>
       </CardHeader>
       <CardContent>
@@ -105,6 +118,55 @@ function LoginForm() {
           <SessionExpiredNotice />
         </Suspense>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mfaToken ? (
+            <Box className="space-y-2">
+              <Label htmlFor="mfa-code">
+                {useRecovery ? "Recovery code" : "6-digit code"}
+              </Label>
+              <Input
+                id="mfa-code"
+                inputMode={useRecovery ? "text" : "numeric"}
+                autoComplete="one-time-code"
+                autoFocus
+                maxLength={useRecovery ? 16 : 6}
+                placeholder={useRecovery ? "ab12c-d3e4f" : "123456"}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+              />
+              <Text as="p" className="text-xs text-muted-foreground">
+                {useRecovery
+                  ? "Enter one of the recovery codes you saved. Each works once."
+                  : "Enter the code from your authenticator app."}
+              </Text>
+              <Box className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseRecovery((v) => !v);
+                    setCode("");
+                    setError("");
+                  }}
+                  className="text-[11.5px] text-accent-blue hover:underline"
+                >
+                  {useRecovery ? "Use authenticator code" : "Use a recovery code"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMfaToken(null);
+                    setCode("");
+                    setUseRecovery(false);
+                    setError("");
+                  }}
+                  className="text-[11.5px] text-text-2 hover:underline"
+                >
+                  Back to sign in
+                </button>
+              </Box>
+            </Box>
+          ) : (
+            <>
           <Box className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -145,6 +207,9 @@ function LoginForm() {
             )}
           </Box>
 
+            </>
+          )}
+
           {error && !Object.keys(fieldErrors).length && (
             <Text as="p" className="text-sm text-error">{error}</Text>
           )}
@@ -154,7 +219,7 @@ function LoginForm() {
             className="w-full bg-navy hover:bg-navy-soft text-paper"
             disabled={loading}
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? (mfaToken ? "Verifying..." : "Signing in...") : mfaToken ? "Verify" : "Sign In"}
           </Button>
 
           {/* Self-registration was retired with multi-tenancy: a public signup

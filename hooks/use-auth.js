@@ -11,7 +11,9 @@ import { AuthContext } from "@/providers/auth-provider";
  *   token         — Bearer token string
  *   loading       — true while hydrating from cookies
  *   isAuthenticated — boolean
- *   login({ email, password })    — authenticate and redirect by role
+ *   login({ email, password })    — authenticate and redirect by role (or
+ *                                   resolve { mfaRequired, mfaToken })
+ *   completeMfa(mfaToken, code)   — second factor, then redirect
  *   register({ firstName, lastName, email, password, passwordConfirmation }) — create account
  *   logout()      — revoke token on server, clear cookies, redirect to /login
  *   refreshUser() — re-fetch user from GET /auth/me and update state

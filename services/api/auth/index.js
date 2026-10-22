@@ -9,4 +9,10 @@ export {
   resetPassword,
   getEmailPreferences,
   updateEmailPreferences,
+  verifyMfa,
+  recordConsent,
+  fetchMfaStatus,
+  setupMfa,
+  enableMfa,
+  disableMfa,
 } from "./auth-api";

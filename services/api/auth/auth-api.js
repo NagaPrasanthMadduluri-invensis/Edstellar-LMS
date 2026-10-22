@@ -14,6 +14,37 @@ export async function loginUser({ email, password }) {
     body: { email, password },
   });
 }
+/* ── MFA and consent ──────────────────────────────────────────────────── */
+
+/** Second step of an admin sign-in. `code` is a TOTP or a recovery code. */
+export async function verifyMfa({ mfa_token, code }) {
+  return apiClient("/api/auth/mfa/verify", {
+    method: "POST",
+    body: { mfa_token, code },
+  });
+}
+
+/** Records acceptance of the current privacy notice for the signed-in user. */
+export async function recordConsent() {
+  return apiClient("/api/auth/consent", { method: "POST" });
+}
+
+export async function fetchMfaStatus() {
+  return apiClient("/api/auth/mfa/status");
+}
+
+export async function setupMfa() {
+  return apiClient("/api/auth/mfa/setup", { method: "POST" });
+}
+
+export async function enableMfa({ code }) {
+  return apiClient("/api/auth/mfa/enable", { method: "POST", body: { code } });
+}
+
+export async function disableMfa({ code }) {
+  return apiClient("/api/auth/mfa/disable", { method: "POST", body: { code } });
+}
+
 export async function registerUser({ firstName, lastName, email, password, department }) {
   return apiClient("/api/auth/register", {
     method: "POST",
@@ -110,5 +141,7 @@ export function normalizeUser(apiUser) {
     isPlatformAdmin: apiUser.is_platform_admin === true,
     /** What this role may do. Cosmetic gating only — the API enforces. */
     permissions: Array.isArray(apiUser.permissions) ? apiUser.permissions : [],
+    /** True until the user accepts the current privacy notice. */
+    consentRequired: apiUser.consent_required === true,
   };
 }
