@@ -778,6 +778,7 @@ function NewTenantDialog({ onClose, onSaved }) {
     // At least one branch location, because a tenant with none hands its
     // admin a dropdown they cannot use on the first learner they onboard.
     form.locations.length > 0 &&
+    slug.trim().length > 0 &&
     form.adminFirstName.trim() &&
     form.adminLastName.trim() &&
     form.adminEmail.trim() &&
@@ -792,7 +793,7 @@ function NewTenantDialog({ onClose, onSaved }) {
       await createTenant({
         data: {
           name: form.name.trim(),
-          slug: slug || undefined,
+          slug: slug.trim(),
           admin: {
             firstName: form.adminFirstName.trim(),
             lastName: form.adminLastName.trim(),
@@ -845,15 +846,16 @@ function NewTenantDialog({ onClose, onSaved }) {
                 placeholder="e.g. Northwind Logistics"
               />
             </Field>
-            <Field label="Slug">
+            <Field label="Identifier" required>
               <Input
                 value={slug}
-                onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value, slugTouched: true }))}
+                onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value.toLowerCase(), slugTouched: true }))}
                 placeholder="northwind-logistics"
+                className="font-mono"
               />
               <Text as="p" className="text-[10.5px] text-text-3">
-                Lowercase letters, digits and hyphens. Derived from the name
-                unless you change it, and must be unique across the platform.
+                Lowercase letters, digits and hyphens. Suggested from the name
+                as you type — edit it to set your own. Unique across the platform.
               </Text>
             </Field>
           </Box>

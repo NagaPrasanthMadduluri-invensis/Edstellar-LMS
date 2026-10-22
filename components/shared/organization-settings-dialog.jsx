@@ -308,6 +308,7 @@ function Stat({ icon: Icon, value, label }) {
 function OrgForm({ org: o, onCancel, onSaved }) {
   const [form, setForm] = useState({
     name: o.name ?? "",
+    slug: o.slug ?? "",
     industry: o.industry ?? "",
     region: o.region ?? "",
     community_enabled: o.community_enabled !== false,
@@ -324,6 +325,7 @@ function OrgForm({ org: o, onCancel, onSaved }) {
       const { organization } = await updateMyOrganization({
         data: {
           name: form.name.trim(),
+          slug: form.slug.trim().toLowerCase(),
           industry: form.industry.trim() || null,
           region: form.region.trim() || null,
           community_enabled: form.community_enabled,
@@ -345,6 +347,20 @@ function OrgForm({ org: o, onCancel, onSaved }) {
           <Input value={form.name} onChange={(e) => set("name", e.target.value)} />
           <Text as="p" className="text-[10.5px] text-text-3">
             Shown to your learners and on certificates.
+          </Text>
+        </Box>
+
+        <Box className="space-y-1.5">
+          <Label>Identifier</Label>
+          <Input
+            value={form.slug}
+            onChange={(e) => set("slug", e.target.value.toLowerCase())}
+            placeholder="e.g. acme-corp"
+            className="font-mono"
+          />
+          <Text as="p" className="text-[10.5px] text-text-3">
+            Your account identifier — lowercase letters, digits and hyphens.
+            Unique across Edstellar.
           </Text>
         </Box>
 
@@ -389,9 +405,9 @@ function OrgForm({ org: o, onCancel, onSaved }) {
         <Box className="flex items-start gap-2 border border-line bg-surface-2 px-3 py-2">
           <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-text-3" />
           <Text as="p" className="text-[11.5px] leading-relaxed text-text-2">
-            Your identifier ({o.slug}) cannot change — it is unique across
-            Edstellar. Neither can your plan, contract or seat limit; those are
-            what you bought.
+            Changing your identifier updates it everywhere it is used. Your plan,
+            contract and seat limit cannot change here — those are what you
+            bought; ask your Edstellar contact.
           </Text>
         </Box>
 
