@@ -6,3 +6,10 @@ export {
   markLessonComplete,
   fetchCourseCatalog,
 } from "./learner-api";
+
+export {
+  fetchMyData,
+  fetchMyDataRequests,
+  createDataRequest,
+  downloadMyData,
+} from "./data-privacy-api";

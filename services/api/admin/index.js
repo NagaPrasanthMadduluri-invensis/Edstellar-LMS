@@ -12,3 +12,5 @@ export {
   updateLesson,
   deleteLesson,
 } from "./admin-api";
+
+export { fetchDataRequests, respondToDataRequest } from "./data-requests-api";
