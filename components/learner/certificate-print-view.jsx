@@ -317,6 +317,14 @@ function certificateHtml(cert, { forPrint = false } = {}) {
   .sig-title { font-size:13.5px; color:${MUTED}; margin-top:2px; }
   .code { position:absolute; right:88px; bottom:34px; font-size:10.5px; color:${FAINT}; letter-spacing:.04em; }
 
+  /* QR verification block, bottom-left. The image is a data URL so a printed or
+     saved certificate carries it with no network fetch. */
+  .qr { position:absolute; left:72px; bottom:30px; width:78px; text-align:center; }
+  .qr img { width:78px; height:78px; display:block; }
+  .qr-cap { font-size:7px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:${FAINT}; margin-top:3px; }
+  /* One small line, clear of the QR (left) and the ID (right). */
+  .disclaimer { position:absolute; left:180px; right:180px; bottom:16px; text-align:center; font-size:8px; line-height:1.35; color:#94A3B8; }
+
   .print-btn { position:fixed; top:16px; right:16px; background:${t.main}; color:#fff; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:700; cursor:pointer; font-family:Arial, Helvetica, sans-serif; }
   @media print {
     .print-btn { display:none; }
@@ -361,6 +369,14 @@ ${forPrint ? `<button class="print-btn" onclick="window.print()">Download / Prin
       <div class="sig-title">${escapeHtml(signed.title)}</div>
     </div>
   </div>
+  ${
+    cert.qrDataUrl
+      ? `<div class="qr"><img src="${escapeHtml(cert.qrDataUrl)}" alt="Scan to verify" /><div class="qr-cap">Scan to verify</div></div>`
+      : ""
+  }
+  <div class="disclaimer">This certificate is digitally generated and does not require a signature.${
+    cert.qrDataUrl ? " Scan the QR code to verify its authenticity." : ""
+  }</div>
   <div class="code">Certificate ID: ${escapeHtml(cert.certificateCode || "—")}</div>
 </div>
 </body>

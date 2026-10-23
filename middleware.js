@@ -12,7 +12,7 @@ const PUBLIC_PATHS = ["/login"];
  * go home" redirect below), which for a consent-pending user then bounced on to
  * `/consent`: the "Read the full Privacy Policy" link looped straight back.
  */
-const OPEN_PATHS = ["/privacy"];
+const OPEN_PATHS = ["/privacy", "/verify"];
 
 /**
  * Public, AND exempt from the "you have a cookie, go to /" redirect below.
