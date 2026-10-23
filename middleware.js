@@ -3,7 +3,16 @@ import { NextResponse } from "next/server";
 const TOKEN_COOKIE = "lms_token";
 // Self-registration was retired with multi-tenancy — a public signup cannot
 // know which organization a learner belongs to.
-const PUBLIC_PATHS = ["/login", "/privacy"];
+const PUBLIC_PATHS = ["/login"];
+
+/**
+ * Open to EVERYONE, logged in or out, and never bounced. A privacy policy is a
+ * public document a signed-in user must also be able to open — putting it in
+ * PUBLIC_PATHS instead sent a logged-in reader to `/` (the "you have a cookie,
+ * go home" redirect below), which for a consent-pending user then bounced on to
+ * `/consent`: the "Read the full Privacy Policy" link looped straight back.
+ */
+const OPEN_PATHS = ["/privacy"];
 
 /**
  * Public, AND exempt from the "you have a cookie, go to /" redirect below.
@@ -34,6 +43,11 @@ export function middleware(request) {
   const hasToken = Boolean(request.cookies.get(TOKEN_COOKIE)?.value);
 
   if (RESET_PATHS.some((path) => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
+  // Public documents (privacy policy): shown to everyone, never redirected.
+  if (OPEN_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
