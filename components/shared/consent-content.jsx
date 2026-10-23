@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PRODUCT_BY, PRODUCT_NAME } from "@/lib/brand";
-import { CURRENT_PRIVACY_VERSION } from "@/lib/consent";
+import { CURRENT_PRIVACY_VERSION, PRIVACY_POLICY_URL } from "@/lib/consent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Text from "@/components/ui/text";
@@ -76,6 +77,15 @@ export function ConsentContent() {
             you, and to withdraw consent or request deletion, by contacting
             your organization&apos;s administrator. Withdrawing consent may
             mean you can no longer use the service.
+          </Text>
+          <Text as="p" className="text-[13px] leading-relaxed text-text-2">
+            <Link
+              href={PRIVACY_POLICY_URL}
+              target="_blank"
+              className="font-medium text-accent-blue underline-offset-2 hover:underline"
+            >
+              Read the full Privacy Policy
+            </Link>
           </Text>
           <Text as="p" className="text-[11px] text-text-3">
             Notice version {CURRENT_PRIVACY_VERSION}. Placeholder wording

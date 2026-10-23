@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Download, FilePenLine, Send, ShieldCheck, Trash2 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -27,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { DATA_REQUEST_DETAILS_MAX } from "@/lib/content-limits";
+import { PRIVACY_POLICY_URL } from "@/lib/consent";
 import {
   DATA_COUNT_LABELS,
   DATA_REQUEST_TYPES,
@@ -167,6 +169,17 @@ function ExportCard({ note }) {
           {note && (
             <Text as="p" className="mt-2 text-xs text-ink/50">{note}</Text>
           )}
+          <Text as="p" className="mt-2 text-xs text-ink/50">
+            See our{" "}
+            <Link
+              href={PRIVACY_POLICY_URL}
+              target="_blank"
+              className="font-medium text-accent-blue underline-offset-2 hover:underline"
+            >
+              Privacy Policy
+            </Link>{" "}
+            for how we handle your data.
+          </Text>
           {error && (
             <Text as="p" className="mt-2 text-sm text-error">{error}</Text>
           )}

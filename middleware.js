@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const TOKEN_COOKIE = "lms_token";
 // Self-registration was retired with multi-tenancy — a public signup cannot
 // know which organization a learner belongs to.
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/privacy"];
 
 /**
  * Public, AND exempt from the "you have a cookie, go to /" redirect below.
