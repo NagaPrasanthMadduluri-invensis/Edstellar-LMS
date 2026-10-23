@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Award,
@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { EmojiPicker, insertEmoji } from "@/components/shared/emoji-picker";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -214,6 +215,7 @@ export function CommunityPostCard({ post, onDeleted }) {
   const [open, setOpen] = useState(false);
   const [replies, setReplies] = useState(null);
   const [replyBody, setReplyBody] = useState("");
+  const replyRef = useRef(null);
   const [sending, setSending] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -458,6 +460,7 @@ export function CommunityPostCard({ post, onDeleted }) {
 
               <Box className="flex items-end gap-2 pt-1">
                 <Textarea
+                  ref={replyRef}
                   rows={2}
                   value={replyBody}
                   maxLength={COMMUNITY_BODY_MAX}
@@ -469,6 +472,7 @@ export function CommunityPostCard({ post, onDeleted }) {
                   onChange={(e) => setReplyBody(e.target.value)}
                   className="min-h-0 resize-none bg-white"
                 />
+                <EmojiPicker onSelect={(e) => insertEmoji(replyRef, setReplyBody, e)} />
                 <Button
                   size="icon"
                   disabled={sending || !replyBody.trim()}
@@ -547,6 +551,7 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
   const [type, setType] = useState(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const bodyRef = useRef(null);
   const [certId, setCertId] = useState("");
   const [certs, setCerts] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -669,10 +674,14 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
             )}
 
             <Box className="space-y-1.5">
-              <Label htmlFor="body" className="text-sm font-medium text-ink/80">
-                {type === "achievement" ? "Caption (optional)" : type === "question" ? "Details" : "Message"}
-              </Label>
+              <Box className="flex items-center justify-between">
+                <Label htmlFor="body" className="text-sm font-medium text-ink/80">
+                  {type === "achievement" ? "Caption (optional)" : type === "question" ? "Details" : "Message"}
+                </Label>
+                <EmojiPicker onSelect={(e) => insertEmoji(bodyRef, setBody, e)} />
+              </Box>
               <Textarea
+                ref={bodyRef}
                 id="body"
                 rows={4}
                 value={body}

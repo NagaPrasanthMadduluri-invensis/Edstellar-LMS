@@ -11,6 +11,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { EmojiPicker, insertEmoji } from "@/components/shared/emoji-picker";
 import { PageHeader } from "@/components/shared/page-header";
 import { relativeTime } from "@/lib/notifications";
 import { MESSAGE_MAX_LENGTH } from "@/lib/content-limits";
@@ -126,6 +127,7 @@ function ConversationList({ items, activeId, onSelect }) {
 function Thread({ thread, loading, onSend, sending, onBack }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -230,6 +232,7 @@ function Thread({ thread, loading, onSend, sending, onBack }) {
       <Box className="border-t border-line p-3">
         <Box className="flex items-end gap-2">
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -243,6 +246,7 @@ function Thread({ thread, loading, onSend, sending, onBack }) {
             placeholder={`Message ${firstName}…`}
             className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent-blue"
           />
+          <EmojiPicker onSelect={(e) => insertEmoji(inputRef, setInput, e)} />
           <Button
             onClick={submit}
             disabled={sending || input.trim().length === 0}
