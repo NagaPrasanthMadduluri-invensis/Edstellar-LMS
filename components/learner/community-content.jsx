@@ -58,6 +58,7 @@ import {
   unlikeCommunityPost,
 } from "@/services/api/learner/community-api";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { Linkify } from "@/components/shared/linkify";
 
 const TYPE_TABS = [
   { key: "all", label: "All" },
@@ -332,7 +333,7 @@ export function CommunityPostCard({ post, onDeleted }) {
             )}
             {post.body && (
               <Text as="p" className="mt-1 whitespace-pre-wrap text-sm text-ink/80">
-                {post.body}
+                <Linkify className="text-accent-blue">{post.body}</Linkify>
               </Text>
             )}
 
@@ -445,7 +446,7 @@ export function CommunityPostCard({ post, onDeleted }) {
                       )}
                     </Box>
                     <Text as="p" className="mt-0.5 whitespace-pre-wrap text-sm text-ink/80">
-                      {r.body}
+                      <Linkify className="text-accent-blue">{r.body}</Linkify>
                     </Text>
                   </Box>
                 </Box>

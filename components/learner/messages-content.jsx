@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Send, MessageCircle } from "lucide-react";
+import { ArrowLeft, ArrowDown, Send, MessageCircle, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { EmojiPicker, insertEmoji } from "@/components/shared/emoji-picker";
+import { Linkify } from "@/components/shared/linkify";
 import { PageHeader } from "@/components/shared/page-header";
 import { relativeTime } from "@/lib/notifications";
 import { MESSAGE_MAX_LENGTH } from "@/lib/content-limits";
@@ -80,11 +81,13 @@ function AvatarWithPresence({ src, name, online, className }) {
 }
 
 /* ── Conversation list ── */
-function ConversationList({ items, activeId, onSelect }) {
+function ConversationList({ items, activeId, onSelect, searching }) {
   if (items.length === 0) {
     return (
       <Box className="p-6 text-center">
-        <Text as="p" className="text-xs text-text-3">No conversations yet.</Text>
+        <Text as="p" className="text-xs text-text-3">
+          {searching ? "No conversations match your search." : "No conversations yet."}
+        </Text>
       </Box>
     );
   }
@@ -124,21 +127,65 @@ function ConversationList({ items, activeId, onSelect }) {
 }
 
 /* ── Thread + composer ── */
-function Thread({ thread, loading, onSend, sending, onBack }) {
+function Thread({ thread, loading, onSend, pending, onRetry, onBack }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const atBottomRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
 
-  useEffect(() => {
+  const peerId = thread?.peer?.user_id;
+  const msgCount = thread?.messages?.length ?? 0;
+  const pendCount = pending?.length ?? 0;
+
+  // Jump to the newest message, and remember that we are pinned to the bottom.
+  const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread?.messages?.length, thread?.peer?.user_id]);
+    atBottomRef.current = true;
+    setShowJump(false);
+  }, []);
+
+  // Opening a conversation always lands on the newest message.
+  useEffect(() => {
+    if (peerId) scrollToBottom();
+  }, [peerId, scrollToBottom]);
+
+  // A new/changed message only pulls the view down if the reader is already at
+  // the bottom — otherwise it would yank them away from history they are reading.
+  useEffect(() => {
+    if (atBottomRef.current) {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    } else if (msgCount) {
+      setShowJump(true);
+    }
+  }, [msgCount, pendCount]);
+
+  // Grow the composer with its contents, up to the max height, then clamp back.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [input]);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    atBottomRef.current = near;
+    if (near) setShowJump(false);
+  };
 
   const submit = () => {
     const body = input.trim();
-    if (!body || sending) return;
+    if (!body) return;
+    atBottomRef.current = true;
     onSend(body);
     setInput("");
+    // Keep the cursor in the box so a quick back-and-forth needs no re-click.
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   if (loading && !thread) {
@@ -181,7 +228,7 @@ function Thread({ thread, loading, onSend, sending, onBack }) {
       </Box>
 
       {/* Messages — the ONLY thing that scrolls (min-h-0 lets it, not the page) */}
-      <Box ref={scrollRef} className="flex-1 min-h-0 space-y-2.5 overflow-y-auto bg-surface-2/40 px-4 py-4">
+      <Box ref={scrollRef} onScroll={onScroll} className="relative flex-1 min-h-0 space-y-2.5 overflow-y-auto bg-surface-2/40 px-4 py-4">
         {thread.messages.length === 0 ? (
           <Box className="flex h-full items-center justify-center">
             <Text as="p" className="text-center text-xs text-text-3">
@@ -215,7 +262,9 @@ function Thread({ thread, loading, onSend, sending, onBack }) {
                           : "rounded-bl-sm border border-line bg-surface text-ink",
                       )}
                     >
-                      <Text as="span" className="whitespace-pre-wrap break-words text-inherit">{m.body}</Text>
+                      <Text as="span" className="whitespace-pre-wrap break-words text-inherit">
+                        <Linkify>{m.body}</Linkify>
+                      </Text>
                     </Box>
                     <Text as="p" className={cn("mt-0.5 text-[10px] text-text-3", m.from_me ? "text-right" : "text-left")}>
                       {when(m.at)}
@@ -226,7 +275,50 @@ function Thread({ thread, loading, onSend, sending, onBack }) {
             );
           })
         )}
+
+        {/* Optimistic bubbles — your message shows instantly, before the server
+            confirms it; a failed send offers Retry rather than vanishing. */}
+        {pending.map((p) => (
+          <Box key={p.tempId} className="flex items-end justify-end gap-2">
+            <Box className="max-w-[78%]">
+              <Box
+                className={cn(
+                  "rounded-2xl rounded-br-sm px-3.5 py-2 text-[13px] leading-snug",
+                  p.failed ? "border border-danger/40 bg-danger/10 text-ink" : "bg-accent-blue/70 text-white",
+                )}
+              >
+                <Text as="span" className="whitespace-pre-wrap break-words text-inherit">
+                  <Linkify>{p.body}</Linkify>
+                </Text>
+              </Box>
+              {p.failed ? (
+                <Text as="p" className="mt-0.5 text-right text-[10px] text-danger">
+                  Not delivered ·{" "}
+                  <button type="button" onClick={() => onRetry(p.tempId)} className="font-semibold underline">
+                    Retry
+                  </button>
+                </Text>
+              ) : (
+                <Text as="p" className="mt-0.5 text-right text-[10px] text-text-3">Sending…</Text>
+              )}
+            </Box>
+          </Box>
+        ))}
       </Box>
+
+      {/* A nudge back to the newest message when the reader has scrolled up. */}
+      {showJump && (
+        <Box className="relative">
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="absolute -top-12 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-line bg-surface px-3 py-1 text-[11px] font-medium text-accent-blue shadow-sm hover:bg-surface-2"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            Latest messages
+          </button>
+        </Box>
+      )}
 
       {/* Composer */}
       <Box className="border-t border-line p-3">
@@ -249,7 +341,7 @@ function Thread({ thread, loading, onSend, sending, onBack }) {
           <EmojiPicker onSelect={(e) => insertEmoji(inputRef, setInput, e)} />
           <Button
             onClick={submit}
-            disabled={sending || input.trim().length === 0}
+            disabled={input.trim().length === 0}
             className="h-10 shrink-0 gap-1.5 bg-navy text-paper hover:bg-navy-soft"
           >
             <Send className="h-4 w-4" />
@@ -275,7 +367,8 @@ export function MessagesContent() {
   const [activeId, setActiveId] = useState(withParam ? Number(withParam) : null);
   const [thread, setThread] = useState(null);
   const [loadingThread, setLoadingThread] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [pending, setPending] = useState([]);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState(null);
 
   const loadConversations = useCallback(() => {
@@ -324,6 +417,7 @@ export function MessagesContent() {
 
   const select = (id) => {
     setActiveId(id);
+    setPending([]); // in-flight bubbles belong to the thread they were sent in
     // Keep the URL in sync so Back works and the thread is shareable in-app.
     router.replace(`/messages?with=${id}`, { scroll: false });
   };
@@ -331,21 +425,41 @@ export function MessagesContent() {
   const back = () => {
     setActiveId(null);
     setThread(null);
+    setPending([]);
     router.replace("/messages", { scroll: false });
   };
 
-  const onSend = (body) => {
-    if (!activeId) return;
-    setSending(true);
-    sendMessage(activeId, body)
+  // Optimistic: show the bubble at once, reconcile when the server replies, and
+  // mark it failed (with a Retry) rather than letting it disappear on error.
+  const deliver = useCallback((toId, body, tempId) => {
+    sendMessage(toId, body)
       .then((d) => {
         setThread((prev) =>
-          prev ? { ...prev, messages: [...prev.messages, d.message] } : prev,
+          prev && prev.peer.user_id === toId
+            ? { ...prev, messages: [...prev.messages, d.message] }
+            : prev,
         );
+        setPending((p) => p.filter((m) => m.tempId !== tempId));
         loadConversations();
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setSending(false));
+      .catch(() =>
+        setPending((p) => p.map((m) => (m.tempId === tempId ? { ...m, failed: true } : m))),
+      );
+  }, [loadConversations]);
+
+  const onSend = (body) => {
+    if (!activeId) return;
+    const tempId = `tmp-${Date.now()}`;
+    setPending((p) => [...p, { tempId, body, failed: false }]);
+    deliver(activeId, body, tempId);
+  };
+
+  const onRetry = (tempId) => {
+    setPending((p) => {
+      const item = p.find((m) => m.tempId === tempId);
+      if (item) deliver(activeId, item.body, tempId);
+      return p.map((m) => (m.tempId === tempId ? { ...m, failed: false } : m));
+    });
   };
 
   return (
@@ -382,7 +496,30 @@ export function MessagesContent() {
                 ))}
               </Box>
             ) : (
-              <ConversationList items={conversations} activeId={activeId} onSelect={select} />
+              <>
+                {conversations.length > 0 && (
+                  <Box className="sticky top-0 z-10 border-b border-line bg-surface p-2.5">
+                    <Box className="relative">
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-3" />
+                      <input
+                        type="text"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search conversations"
+                        className="w-full rounded-lg border border-line bg-surface-2 py-1.5 pl-8 pr-2.5 text-xs text-ink outline-none focus:border-accent-blue"
+                      />
+                    </Box>
+                  </Box>
+                )}
+                <ConversationList
+                  items={conversations.filter((c) =>
+                    c.name.toLowerCase().includes(query.trim().toLowerCase()),
+                  )}
+                  activeId={activeId}
+                  onSelect={select}
+                  searching={query.trim().length > 0}
+                />
+              </>
             )}
           </Box>
 
@@ -392,7 +529,8 @@ export function MessagesContent() {
               thread={thread}
               loading={loadingThread}
               onSend={onSend}
-              sending={sending}
+              pending={pending}
+              onRetry={onRetry}
               onBack={back}
             />
           </Box>
