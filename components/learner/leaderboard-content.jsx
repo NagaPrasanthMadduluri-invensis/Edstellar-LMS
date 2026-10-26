@@ -12,6 +12,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { BRAND } from "@/lib/brand";
+import { UserAvatar } from "@/components/shared/user-avatar";
 
 /* ── helpers ── */
 function Initials({ name, color, size = "md" }) {
@@ -21,6 +22,16 @@ function Initials({ name, color, size = "md" }) {
       {name}
     </Box>
   );
+}
+
+/* The learner's uploaded profile picture when they have one (My Profile),
+   otherwise the coloured initials the board has always shown. */
+function PersonAvatar({ avatarUrl, initials, color, name, size = "md" }) {
+  if (avatarUrl) {
+    const sz = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-8 w-8" : "h-10 w-10";
+    return <UserAvatar src={avatarUrl} name={name} className={cn(sz, "shrink-0")} />;
+  }
+  return <Initials name={initials} color={color} size={size} />;
 }
 
 function MedalBadge({ rank }) {
@@ -297,7 +308,7 @@ export function LeaderboardContent() {
             <Box key={p.id} className="flex flex-col items-center gap-2 w-36">
               {/* avatar + medal */}
               <Box className="relative">
-                <Initials name={p.initials} color={p.color} size="lg" />
+                <PersonAvatar avatarUrl={p.avatarUrl} initials={p.initials} color={p.color} name={p.name} size="lg" />
                 <Box className="absolute -top-2 -right-2">
                   <PodiumMedal pos={p.podiumPos} />
                 </Box>
@@ -384,7 +395,7 @@ export function LeaderboardContent() {
                   </td>
                   <td className="py-3 px-3">
                     <Box className="flex items-center gap-3">
-                      <Initials name={l.initials} color={l.color} size="sm" />
+                      <PersonAvatar avatarUrl={l.avatarUrl} initials={l.initials} color={l.color} name={l.name} size="sm" />
                       <Box className="flex items-center gap-1.5 flex-wrap">
                         <Text as="p" className={cn("text-sm font-semibold", l.isYou && "text-navy")}>{l.name}</Text>
                         {l.isYou && (

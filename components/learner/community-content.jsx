@@ -303,9 +303,13 @@ export function CommunityPostCard({ post, onDeleted }) {
     <Card className="p-0 overflow-hidden">
       <Box className="p-5">
         <Box className="flex items-start gap-3">
-          <Box className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-bold text-white">
-            {initials(post.author?.name)}
-          </Box>
+          {post.author?.avatar ? (
+            <UserAvatar src={post.author.avatar} name={post.author?.name} className="size-10 shrink-0" />
+          ) : (
+            <Box className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy text-sm font-bold text-white">
+              {initials(post.author?.name)}
+            </Box>
+          )}
           <Box className="min-w-0 flex-1">
             <Box className="flex flex-wrap items-center gap-2">
               <Text as="span" className="text-sm font-semibold text-ink">
@@ -423,9 +427,13 @@ export function CommunityPostCard({ post, onDeleted }) {
             <Box className="space-y-3">
               {replies.map((r) => (
                 <Box key={r.id} className="flex items-start gap-2.5">
-                  <Box className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy/80 text-[11px] font-bold text-white">
-                    {initials(r.author?.name)}
-                  </Box>
+                  {r.author?.avatar ? (
+                    <UserAvatar src={r.author.avatar} name={r.author?.name} className="size-8 shrink-0" />
+                  ) : (
+                    <Box className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy/80 text-[11px] font-bold text-white">
+                      {initials(r.author?.name)}
+                    </Box>
+                  )}
                   <Box className="min-w-0 flex-1 rounded-lg bg-white p-3">
                     <Box className="flex items-center gap-2">
                       <Text as="span" className="text-xs font-semibold text-ink">
