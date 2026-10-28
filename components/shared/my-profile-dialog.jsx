@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Briefcase, Building2, CalendarDays, Clock, KeyRound, Loader2, Mail, MapPin,
-  Copy, Download, Pencil, Phone, ShieldCheck, Trash2, Upload, Users,
+  Copy, Download, Pencil, Phone, ShieldCheck, Sparkles, Trash2, Upload, Users,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -24,6 +24,7 @@ import {
 import {
   fetchMyProfile, updateMyProfile, uploadMyAvatar, discardMyAvatar,
 } from "@/services/api/profile-api";
+import { fetchKudosSummary } from "@/services/api/learner/community-api";
 import {
   getEmailPreferences,
   updateEmailPreferences,
@@ -196,6 +197,8 @@ function ProfileView({ profile: p, onEdit, onClose }) {
         )}
       </Box>
 
+      {p.role === "learner" && <KudosPanel />}
+
       <EmailPreferences />
 
       {p.role === "admin" && <TwoFactorSection />}
@@ -221,6 +224,72 @@ function ProfileView({ profile: p, onEdit, onClose }) {
         </Link>
       </DialogFooter>
     </>
+  );
+}
+
+/* ── Kudos received ──────────────────────────────────────────────────────── */
+
+/**
+ * The learner's kudos received — a count and the most recent few. A secondary
+ * panel: a failed fetch (e.g. the community is off, which 403s) renders
+ * nothing, like EmailPreferences and TwoFactorSection.
+ */
+function KudosPanel() {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetchKudosSummary()
+      .then((d) => alive && setData(d))
+      .catch(() => alive && setFailed(true));
+    return () => { alive = false; };
+  }, []);
+
+  if (failed) return null;
+  if (!data) {
+    return (
+      <Box className="border-t border-line px-5 py-4">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="mt-3 h-10 w-full" />
+      </Box>
+    );
+  }
+
+  return (
+    <Box className="border-t border-line px-5 py-4">
+      <Box className="mb-2.5 flex items-center justify-between">
+        <Text as="p" className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
+          Kudos received
+        </Text>
+        <Text as="span" className="inline-flex items-center gap-1 text-[13px] font-bold text-success">
+          <Sparkles className="size-3.5" />{data.received}
+        </Text>
+      </Box>
+
+      {data.received === 0 ? (
+        <Text as="p" className="text-[11.5px] leading-relaxed text-text-3">
+          No kudos yet. Recognition from your colleagues will appear here.
+        </Text>
+      ) : (
+        <Box className="grid gap-px border border-line bg-line">
+          {data.recent.map((k) => (
+            <Box key={k.id} className="flex items-start gap-2.5 bg-surface px-3 py-2.5">
+              <UserAvatar src={k.from?.avatar} name={k.from?.name} className="size-7 shrink-0" />
+              <Box className="min-w-0">
+                <Text as="p" className="text-[12px]">
+                  <Text as="span" className="font-semibold text-ink">{k.from?.name}</Text>
+                  {k.message ? (
+                    <Text as="span" className="text-text-2"> — {k.message}</Text>
+                  ) : null}
+                </Text>
+                <Text as="p" className="mt-0.5 text-[10px] text-text-3">{formatDate(k.createdAt)}</Text>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
   );
 }
 

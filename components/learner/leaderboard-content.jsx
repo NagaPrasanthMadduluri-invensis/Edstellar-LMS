@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Zap, Target, Star, Info } from "lucide-react";
+import { Trophy, Zap, Target, Star, Info, Sparkles } from "lucide-react";
+import { fetchKudosLeaderboard } from "@/services/api/learner/community-api";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
@@ -158,9 +159,65 @@ function HowPointsWork({ rules = [], notes = [] }) {
   );
 }
 
+/* The Kudos leaderboard — most kudos received, separate from the points race. */
+function KudosBoard() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    fetchKudosLeaderboard().then(setData).catch((e) => setError(e.message));
+  }, []);
+  if (error) return <Card className="p-6 text-center"><Text as="p" className="text-sm text-error">{error}</Text></Card>;
+  if (!data) return <Card className="p-6"><Skeleton className="h-40 w-full" /></Card>;
+  const entries = data.entries || [];
+  if (entries.length === 0) {
+    return (
+      <Card className="p-10 text-center">
+        <Sparkles className="mx-auto h-8 w-8 text-ink/30" />
+        <Text as="p" className="mt-3 font-semibold text-ink">No kudos yet</Text>
+        <Text as="p" className="mt-1 text-sm text-ink/60">
+          Recognise a colleague in the community and it will show here.
+        </Text>
+      </Card>
+    );
+  }
+  return (
+    <Card className="p-0 overflow-hidden">
+      <Box className="border-b border-line px-5 py-3">
+        <Text as="p" className="text-sm font-bold text-ink">Most kudos received</Text>
+        <Text as="p" className="text-xs text-text-2">Recognition from colleagues — separate from points.</Text>
+      </Box>
+      <Box>
+        {entries.map((e) => (
+          <Box
+            key={e.userId}
+            className={cn(
+              "flex items-center gap-3 border-b border-line px-5 py-3 last:border-0",
+              e.isYou && "bg-paper-cream",
+            )}
+          >
+            <MedalBadge rank={e.rank} />
+            <UserAvatar src={e.avatarUrl} name={e.name} className="h-8 w-8 shrink-0" />
+            <Box className="min-w-0 flex-1">
+              <Box className="flex items-center gap-1.5">
+                <Text as="p" className={cn("text-sm font-semibold", e.isYou && "text-navy")}>{e.name}</Text>
+                {e.isYou && <Badge className="text-[9px] px-1.5 py-0 bg-navy text-white border-0">You</Badge>}
+              </Box>
+              {e.department && <Text as="p" className="text-xs text-text-3">{e.department}</Text>}
+            </Box>
+            <Text as="span" className="inline-flex items-center gap-1 text-sm font-bold text-success">
+              <Sparkles className="h-3.5 w-3.5" />{e.received}
+            </Text>
+          </Box>
+        ))}
+      </Box>
+    </Card>
+  );
+}
+
 const LB_TABS = [
   { key: "rankings", label: "Rankings", icon: Trophy },
   { key: "points", label: "How Points Work", icon: Star },
+  { key: "kudos", label: "Kudos", icon: Sparkles },
 ];
 
 export function LeaderboardContent() {
@@ -247,6 +304,8 @@ export function LeaderboardContent() {
 
       {tab === "points" ? (
         <HowPointsWork rules={data.pointRules} notes={data.pointNotes} />
+      ) : tab === "kudos" ? (
+        <KudosBoard />
       ) : (
       <>
 

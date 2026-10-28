@@ -4,14 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Award,
+  Hash,
   Heart,
   HelpCircle,
   Loader2,
   MessageSquare,
   MessagesSquare,
   Plus,
+  Search,
   Send,
+  Sparkles,
   Trash2,
+  X,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -43,7 +47,13 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/notifications";
-import { COMMUNITY_BODY_MAX, COMMUNITY_TITLE_MAX } from "@/lib/content-limits";
+import {
+  COMMUNITY_BODY_MAX,
+  COMMUNITY_TITLE_MAX,
+  COMMUNITY_HASHTAGS_PER_POST_MAX,
+  KUDOS_MESSAGE_MAX,
+} from "@/lib/content-limits";
+import { normalizeHashtag } from "@/lib/community-hashtags";
 import { useAuth } from "@/hooks/use-auth";
 import {
   createCommunityPost,
@@ -53,8 +63,13 @@ import {
   fetchCommunityFeed,
   fetchCommunityLikers,
   fetchCommunityPost,
+  fetchKudosLeaderboard,
   fetchMyCertificates,
+  fetchTrendingHashtags,
+  giveKudos,
   likeCommunityPost,
+  searchPeople,
+  suggestHashtags,
   unlikeCommunityPost,
 } from "@/services/api/learner/community-api";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -71,6 +86,7 @@ const TYPE_META = {
   question: { label: "Question", icon: HelpCircle, tone: "bg-accent-tint text-accent-blue", reply: "Contribute", replies: "Contributions" },
   achievement: { label: "Achievement", icon: Award, tone: "bg-[#FBF3E6] text-[#8A6200]", reply: "Comment", replies: "Comments" },
   discussion: { label: "Discussion", icon: MessagesSquare, tone: "bg-[#F3EEFC] text-[#6D28D9]", reply: "Comment", replies: "Comments" },
+  kudos: { label: "Kudos", icon: Sparkles, tone: "bg-success/10 text-success", reply: "Comment", replies: "Comments" },
 };
 
 function initials(name = "") {
@@ -85,13 +101,17 @@ export function CommunityContent() {
   const [error, setError] = useState(null);
   const [disabled, setDisabled] = useState(false);
   const [tab, setTab] = useState("all");
+  const [hashtag, setHashtag] = useState(null); // active hashtag filter (normalised tag)
   const [loadingMore, setLoadingMore] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [kudosOpen, setKudosOpen] = useState(false);
+  const [trending, setTrending] = useState([]);
 
   async function load(reset) {
     try {
       const data = await fetchCommunityFeed({
         type: tab,
+        hashtag: hashtag || undefined,
         cursor: reset ? undefined : nextCursor,
       });
       setPosts((prev) => (reset || !prev ? data.posts : [...prev, ...data.posts]));
@@ -109,7 +129,20 @@ export function CommunityContent() {
     setPosts(null);
     load(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, tab]);
+  }, [user, tab, hashtag]);
+
+  // Trending hashtags — fetched once; a quiet failure just hides the row.
+  useEffect(() => {
+    if (!user) return;
+    fetchTrendingHashtags()
+      .then((d) => setTrending(d.hashtags || []))
+      .catch(() => setTrending([]));
+  }, [user]);
+
+  function pickHashtag(tag) {
+    setHashtag(tag);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function loadMore() {
     setLoadingMore(true);
@@ -171,11 +204,50 @@ export function CommunityContent() {
             </button>
           ))}
         </Box>
-        <Button size="sm" className="gap-1.5" onClick={() => setComposeOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Share something
-        </Button>
+        <Box className="flex gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setKudosOpen(true)}>
+            <Sparkles className="h-4 w-4" />
+            Give kudos
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={() => setComposeOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Share something
+          </Button>
+        </Box>
       </Box>
+
+      {/* Trending hashtags — a quick way into popular discussions. */}
+      {trending.length > 0 && !hashtag && (
+        <Box className="flex flex-wrap items-center gap-2">
+          <Text as="span" className="text-xs font-semibold text-ink/50">Trending</Text>
+          {trending.map((h) => (
+            <button
+              key={h.tag}
+              type="button"
+              onClick={() => pickHashtag(h.tag)}
+              className="inline-flex items-center gap-0.5 rounded-full border border-border bg-white px-2.5 py-1 text-xs font-medium text-accent-blue transition-colors hover:border-accent-blue/40 hover:bg-accent-tint"
+            >
+              <Hash className="h-3 w-3" />{h.label}
+            </button>
+          ))}
+        </Box>
+      )}
+
+      {/* Active hashtag filter banner. */}
+      {hashtag && (
+        <Box className="flex items-center justify-between gap-3 rounded-lg border border-accent-blue/25 bg-accent-tint px-3 py-2">
+          <Text as="span" className="inline-flex items-center gap-1 text-sm font-semibold text-accent-blue">
+            <Hash className="h-4 w-4" />Posts tagged {hashtag}
+          </Text>
+          <button
+            type="button"
+            onClick={() => setHashtag(null)}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-ink/60 hover:text-ink"
+          >
+            <X className="h-3.5 w-3.5" />Clear
+          </button>
+        </Box>
+      )}
 
       {posts === null ? (
         <FeedSkeleton />
@@ -189,7 +261,7 @@ export function CommunityContent() {
       ) : (
         <Box className="space-y-4">
           {posts.map((p) => (
-            <CommunityPostCard key={p.id} post={p} onDeleted={onDeleted} />
+            <CommunityPostCard key={p.id} post={p} onDeleted={onDeleted} onHashtag={pickHashtag} />
           ))}
           {nextCursor && (
             <Box className="flex justify-center pt-1">
@@ -202,11 +274,12 @@ export function CommunityContent() {
       )}
 
       <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} onCreated={onCreated} />
+      <KudosDialog open={kudosOpen} onOpenChange={setKudosOpen} onCreated={onCreated} />
     </Box>
   );
 }
 
-export function CommunityPostCard({ post, onDeleted }) {
+export function CommunityPostCard({ post, onDeleted, onHashtag }) {
   const meta = TYPE_META[post.type] ?? TYPE_META.discussion;
   const TypeIcon = meta.icon;
 
@@ -330,6 +403,20 @@ export function CommunityPostCard({ post, onDeleted }) {
               </Text>
             </Box>
 
+            {post.type === "kudos" && post.recipient && (
+              <Box className="mt-1.5 inline-flex flex-wrap items-center gap-2">
+                <Text as="span" className="text-sm text-ink/60">gave kudos to</Text>
+                {post.recipient.avatar ? (
+                  <UserAvatar src={post.recipient.avatar} name={post.recipient.name} className="size-6 shrink-0" />
+                ) : (
+                  <Box className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success/15 text-[10px] font-bold text-success">
+                    {initials(post.recipient.name)}
+                  </Box>
+                )}
+                <Text as="span" className="text-sm font-semibold text-ink">{post.recipient.name}</Text>
+              </Box>
+            )}
+
             {post.title && (
               <Text as="h3" className="mt-1.5 text-lg font-bold text-ink">
                 {post.title}
@@ -363,6 +450,21 @@ export function CommunityPostCard({ post, onDeleted }) {
                 >
                   View
                 </Link>
+              </Box>
+            )}
+
+            {post.hashtags?.length > 0 && (
+              <Box className="mt-3 flex flex-wrap gap-1.5">
+                {post.hashtags.map((h) => (
+                  <button
+                    key={h.tag}
+                    type="button"
+                    onClick={() => onHashtag?.(h.tag)}
+                    className="inline-flex items-center gap-0.5 rounded-full bg-accent-tint px-2 py-0.5 text-xs font-medium text-accent-blue transition-colors hover:underline"
+                  >
+                    <Hash className="h-3 w-3" />{h.label}
+                  </button>
+                ))}
               </Box>
             )}
           </Box>
@@ -563,13 +665,14 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
   const bodyRef = useRef(null);
   const [certId, setCertId] = useState("");
   const [certs, setCerts] = useState(null);
+  const [tags, setTags] = useState([]); // [{tag,label}]
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
     if (!open) {
       // reset on close
-      setStep(1); setType(null); setTitle(""); setBody(""); setCertId(""); setErr(null);
+      setStep(1); setType(null); setTitle(""); setBody(""); setCertId(""); setTags([]); setErr(null);
     }
   }, [open]);
 
@@ -600,6 +703,12 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
         payload.title = title.trim();
         payload.body = body.trim() || undefined;
       }
+      if (tags.length === 0) {
+        setErr("Add at least one hashtag.");
+        setSubmitting(false);
+        return;
+      }
+      payload.hashtags = tags.map((t) => t.label);
       const { post } = await createCommunityPost(payload);
       onCreated(post);
     } catch (e) {
@@ -701,6 +810,13 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
               />
             </Box>
 
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-ink/80">
+                Hashtags <Text as="span" className="text-ink/45">(at least one)</Text>
+              </Label>
+              <HashtagInput value={tags} onChange={setTags} />
+            </Box>
+
             {err && <Text as="p" className="text-sm text-error">{err}</Text>}
           </Box>
         )}
@@ -716,6 +832,210 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
               {submitting ? "Posting…" : "Post"}
             </Button>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* A chip-style hashtag input with reuse-the-existing autocomplete. */
+function HashtagInput({ value, onChange }) {
+  const [input, setInput] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const atMax = value.length >= COMMUNITY_HASHTAGS_PER_POST_MAX;
+
+  useEffect(() => {
+    const q = input.trim();
+    if (!q) { setSuggestions([]); return undefined; }
+    let live = true;
+    const id = setTimeout(() => {
+      suggestHashtags({ q })
+        .then((d) => {
+          if (!live) return;
+          const have = new Set(value.map((t) => t.tag));
+          setSuggestions((d.hashtags || []).filter((h) => !have.has(h.tag)));
+        })
+        .catch(() => live && setSuggestions([]));
+    }, 180);
+    return () => { live = false; clearTimeout(id); };
+  }, [input, value]);
+
+  function addTag(raw) {
+    const n = normalizeHashtag(raw);
+    setInput("");
+    setSuggestions([]);
+    if (!n || atMax) return;
+    if (!value.some((t) => t.tag === n.tag)) onChange([...value, n]);
+  }
+  function removeTag(tag) { onChange(value.filter((t) => t.tag !== tag)); }
+
+  return (
+    <Box className="space-y-1.5">
+      <Box className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-paper-warm p-2">
+        {value.map((t) => (
+          <Text as="span" key={t.tag} className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-xs font-medium text-accent-blue">
+            <Hash className="h-3 w-3" />{t.label}
+            <button type="button" onClick={() => removeTag(t.tag)} aria-label={`Remove ${t.label}`} className="text-accent-blue/60 hover:text-accent-blue">
+              <X className="h-3 w-3" />
+            </button>
+          </Text>
+        ))}
+        {!atMax && (
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === "," || e.key === " ") { e.preventDefault(); addTag(input); }
+              else if (e.key === "Backspace" && !input && value.length) removeTag(value[value.length - 1].tag);
+            }}
+            placeholder={value.length ? "Add another…" : "e.g. Renewables, AdvancedAI"}
+            className="min-w-[8rem] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
+          />
+        )}
+      </Box>
+      {suggestions.length > 0 && (
+        <Box className="flex flex-wrap gap-1.5">
+          {suggestions.map((h) => (
+            <button
+              key={h.tag}
+              type="button"
+              onClick={() => addTag(h.label)}
+              className="inline-flex items-center gap-0.5 rounded-full border border-border bg-white px-2 py-0.5 text-xs text-ink/70 transition-colors hover:border-accent-blue/40 hover:text-accent-blue"
+            >
+              <Hash className="h-3 w-3" />{h.label}
+              <Text as="span" className="ml-0.5 text-ink/40">{h.count}</Text>
+            </button>
+          ))}
+        </Box>
+      )}
+      <Text as="p" className="text-[11px] text-ink/45">
+        Press Enter or comma to add. {value.length}/{COMMUNITY_HASHTAGS_PER_POST_MAX}
+      </Text>
+    </Box>
+  );
+}
+
+/* Give kudos: pick a colleague, write a message. */
+function KudosDialog({ open, onOpenChange, onCreated }) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [recipient, setRecipient] = useState(null);
+  const [message, setMessage] = useState("");
+  const msgRef = useRef(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (!open) { setQ(""); setResults([]); setRecipient(null); setMessage(""); setErr(null); }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || recipient) return undefined;
+    let live = true;
+    const id = setTimeout(() => {
+      searchPeople({ q: q.trim() || undefined })
+        .then((d) => live && setResults(d.people || []))
+        .catch(() => live && setResults([]));
+    }, 180);
+    return () => { live = false; clearTimeout(id); };
+  }, [q, recipient, open]);
+
+  async function submit() {
+    if (!recipient) { setErr("Choose who to recognise."); return; }
+    if (!message.trim()) { setErr("Add a short message."); return; }
+    setErr(null);
+    setSubmitting(true);
+    try {
+      const { post } = await giveKudos({ recipientUserId: recipient.id, message: message.trim() });
+      onCreated(post);
+      onOpenChange(false);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!submitting) onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Give kudos</DialogTitle>
+          <DialogDescription>
+            Recognise a colleague — for teamwork, support, or sharing knowledge. It appears in the community feed.
+          </DialogDescription>
+        </DialogHeader>
+        <Box className="space-y-4">
+          {recipient ? (
+            <Box className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 p-3">
+              {recipient.avatar ? (
+                <UserAvatar src={recipient.avatar} name={recipient.name} className="size-9" />
+              ) : (
+                <Box className="flex h-9 w-9 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">{initials(recipient.name)}</Box>
+              )}
+              <Box className="min-w-0 flex-1">
+                <Text as="p" className="text-sm font-semibold text-ink">{recipient.name}</Text>
+                {recipient.department && <Text as="p" className="text-xs text-ink/55">{recipient.department}</Text>}
+              </Box>
+              <button type="button" onClick={() => setRecipient(null)} className="text-xs font-semibold text-accent-blue hover:underline">Change</button>
+            </Box>
+          ) : (
+            <Box className="space-y-1.5">
+              <Label className="text-sm font-medium text-ink/80">Who do you want to recognise?</Label>
+              <Box className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
+                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name" className="pl-8" />
+              </Box>
+              <Box className="max-h-52 overflow-y-auto rounded-md border border-border">
+                {results.length === 0 ? (
+                  <Text as="p" className="p-3 text-center text-xs text-ink/50">No matching colleagues.</Text>
+                ) : (
+                  results.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setRecipient(p); requestAnimationFrame(() => msgRef.current?.focus()); }}
+                      className="flex w-full items-center gap-3 border-b border-border p-2.5 text-left last:border-0 hover:bg-surface-2"
+                    >
+                      {p.avatar ? (
+                        <UserAvatar src={p.avatar} name={p.name} className="size-8" />
+                      ) : (
+                        <Box className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-[11px] font-bold text-white">{initials(p.name)}</Box>
+                      )}
+                      <Box className="min-w-0">
+                        <Text as="p" className="truncate text-sm font-medium text-ink">{p.name}</Text>
+                        {p.department && <Text as="p" className="truncate text-xs text-ink/50">{p.department}</Text>}
+                      </Box>
+                    </button>
+                  ))
+                )}
+              </Box>
+            </Box>
+          )}
+
+          <Box className="space-y-1.5">
+            <Box className="flex items-center justify-between">
+              <Label htmlFor="kudos-msg" className="text-sm font-medium text-ink/80">Message</Label>
+              <EmojiPicker onSelect={(e) => insertEmoji(msgRef, setMessage, e)} />
+            </Box>
+            <Textarea
+              ref={msgRef}
+              id="kudos-msg"
+              rows={3}
+              value={message}
+              maxLength={KUDOS_MESSAGE_MAX}
+              placeholder="What are you recognising them for?"
+              onChange={(e) => setMessage(e.target.value)}
+              className="resize-none bg-paper-warm"
+            />
+          </Box>
+
+          {err && <Text as="p" className="text-sm text-error">{err}</Text>}
+        </Box>
+        <DialogFooter>
+          <Button onClick={submit} disabled={submitting || !recipient || !message.trim()} className="gap-1.5">
+            <Sparkles className="h-4 w-4" />{submitting ? "Sending…" : "Give kudos"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -47,6 +47,7 @@ const TYPE_META = {
   question: { label: "Question", icon: HelpCircle, tone: "bg-accent-tint text-accent-blue" },
   achievement: { label: "Achievement", icon: Award, tone: "bg-[#FBF3E6] text-[#8A6200]" },
   discussion: { label: "Discussion", icon: MessagesSquare, tone: "bg-[#F3EEFC] text-[#6D28D9]" },
+  kudos: { label: "Kudos", icon: Award, tone: "bg-success/10 text-success" },
 };
 
 export function CommunityModeration() {

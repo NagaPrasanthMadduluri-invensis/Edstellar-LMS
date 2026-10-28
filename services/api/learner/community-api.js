@@ -5,9 +5,10 @@ import { apiClient } from "@/lib/api-client";
  * server; the browser carries the HttpOnly auth cookie.
  */
 
-export async function fetchCommunityFeed({ type, cursor } = {}) {
+export async function fetchCommunityFeed({ type, hashtag, cursor } = {}) {
   const params = new URLSearchParams();
   if (type && type !== "all") params.set("type", type);
+  if (hashtag) params.set("hashtag", hashtag);
   if (cursor) params.set("cursor", cursor);
   const qs = params.toString();
   return apiClient(`/api/learner/community${qs ? `?${qs}` : ""}`);
@@ -17,10 +18,10 @@ export async function fetchCommunityPost({ postId }) {
   return apiClient(`/api/learner/community/${postId}`);
 }
 
-export async function createCommunityPost({ type, title, body, certificateId }) {
+export async function createCommunityPost({ type, title, body, certificateId, hashtags }) {
   return apiClient("/api/learner/community", {
     method: "POST",
-    body: { type, title, body, certificateId },
+    body: { type, title, body, certificateId, hashtags },
   });
 }
 
@@ -57,4 +58,42 @@ export async function fetchCommunityLikers({ postId }) {
 /** The learner's own certificates, for the achievement composer. */
 export async function fetchMyCertificates() {
   return apiClient("/api/learner/certificates");
+}
+
+// ── Hashtags ──────────────────────────────────────────────────────────────
+
+/** Autocomplete suggestions for a partial tag. */
+export async function suggestHashtags({ q } = {}) {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  return apiClient(`/api/learner/community/hashtags${qs}`);
+}
+
+/** Trending hashtags (last 30 days). */
+export async function fetchTrendingHashtags() {
+  return apiClient("/api/learner/community/hashtags/trending");
+}
+
+// ── Kudos ───────────────────────────────────────────────────────────────────
+
+/** Search people to recognise (active learner-portal colleagues, not you). */
+export async function searchPeople({ q } = {}) {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  return apiClient(`/api/learner/community/people${qs}`);
+}
+
+export async function giveKudos({ recipientUserId, message }) {
+  return apiClient("/api/learner/community/kudos", {
+    method: "POST",
+    body: { recipientUserId, message },
+  });
+}
+
+/** The caller's own kudos received — count + recent (My Profile panel). */
+export async function fetchKudosSummary() {
+  return apiClient("/api/learner/community/kudos/summary");
+}
+
+/** The Kudos leaderboard — most kudos received. */
+export async function fetchKudosLeaderboard() {
+  return apiClient("/api/learner/community/kudos/leaderboard");
 }
