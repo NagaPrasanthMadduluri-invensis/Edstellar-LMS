@@ -5,10 +5,11 @@ import { apiClient } from "@/lib/api-client";
  * server; the browser carries the HttpOnly auth cookie.
  */
 
-export async function fetchCommunityFeed({ type, hashtag, cursor } = {}) {
+export async function fetchCommunityFeed({ type, hashtag, group, cursor } = {}) {
   const params = new URLSearchParams();
   if (type && type !== "all") params.set("type", type);
   if (hashtag) params.set("hashtag", hashtag);
+  if (group) params.set("group", group);
   if (cursor) params.set("cursor", cursor);
   const qs = params.toString();
   return apiClient(`/api/learner/community${qs ? `?${qs}` : ""}`);
@@ -18,11 +19,26 @@ export async function fetchCommunityPost({ postId }) {
   return apiClient(`/api/learner/community/${postId}`);
 }
 
-export async function createCommunityPost({ type, title, body, certificateId, hashtags }) {
+export async function createCommunityPost({ type, title, body, certificateId, hashtags, groupId }) {
   return apiClient("/api/learner/community", {
     method: "POST",
-    body: { type, title, body, certificateId, hashtags },
+    body: { type, title, body, certificateId, hashtags, groupId },
   });
+}
+
+// ── Groups ──────────────────────────────────────────────────────────────────
+
+/** Groups the learner can browse and join (with counts + joined state). */
+export async function fetchCommunityGroups() {
+  return apiClient("/api/learner/community/groups");
+}
+
+export async function joinCommunityGroup({ groupId }) {
+  return apiClient(`/api/learner/community/groups/${groupId}/join`, { method: "POST" });
+}
+
+export async function leaveCommunityGroup({ groupId }) {
+  return apiClient(`/api/learner/community/groups/${groupId}/join`, { method: "DELETE" });
 }
 
 export async function deleteCommunityPost({ postId }) {

@@ -1,19 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   Award,
   ChevronDown,
   ChevronUp,
   HelpCircle,
+  Loader2,
   MessagesSquare,
+  Pencil,
+  Plus,
   Search,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -31,11 +47,16 @@ import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/notifications";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  createAdminCommunityDiscussion,
+  createAdminCommunityGroup,
   deleteAdminCommunityPost,
   deleteAdminCommunityReply,
   fetchAdminCommunity,
+  fetchAdminCommunityGroups,
   fetchAdminCommunityPost,
+  updateAdminCommunityGroup,
 } from "@/services/api/admin/community-api";
+import { COMMUNITY_TITLE_MAX, COMMUNITY_GROUP_NAME_MAX, DESCRIPTION_MAX_LENGTH } from "@/lib/content-limits";
 
 const TABS = [
   { key: "all", label: "All" },
@@ -61,6 +82,18 @@ export function CommunityModeration() {
   const [error, setError] = useState(null);
   const [confirm, setConfirm] = useState(null); // { kind:'post'|'reply', id, label }
   const [working, setWorking] = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [discussionOpen, setDiscussionOpen] = useState(false);
+
+  const loadGroups = useCallback(() => {
+    return fetchAdminCommunityGroups()
+      .then((d) => setGroups(d.groups || []))
+      .catch(() => setGroups([]));
+  }, []);
+  useEffect(() => {
+    if (user) loadGroups();
+  }, [user, loadGroups]);
 
   useEffect(() => { setPage(1); }, [tab, search]);
 
@@ -115,14 +148,26 @@ export function CommunityModeration() {
             </button>
           ))}
         </Box>
-        <Box className="relative w-full max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
-          <Input
-            value={search}
-            placeholder="Search posts…"
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <Box className="flex flex-wrap items-center gap-2">
+          {canModerate && (
+            <>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setGroupsOpen(true)}>
+                <UsersRound className="h-4 w-4" />Manage groups
+              </Button>
+              <Button size="sm" className="gap-1.5" onClick={() => setDiscussionOpen(true)}>
+                <Plus className="h-4 w-4" />New discussion
+              </Button>
+            </>
+          )}
+          <Box className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" />
+            <Input
+              value={search}
+              placeholder="Search posts…"
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </Box>
         </Box>
       </Box>
 
@@ -190,7 +235,206 @@ export function CommunityModeration() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <GroupsManagerDialog
+        open={groupsOpen}
+        onOpenChange={setGroupsOpen}
+        groups={groups}
+        onChanged={loadGroups}
+      />
+      <DiscussionDialog
+        open={discussionOpen}
+        onOpenChange={setDiscussionOpen}
+        groups={groups.filter((g) => !g.archived)}
+        onCreated={() => {
+          setDiscussionOpen(false);
+          // Show it at once if the current filter would include it.
+          setPage(1);
+          fetchAdminCommunity({ type: tab, search, page: 1 }).then(setData).catch(() => {});
+        }}
+      />
     </Box>
+  );
+}
+
+/* Admin: create a discussion thread (the admin-curated type), optionally in a
+   group. Hashtags are comma-separated; the server normalises and requires one. */
+function DiscussionDialog({ open, onOpenChange, groups, onCreated }) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [tags, setTags] = useState("");
+  const [groupId, setGroupId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (!open) { setTitle(""); setBody(""); setTags(""); setGroupId(""); setErr(null); }
+  }, [open]);
+
+  async function submit() {
+    const hashtags = tags.split(/[,\s]+/).map((t) => t.trim()).filter(Boolean);
+    if (!title.trim()) { setErr("A title is required."); return; }
+    if (hashtags.length === 0) { setErr("Add at least one hashtag."); return; }
+    setErr(null);
+    setSubmitting(true);
+    try {
+      await createAdminCommunityDiscussion({
+        title: title.trim(),
+        body: body.trim() || undefined,
+        hashtags,
+        groupId: groupId ? Number(groupId) : undefined,
+      });
+      onCreated();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!submitting) onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>New discussion</DialogTitle>
+          <DialogDescription>
+            Discussions are admin-curated. Learners can reply, but only admins start them.
+          </DialogDescription>
+        </DialogHeader>
+        <Box className="space-y-4">
+          <Box className="space-y-1.5">
+            <Label htmlFor="disc-title" className="text-sm font-medium text-ink/80">Title</Label>
+            <Input id="disc-title" value={title} maxLength={COMMUNITY_TITLE_MAX} placeholder="What is this about?" onChange={(e) => setTitle(e.target.value)} />
+          </Box>
+          <Box className="space-y-1.5">
+            <Label htmlFor="disc-body" className="text-sm font-medium text-ink/80">Details</Label>
+            <Textarea id="disc-body" rows={4} value={body} placeholder="Open the topic…" onChange={(e) => setBody(e.target.value)} className="resize-none bg-paper-warm" />
+          </Box>
+          <Box className="space-y-1.5">
+            <Label htmlFor="disc-tags" className="text-sm font-medium text-ink/80">Hashtags <Text as="span" className="text-ink/45">(comma separated, at least one)</Text></Label>
+            <Input id="disc-tags" value={tags} placeholder="Renewables, AdvancedAI" onChange={(e) => setTags(e.target.value)} />
+          </Box>
+          <Box className="space-y-1.5">
+            <Label htmlFor="disc-group" className="text-sm font-medium text-ink/80">Post in</Label>
+            <select
+              id="disc-group"
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value)}
+              className="h-10 w-full rounded-md border border-border bg-paper-warm px-3 text-sm"
+            >
+              <option value="">Main community</option>
+              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </Box>
+          {err && <Text as="p" className="text-sm text-error">{err}</Text>}
+        </Box>
+        <DialogFooter>
+          <Button onClick={submit} disabled={submitting || !title.trim()}>
+            {submitting ? "Posting…" : "Post discussion"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* Admin: create, rename, describe and archive/restore groups. */
+function GroupsManagerDialog({ open, onOpenChange, groups, onChanged }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [editing, setEditing] = useState(null); // group id being edited
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+
+  useEffect(() => {
+    if (!open) { setName(""); setDescription(""); setErr(null); setEditing(null); }
+  }, [open]);
+
+  async function create() {
+    if (!name.trim()) { setErr("A group needs a name."); return; }
+    setErr(null); setBusy(true);
+    try {
+      await createAdminCommunityGroup({ name: name.trim(), description: description.trim() || undefined });
+      setName(""); setDescription("");
+      await onChanged();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  async function patch(groupId, data) {
+    setBusy(true); setErr(null);
+    try {
+      await updateAdminCommunityGroup({ groupId, ...data });
+      setEditing(null);
+      await onChanged();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Community groups</DialogTitle>
+          <DialogDescription>
+            Groups are sub-communities learners join, each with its own feed.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Box className="space-y-3">
+          <Box className="rounded-lg border border-border bg-surface-2 p-3 space-y-2">
+            <Input value={name} maxLength={COMMUNITY_GROUP_NAME_MAX} placeholder="New group name" onChange={(e) => setName(e.target.value)} />
+            <Textarea rows={2} value={description} maxLength={DESCRIPTION_MAX_LENGTH} placeholder="Description (optional)" onChange={(e) => setDescription(e.target.value)} className="resize-none bg-white" />
+            <Button size="sm" className="gap-1.5" disabled={busy || !name.trim()} onClick={create}>
+              <Plus className="h-4 w-4" />Create group
+            </Button>
+          </Box>
+
+          {err && <Text as="p" className="text-sm text-error">{err}</Text>}
+
+          <Box className="max-h-72 space-y-2 overflow-y-auto">
+            {groups.length === 0 ? (
+              <Text as="p" className="p-3 text-center text-sm text-ink/50">No groups yet.</Text>
+            ) : (
+              groups.map((g) => (
+                <Box key={g.id} className={cn("rounded-lg border border-border p-3", g.archived && "opacity-60")}>
+                  {editing === g.id ? (
+                    <Box className="space-y-2">
+                      <Input value={editName} maxLength={COMMUNITY_GROUP_NAME_MAX} onChange={(e) => setEditName(e.target.value)} />
+                      <Textarea rows={2} value={editDesc} maxLength={DESCRIPTION_MAX_LENGTH} onChange={(e) => setEditDesc(e.target.value)} className="resize-none bg-white" />
+                      <Box className="flex gap-2">
+                        <Button size="sm" disabled={busy || !editName.trim()} onClick={() => patch(g.id, { name: editName.trim(), description: editDesc.trim() })}>Save</Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</Button>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Box className="flex items-start justify-between gap-3">
+                      <Box className="min-w-0">
+                        <Text as="p" className="text-sm font-semibold text-ink">
+                          {g.name}{g.archived && <Text as="span" className="ml-2 text-[11px] font-bold uppercase text-ink/40">Archived</Text>}
+                        </Text>
+                        {g.description && <Text as="p" className="mt-0.5 text-xs text-ink/60">{g.description}</Text>}
+                        <Text as="p" className="mt-1 text-[11px] text-ink/45">{g.memberCount} member{g.memberCount === 1 ? "" : "s"} · {g.postCount} post{g.postCount === 1 ? "" : "s"}</Text>
+                      </Box>
+                      <Box className="flex shrink-0 gap-1">
+                        <Button size="icon-sm" variant="ghost" title="Edit" aria-label="Edit group" disabled={busy}
+                          onClick={() => { setEditing(g.id); setEditName(g.name); setEditDesc(g.description || ""); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon-sm" variant="ghost" title={g.archived ? "Restore" : "Archive"} aria-label={g.archived ? "Restore group" : "Archive group"} disabled={busy}
+                          onClick={() => patch(g.id, { archived: !g.archived })}>
+                          {g.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              ))
+            )}
+          </Box>
+        </Box>
+      </DialogContent>
+    </Dialog>
   );
 }
 

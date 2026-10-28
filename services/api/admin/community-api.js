@@ -24,3 +24,31 @@ export async function deleteAdminCommunityReply({ replyId }) {
     method: "DELETE",
   });
 }
+
+// ── Groups + discussion creation (moderate_community) ───────────────────────
+
+export async function fetchAdminCommunityGroups() {
+  return apiClient("/api/admin/community/groups");
+}
+
+export async function createAdminCommunityGroup({ name, description }) {
+  return apiClient("/api/admin/community/groups", {
+    method: "POST",
+    body: { name, description },
+  });
+}
+
+export async function updateAdminCommunityGroup({ groupId, name, description, archived }) {
+  return apiClient(`/api/admin/community/groups/${groupId}`, {
+    method: "PATCH",
+    body: { name, description, archived },
+  });
+}
+
+/** Create a discussion thread (admin-curated type), optionally in a group. */
+export async function createAdminCommunityDiscussion({ title, body, hashtags, groupId }) {
+  return apiClient("/api/admin/community/discussions", {
+    method: "POST",
+    body: { title, body, hashtags, groupId },
+  });
+}

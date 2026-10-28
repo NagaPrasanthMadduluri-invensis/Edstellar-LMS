@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowLeft,
   Award,
   Hash,
   Heart,
@@ -15,6 +16,8 @@ import {
   Send,
   Sparkles,
   Trash2,
+  Users,
+  UsersRound,
   X,
 } from "lucide-react";
 
@@ -61,12 +64,15 @@ import {
   deleteCommunityPost,
   deleteCommunityReply,
   fetchCommunityFeed,
+  fetchCommunityGroups,
   fetchCommunityLikers,
   fetchCommunityPost,
   fetchKudosLeaderboard,
   fetchMyCertificates,
   fetchTrendingHashtags,
   giveKudos,
+  joinCommunityGroup,
+  leaveCommunityGroup,
   likeCommunityPost,
   searchPeople,
   suggestHashtags,
@@ -106,12 +112,16 @@ export function CommunityContent() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [kudosOpen, setKudosOpen] = useState(false);
   const [trending, setTrending] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [activeGroup, setActiveGroup] = useState(null); // the group being viewed, or null (main feed)
+  const [groupBusy, setGroupBusy] = useState(false);
 
   async function load(reset) {
     try {
       const data = await fetchCommunityFeed({
         type: tab,
         hashtag: hashtag || undefined,
+        group: activeGroup?.id || undefined,
         cursor: reset ? undefined : nextCursor,
       });
       setPosts((prev) => (reset || !prev ? data.posts : [...prev, ...data.posts]));
@@ -129,7 +139,7 @@ export function CommunityContent() {
     setPosts(null);
     load(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, tab, hashtag]);
+  }, [user, tab, hashtag, activeGroup]);
 
   // Trending hashtags — fetched once; a quiet failure just hides the row.
   useEffect(() => {
@@ -138,6 +148,47 @@ export function CommunityContent() {
       .then((d) => setTrending(d.hashtags || []))
       .catch(() => setTrending([]));
   }, [user]);
+
+  const loadGroups = useCallback(() => {
+    return fetchCommunityGroups()
+      .then((d) => setGroups(d.groups || []))
+      .catch(() => setGroups([]));
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    loadGroups();
+  }, [user, loadGroups]);
+
+  function openGroup(g) {
+    setActiveGroup(g);
+    setHashtag(null);
+    setTab("all");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function backToCommunity() {
+    setActiveGroup(null);
+  }
+
+  async function toggleJoin() {
+    if (!activeGroup || groupBusy) return;
+    setGroupBusy(true);
+    const joining = !activeGroup.joined;
+    try {
+      if (joining) await joinCommunityGroup({ groupId: activeGroup.id });
+      else await leaveCommunityGroup({ groupId: activeGroup.id });
+      setActiveGroup((g) => ({
+        ...g,
+        joined: joining,
+        memberCount: Math.max(0, (g.memberCount ?? 0) + (joining ? 1 : -1)),
+      }));
+      loadGroups();
+    } catch {
+      /* leave the button state; a refetch of groups keeps truth */
+    } finally {
+      setGroupBusy(false);
+    }
+  }
 
   function pickHashtag(tag) {
     setHashtag(tag);
@@ -184,8 +235,76 @@ export function CommunityContent() {
     );
   }
 
+  const canPost = !activeGroup || activeGroup.joined;
+
   return (
     <Box className="space-y-5">
+      {/* Spaces: the main community plus the admin-created groups you can join. */}
+      {(groups.length > 0 || activeGroup) && (
+        <Box className="flex flex-wrap items-center gap-2">
+          <Text as="span" className="inline-flex items-center gap-1 text-xs font-semibold text-ink/50">
+            <UsersRound className="h-3.5 w-3.5" />Spaces
+          </Text>
+          <button
+            type="button"
+            onClick={backToCommunity}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+              !activeGroup ? "border-navy/20 bg-navy text-white" : "border-border bg-white text-ink/70 hover:border-navy/20",
+            )}
+          >
+            Community
+          </button>
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => openGroup(g)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                activeGroup?.id === g.id ? "border-navy/20 bg-navy text-white" : "border-border bg-white text-ink/70 hover:border-navy/20",
+              )}
+            >
+              {g.name}
+              {g.joined && <Text as="span" className="ml-1 text-[10px] opacity-70">· joined</Text>}
+            </button>
+          ))}
+        </Box>
+      )}
+
+      {/* Group header, when a group is open. */}
+      {activeGroup && (
+        <Card className="p-4">
+          <Box className="flex items-start justify-between gap-3">
+            <Box className="min-w-0">
+              <button
+                type="button"
+                onClick={backToCommunity}
+                className="mb-1 inline-flex items-center gap-1 text-xs text-ink/50 transition-colors hover:text-ink"
+              >
+                <ArrowLeft className="h-3 w-3" />Back to community
+              </button>
+              <Text as="h2" className="text-lg font-bold text-ink">{activeGroup.name}</Text>
+              {activeGroup.description && (
+                <Text as="p" className="mt-0.5 text-sm text-ink/70">{activeGroup.description}</Text>
+              )}
+              <Text as="p" className="mt-1 inline-flex items-center gap-1 text-xs text-ink/50">
+                <Users className="h-3 w-3" />
+                {activeGroup.memberCount} member{activeGroup.memberCount === 1 ? "" : "s"}
+              </Text>
+            </Box>
+            <Button
+              size="sm"
+              variant={activeGroup.joined ? "outline" : "default"}
+              disabled={groupBusy}
+              onClick={toggleJoin}
+            >
+              {activeGroup.joined ? "Leave" : "Join"}
+            </Button>
+          </Box>
+        </Card>
+      )}
+
       <Box className="flex flex-wrap items-center justify-between gap-3">
         <Box className="flex flex-wrap gap-2">
           {TYPE_TABS.map((t) => (
@@ -205,11 +324,19 @@ export function CommunityContent() {
           ))}
         </Box>
         <Box className="flex gap-2">
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setKudosOpen(true)}>
-            <Sparkles className="h-4 w-4" />
-            Give kudos
-          </Button>
-          <Button size="sm" className="gap-1.5" onClick={() => setComposeOpen(true)}>
+          {!activeGroup && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setKudosOpen(true)}>
+              <Sparkles className="h-4 w-4" />
+              Give kudos
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className="gap-1.5"
+            disabled={!canPost}
+            title={canPost ? undefined : "Join the group to post in it"}
+            onClick={() => setComposeOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             Share something
           </Button>
@@ -255,7 +382,7 @@ export function CommunityContent() {
         <Card className="p-10 text-center">
           <Text as="p" className="font-semibold text-ink">Nothing here yet</Text>
           <Text as="p" className="mt-1 text-sm text-ink/60">
-            Ask a question, share an achievement, or start a discussion.
+            Ask a question or share an achievement. Your admins post discussions.
           </Text>
         </Card>
       ) : (
@@ -273,7 +400,13 @@ export function CommunityContent() {
         </Box>
       )}
 
-      <ComposeDialog open={composeOpen} onOpenChange={setComposeOpen} onCreated={onCreated} />
+      <ComposeDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        onCreated={onCreated}
+        groupId={activeGroup?.id ?? null}
+        groupName={activeGroup?.name ?? null}
+      />
       <KudosDialog open={kudosOpen} onOpenChange={setKudosOpen} onCreated={onCreated} />
     </Box>
   );
@@ -651,13 +784,14 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
   );
 }
 
+// Discussions are admin-curated (§10.41), so the learner composer offers only
+// questions and achievements. Admins start discussion threads.
 const COMPOSE_TYPES = [
   { key: "question", label: "Ask a question", icon: HelpCircle, hint: "Get help from your peers" },
   { key: "achievement", label: "Share an achievement", icon: Award, hint: "Show a certificate you earned" },
-  { key: "discussion", label: "Start a discussion", icon: MessagesSquare, hint: "Open a topic for the team" },
 ];
 
-function ComposeDialog({ open, onOpenChange, onCreated }) {
+function ComposeDialog({ open, onOpenChange, onCreated, groupId = null, groupName = null }) {
   const [step, setStep] = useState(1);
   const [type, setType] = useState(null);
   const [title, setTitle] = useState("");
@@ -709,6 +843,7 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
         return;
       }
       payload.hashtags = tags.map((t) => t.label);
+      if (groupId) payload.groupId = groupId;
       const { post } = await createCommunityPost(payload);
       onCreated(post);
     } catch (e) {
@@ -728,7 +863,9 @@ function ComposeDialog({ open, onOpenChange, onCreated }) {
           <DialogDescription>
             {step === 1
               ? "Pick a type — it changes how people can respond."
-              : "Posts are visible to everyone in your organization."}
+              : groupName
+                ? `Posting in ${groupName}.`
+                : "Posts are visible to everyone in your organization."}
           </DialogDescription>
         </DialogHeader>
 
