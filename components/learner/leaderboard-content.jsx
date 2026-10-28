@@ -159,8 +159,33 @@ function HowPointsWork({ rules = [], notes = [] }) {
   );
 }
 
-/* The Kudos leaderboard — most kudos received, separate from the points race. */
-function KudosBoard() {
+/* A points tie goes to whoever earned it first (earlier wins), matching the server. */
+function earnedFirst(a, b) {
+  const av = a.lastEarnedAt, bv = b.lastEarnedAt;
+  if (av === bv) return 0;
+  if (!av) return 1;
+  if (!bv) return -1;
+  return av < bv ? -1 : 1;
+}
+
+/* Top 3 by points, everyone from 4th down by completion % (§10.5). */
+function rankAllTime(list) {
+  const byPoints = [...list].sort(
+    (a, b) => b.allTimePoints - a.allTimePoints || earnedFirst(a, b) || b.badges - a.badges,
+  );
+  const rest = byPoints.slice(3).sort(
+    (a, b) =>
+      (b.completionPct ?? 0) - (a.completionPct ?? 0) ||
+      b.allTimePoints - a.allTimePoints ||
+      earnedFirst(a, b) ||
+      b.badges - a.badges,
+  );
+  return [...byPoints.slice(0, 3), ...rest];
+}
+
+/* The Kudos leaderboard — most kudos received, separate from the points race.
+   Filtered by department to match the Rankings tab. */
+function KudosBoard({ deptFilter = "All Departments" }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
@@ -168,7 +193,10 @@ function KudosBoard() {
   }, []);
   if (error) return <Card className="p-6 text-center"><Text as="p" className="text-sm text-error">{error}</Text></Card>;
   if (!data) return <Card className="p-6"><Skeleton className="h-40 w-full" /></Card>;
-  const entries = data.entries || [];
+  const entries = (data.entries || [])
+    .filter((e) => deptFilter === "All Departments" || e.department === deptFilter)
+    // Re-number within the filtered set so ranks read 1..N, not the global rank.
+    .map((e, i) => ({ ...e, rank: i + 1 }));
   if (entries.length === 0) {
     return (
       <Card className="p-10 text-center">
@@ -235,39 +263,37 @@ export function LeaderboardContent() {
       .catch((e) => setError(e.message));
   }, [user]);
 
-  const filteredRankings = useMemo(() => {
+  // Everyone in the chosen department (or all), shared by the podium and table
+  // so the two can never disagree about who the department's top learners are.
+  const deptList = useMemo(() => {
     if (!data) return [];
-    let list = [...data.allLearners];
-    if (deptFilter !== "All Departments") list = list.filter((l) => l.dept === deptFilter);
-    if (period === "month") {
-      list.sort((a, b) => b.monthPoints - a.monthPoints || b.badges - a.badges);
-    } else {
-      // Top 3 by points, everyone from 4th down by course completion (§10.5).
-      // A points tie goes to whoever EARNED it first (earlier wins), matching
-      // the server — otherwise tied learners order arbitrarily.
-      const earnedFirst = (a, b) => {
-        const av = a.lastEarnedAt, bv = b.lastEarnedAt;
-        if (av === bv) return 0;
-        if (!av) return 1;
-        if (!bv) return -1;
-        return av < bv ? -1 : 1;
-      };
-      const byPoints = [...list].sort(
-        (a, b) => b.allTimePoints - a.allTimePoints || earnedFirst(a, b) || b.badges - a.badges,
-      );
-      const rest = byPoints
-        .slice(3)
-        .sort(
-          (a, b) =>
-            (b.completionPct ?? 0) - (a.completionPct ?? 0) ||
-            b.allTimePoints - a.allTimePoints ||
-            earnedFirst(a, b) ||
-            b.badges - a.badges,
-        );
-      list = [...byPoints.slice(0, 3), ...rest];
-    }
+    return deptFilter === "All Departments"
+      ? data.allLearners
+      : data.allLearners.filter((l) => l.dept === deptFilter);
+  }, [data, deptFilter]);
+
+  // The all-time hybrid order (§10.5) over the department — the podium reads it,
+  // and the table reads it whenever the period is all-time.
+  const rankedAllTime = useMemo(() => rankAllTime(deptList), [deptList]);
+
+  const filteredRankings = useMemo(() => {
+    const list =
+      period === "month"
+        ? [...deptList].sort((a, b) => b.monthPoints - a.monthPoints || b.badges - a.badges)
+        : rankedAllTime;
     return list.map((l, i) => ({ ...l, displayRank: i + 1 }));
-  }, [data, period, deptFilter]);
+  }, [deptList, rankedAllTime, period]);
+
+  // The podium is the department's all-time top 3, laid out 2 · 1 · 3 — derived
+  // from the same ranking as the table, so filtering moves both together.
+  const podiumEntries = useMemo(() => {
+    const t = rankedAllTime.slice(0, 3);
+    return [
+      t[1] ? { ...t[1], podiumPos: 2 } : null,
+      t[0] ? { ...t[0], podiumPos: 1 } : null,
+      t[2] ? { ...t[2], podiumPos: 3 } : null,
+    ].filter(Boolean);
+  }, [rankedAllTime]);
 
   if (error) return (
     <Card className="p-8 text-center">
@@ -277,14 +303,16 @@ export function LeaderboardContent() {
   );
   if (!data) return <LBSkeleton />;
 
-  const { recognition, podium, departments } = data;
+  const { recognition, departments } = data;
 
   return (
     <Box className="space-y-5">
 
       {/* ── Tabs. Rankings is the page as it was; the second answers the
-             question the first one provokes. ── */}
-      <Box className="flex border-b border-line">
+             question the first one provokes. The department filter is page-level
+             so it governs the podium, the table AND the Kudos board together. ── */}
+      <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line">
+        <Box className="flex">
         {LB_TABS.map(({ key, label, icon: Icon }) => (
           <Button
             key={key}
@@ -300,12 +328,25 @@ export function LeaderboardContent() {
             <Icon className="h-3.5 w-3.5" />{label}
           </Button>
         ))}
+        </Box>
+        {tab !== "points" && departments.length > 1 && (
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            aria-label="Filter by department"
+            className="mb-1 rounded-lg border bg-white px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-navy"
+          >
+            {departments.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        )}
       </Box>
 
       {tab === "points" ? (
         <HowPointsWork rules={data.pointRules} notes={data.pointNotes} />
       ) : tab === "kudos" ? (
-        <KudosBoard />
+        <KudosBoard deptFilter={deptFilter} />
       ) : (
       <>
 
@@ -361,7 +402,7 @@ export function LeaderboardContent() {
 
       {/* ── Podium ── */}
       <Box className="flex items-end justify-center gap-4 pt-4 pb-2">
-        {podium.map((p) => {
+        {podiumEntries.map((p) => {
           const cfg = PODIUM_CFG[p.podiumPos];
           return (
             <Box key={p.id} className="flex flex-col items-center gap-2 w-36">
@@ -415,16 +456,6 @@ export function LeaderboardContent() {
                 This Month
               </button>
             </Box>
-            {/* Dept filter */}
-            <select
-              value={deptFilter}
-              onChange={(e) => setDeptFilter(e.target.value)}
-              className="text-xs border rounded-lg px-3 py-1.5 bg-white text-foreground focus:outline-none focus:ring-1 focus:ring-navy"
-            >
-              {departments.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
           </Box>
         </Box>
 
