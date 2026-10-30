@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Zap, Target, Star, Info, Sparkles } from "lucide-react";
 import { fetchKudosLeaderboard } from "@/services/api/learner/community-api";
+import { rankAllTime } from "@/lib/leaderboard";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
@@ -157,30 +158,6 @@ function HowPointsWork({ rules = [], notes = [] }) {
       )}
     </Card>
   );
-}
-
-/* A points tie goes to whoever earned it first (earlier wins), matching the server. */
-function earnedFirst(a, b) {
-  const av = a.lastEarnedAt, bv = b.lastEarnedAt;
-  if (av === bv) return 0;
-  if (!av) return 1;
-  if (!bv) return -1;
-  return av < bv ? -1 : 1;
-}
-
-/* Top 3 by points, everyone from 4th down by completion % (§10.5). */
-function rankAllTime(list) {
-  const byPoints = [...list].sort(
-    (a, b) => b.allTimePoints - a.allTimePoints || earnedFirst(a, b) || b.badges - a.badges,
-  );
-  const rest = byPoints.slice(3).sort(
-    (a, b) =>
-      (b.completionPct ?? 0) - (a.completionPct ?? 0) ||
-      b.allTimePoints - a.allTimePoints ||
-      earnedFirst(a, b) ||
-      b.badges - a.badges,
-  );
-  return [...byPoints.slice(0, 3), ...rest];
 }
 
 /* The Kudos leaderboard — most kudos received, separate from the points race.

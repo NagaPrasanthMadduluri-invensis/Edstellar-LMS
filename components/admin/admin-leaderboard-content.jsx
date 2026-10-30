@@ -14,6 +14,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { rankAllTime } from "@/lib/leaderboard";
 
 const AVATAR_COLORS = [
   "bg-navy","bg-navy","bg-navy","bg-navy",
@@ -79,7 +80,11 @@ export function AdminLeaderboardContent() {
 
   const depts = ["All Departments", ...new Set(learners.map((l) => l.dept).filter(Boolean))].sort((a, b) => a === "All Departments" ? -1 : b === "All Departments" ? 1 : a.localeCompare(b));
 
-  const filtered = filterDept === "All Departments" ? learners : learners.filter((l) => l.dept === filterDept);
+  // Re-derive the SAME hybrid order (top 3 by points, rest by completion) within
+  // the selected department, exactly as the learner board does — so admin and
+  // learner show the identical ranking, filtered or not (lib/leaderboard.js).
+  const inDept = filterDept === "All Departments" ? learners : learners.filter((l) => l.dept === filterDept);
+  const filtered = rankAllTime(inDept).map((l, i) => ({ ...l, rank: i + 1 }));
   const top3 = filtered.slice(0, 3);
   const topScore = filtered[0]?.score || 1;
 
