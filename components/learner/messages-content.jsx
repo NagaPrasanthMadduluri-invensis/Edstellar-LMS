@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowDown, Send, MessageCircle, Search } from "lucide-react";
+import { ArrowLeft, ArrowDown, Send, MessageCircle, Search, Paperclip, FileText, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +19,7 @@ import { MESSAGE_MAX_LENGTH } from "@/lib/content-limits";
 import {
   fetchConversations,
   fetchThread,
+  messageAttachmentUrl,
   sendMessage,
 } from "@/services/api/learner/messages-api";
 
@@ -127,8 +128,39 @@ function ConversationList({ items, activeId, onSelect, searching }) {
 }
 
 /* ── Thread + composer ── */
+/* A message's attachment: an inline image, or a file chip that opens it. */
+function MessageAttachment({ m, mine }) {
+  const url = messageAttachmentUrl(m.id);
+  const a = m.attachment;
+  if ((a.mime || "").startsWith("image/")) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="mt-1 block">
+        {/* A streamed data route next/image cannot optimise; a plain img is right. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={a.name || "Attachment"} className="max-h-48 w-auto rounded-lg object-contain" />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "mt-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12px] transition-colors",
+        mine ? "bg-white/15 text-white hover:bg-white/25" : "bg-surface-2 text-ink hover:brightness-95",
+      )}
+    >
+      <FileText className="h-4 w-4 shrink-0" />
+      <Text as="span" className="truncate font-medium text-inherit">{a.name || "File"}</Text>
+    </a>
+  );
+}
+
 function Thread({ thread, loading, onSend, pending, onRetry, onBack }) {
   const [input, setInput] = useState("");
+  const [file, setFile] = useState(null);
+  const fileRef = useRef(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const atBottomRef = useRef(true);
@@ -180,10 +212,11 @@ function Thread({ thread, loading, onSend, pending, onRetry, onBack }) {
 
   const submit = () => {
     const body = input.trim();
-    if (!body) return;
+    if (!body && !file) return;
     atBottomRef.current = true;
-    onSend(body);
+    onSend(body, file);
     setInput("");
+    setFile(null);
     // Keep the cursor in the box so a quick back-and-forth needs no re-click.
     requestAnimationFrame(() => inputRef.current?.focus());
   };
@@ -262,9 +295,12 @@ function Thread({ thread, loading, onSend, pending, onRetry, onBack }) {
                           : "rounded-bl-sm border border-line bg-surface text-ink",
                       )}
                     >
-                      <Text as="span" className="whitespace-pre-wrap break-words text-inherit">
-                        <Linkify>{m.body}</Linkify>
-                      </Text>
+                      {m.body && (
+                        <Text as="span" className="whitespace-pre-wrap break-words text-inherit">
+                          <Linkify>{m.body}</Linkify>
+                        </Text>
+                      )}
+                      {m.attachment && <MessageAttachment m={m} mine={m.from_me} />}
                     </Box>
                     <Text as="p" className={cn("mt-0.5 text-[10px] text-text-3", m.from_me ? "text-right" : "text-left")}>
                       {when(m.at)}
@@ -322,7 +358,36 @@ function Thread({ thread, loading, onSend, pending, onRetry, onBack }) {
 
       {/* Composer */}
       <Box className="border-t border-line p-3">
+        {/* Selected attachment, shown before it is sent. */}
+        {file && (
+          <Box className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 text-xs">
+            <FileText className="h-4 w-4 shrink-0 text-accent-blue" />
+            <Text as="span" className="min-w-0 flex-1 truncate font-medium text-ink">{file.name}</Text>
+            <Text as="span" className="shrink-0 text-text-3">{(file.size / 1024 / 1024).toFixed(1)} MB</Text>
+            <button type="button" onClick={() => setFile(null)} aria-label="Remove attachment" className="shrink-0 text-text-3 hover:text-danger">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </Box>
+        )}
         <Box className="flex items-end gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            hidden
+            accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"
+            onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Attach a file"
+            title="Attach a PDF or image"
+            onClick={() => fileRef.current?.click()}
+            className="h-10 w-10 shrink-0 text-text-2 hover:text-ink"
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
           <textarea
             ref={inputRef}
             value={input}
@@ -341,7 +406,7 @@ function Thread({ thread, loading, onSend, pending, onRetry, onBack }) {
           <EmojiPicker onSelect={(e) => insertEmoji(inputRef, setInput, e)} />
           <Button
             onClick={submit}
-            disabled={input.trim().length === 0}
+            disabled={input.trim().length === 0 && !file}
             className="h-10 shrink-0 gap-1.5 bg-navy text-paper hover:bg-navy-soft"
           >
             <Send className="h-4 w-4" />
@@ -349,7 +414,7 @@ function Thread({ thread, loading, onSend, pending, onRetry, onBack }) {
           </Button>
         </Box>
         <Text as="p" className="mt-1 px-1 text-[10px] text-text-3">
-          Enter to send · Shift + Enter for a new line
+          Enter to send · Shift + Enter for a new line · PDF or image up to 15 MB
         </Text>
       </Box>
     </Box>
@@ -447,8 +512,28 @@ export function MessagesContent() {
       );
   }, [loadConversations]);
 
-  const onSend = (body) => {
+  // A file send is not optimistic (there is no local URL to preview): it awaits
+  // the server, then appends the returned message. A text-only send stays
+  // optimistic with a Retry on failure.
+  const sendWithFile = (toId, body, file) => {
+    sendMessage(toId, body, file)
+      .then((d) => {
+        setThread((prev) =>
+          prev && prev.peer.user_id === toId
+            ? { ...prev, messages: [...prev.messages, d.message] }
+            : prev,
+        );
+        loadConversations();
+      })
+      .catch((e) => setError(e.message));
+  };
+
+  const onSend = (body, file) => {
     if (!activeId) return;
+    if (file) {
+      sendWithFile(activeId, body, file);
+      return;
+    }
     const tempId = `tmp-${Date.now()}`;
     setPending((p) => [...p, { tempId, body, failed: false }]);
     deliver(activeId, body, tempId);

@@ -5,12 +5,17 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Award,
+  BookmarkPlus,
+  ExternalLink,
+  FileText,
   Hash,
   Heart,
   HelpCircle,
+  Link2,
   Loader2,
   MessageSquare,
   MessagesSquare,
+  Paperclip,
   Plus,
   Search,
   Send,
@@ -59,8 +64,10 @@ import {
 import { normalizeHashtag } from "@/lib/community-hashtags";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  communityResourceFileUrl,
   createCommunityPost,
   createCommunityReply,
+  createCommunityResource,
   deleteCommunityPost,
   deleteCommunityReply,
   fetchCommunityFeed,
@@ -86,6 +93,7 @@ const TYPE_TABS = [
   { key: "question", label: "Questions" },
   { key: "achievement", label: "Achievements" },
   { key: "discussion", label: "Discussions" },
+  { key: "resource", label: "Resources" },
 ];
 
 const TYPE_META = {
@@ -93,6 +101,7 @@ const TYPE_META = {
   achievement: { label: "Achievement", icon: Award, tone: "bg-[#FBF3E6] text-[#8A6200]", reply: "Comment", replies: "Comments" },
   discussion: { label: "Discussion", icon: MessagesSquare, tone: "bg-[#F3EEFC] text-[#6D28D9]", reply: "Comment", replies: "Comments" },
   kudos: { label: "Kudos", icon: Sparkles, tone: "bg-success/10 text-success", reply: "Comment", replies: "Comments" },
+  resource: { label: "Resource", icon: BookmarkPlus, tone: "bg-accent-tint text-accent-blue", reply: "Comment", replies: "Comments" },
 };
 
 function initials(name = "") {
@@ -561,6 +570,8 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
               </Text>
             )}
 
+            {post.resource && <ResourceBlock post={post} />}
+
             {post.certificate && (
               <Box className="mt-3 flex items-center gap-3 rounded-lg border border-success/25 bg-success/5 p-3">
                 <Award className="h-5 w-5 shrink-0 text-success" />
@@ -789,6 +800,7 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
 const COMPOSE_TYPES = [
   { key: "question", label: "Ask a question", icon: HelpCircle, hint: "Get help from your peers" },
   { key: "achievement", label: "Share an achievement", icon: Award, hint: "Show a certificate you earned" },
+  { key: "resource", label: "Share a resource", icon: BookmarkPlus, hint: "A link or file worth keeping" },
 ];
 
 function ComposeDialog({ open, onOpenChange, onCreated, groupId = null, groupName = null }) {
@@ -800,6 +812,10 @@ function ComposeDialog({ open, onOpenChange, onCreated, groupId = null, groupNam
   const [certId, setCertId] = useState("");
   const [certs, setCerts] = useState(null);
   const [tags, setTags] = useState([]); // [{tag,label}]
+  const [resourceMode, setResourceMode] = useState("link"); // 'link' | 'file'
+  const [link, setLink] = useState("");
+  const [file, setFile] = useState(null);
+  const fileRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -807,6 +823,7 @@ function ComposeDialog({ open, onOpenChange, onCreated, groupId = null, groupNam
     if (!open) {
       // reset on close
       setStep(1); setType(null); setTitle(""); setBody(""); setCertId(""); setTags([]); setErr(null);
+      setResourceMode("link"); setLink(""); setFile(null);
     }
   }, [open]);
 
@@ -827,6 +844,21 @@ function ComposeDialog({ open, onOpenChange, onCreated, groupId = null, groupNam
     setErr(null);
     setSubmitting(true);
     try {
+      if (type === "resource") {
+        if (!title.trim()) { setErr("A title is required."); setSubmitting(false); return; }
+        if (resourceMode === "link" && !link.trim()) { setErr("Add a link to share."); setSubmitting(false); return; }
+        if (resourceMode === "file" && !file) { setErr("Choose a file to share."); setSubmitting(false); return; }
+        if (tags.length === 0) { setErr("Add at least one hashtag."); setSubmitting(false); return; }
+        const { post } = await createCommunityResource({
+          title: title.trim(),
+          body: body.trim() || undefined,
+          hashtags: tags.map((t) => t.label).join(" "),
+          link: resourceMode === "link" ? link.trim() : undefined,
+          file: resourceMode === "file" ? file : undefined,
+        });
+        onCreated(post);
+        return;
+      }
       const payload = { type };
       if (type === "achievement") {
         if (!certId) { setErr("Choose a certificate to share."); setSubmitting(false); return; }
@@ -922,16 +954,78 @@ function ComposeDialog({ open, onOpenChange, onCreated, groupId = null, groupNam
                   id="title"
                   value={title}
                   maxLength={COMMUNITY_TITLE_MAX}
-                  placeholder={type === "question" ? "What do you want to ask?" : "What is this about?"}
+                  placeholder={
+                    type === "question" ? "What do you want to ask?"
+                    : type === "resource" ? "Name the resource"
+                    : "What is this about?"
+                  }
                   onChange={(e) => setTitle(e.target.value)}
                 />
+              </Box>
+            )}
+
+            {type === "resource" && (
+              <Box className="space-y-2">
+                <Label className="text-sm font-medium text-ink/80">What are you sharing?</Label>
+                <Box className="flex gap-2">
+                  {[
+                    { key: "link", label: "A link", icon: Link2 },
+                    { key: "file", label: "A file", icon: Paperclip },
+                  ].map((m) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => setResourceMode(m.key)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors",
+                        resourceMode === m.key
+                          ? "border-navy/20 bg-navy text-white"
+                          : "border-border bg-white text-ink/70 hover:border-navy/20",
+                      )}
+                    >
+                      <m.icon className="h-3.5 w-3.5" />{m.label}
+                    </button>
+                  ))}
+                </Box>
+                {resourceMode === "link" ? (
+                  <Input
+                    value={link}
+                    maxLength={2048}
+                    placeholder="https://…"
+                    onChange={(e) => setLink(e.target.value)}
+                  />
+                ) : (
+                  <Box className="space-y-1.5">
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      hidden
+                      accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"
+                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    />
+                    <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => fileRef.current?.click()}>
+                      <Paperclip className="h-4 w-4" />{file ? "Change file" : "Choose a file"}
+                    </Button>
+                    {file && (
+                      <Text as="p" className="text-xs text-ink/70">
+                        {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
+                      </Text>
+                    )}
+                    <Text as="p" className="text-[11px] text-ink/45">
+                      PDF or image (PNG, JPG, WebP, GIF), up to 15 MB. For a document, share a link instead.
+                    </Text>
+                  </Box>
+                )}
               </Box>
             )}
 
             <Box className="space-y-1.5">
               <Box className="flex items-center justify-between">
                 <Label htmlFor="body" className="text-sm font-medium text-ink/80">
-                  {type === "achievement" ? "Caption (optional)" : type === "question" ? "Details" : "Message"}
+                  {type === "achievement" ? "Caption (optional)"
+                    : type === "question" ? "Details"
+                    : type === "resource" ? "Why it's useful (optional)"
+                    : "Message"}
                 </Label>
                 <EmojiPicker onSelect={(e) => insertEmoji(bodyRef, setBody, e)} />
               </Box>
@@ -1176,6 +1270,64 @@ function KudosDialog({ open, onOpenChange, onCreated }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function formatBytes(n) {
+  if (!n && n !== 0) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/* A resource post's attachment: an external link, an inline image, or a file. */
+function ResourceBlock({ post }) {
+  const r = post.resource;
+  if (r.kind === "link") {
+    return (
+      <a
+        href={r.url}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className="mt-3 flex items-center gap-3 rounded-lg border border-accent-blue/25 bg-accent-tint px-3 py-2.5 transition-colors hover:brightness-95"
+      >
+        <Link2 className="h-5 w-5 shrink-0 text-accent-blue" />
+        <Box className="min-w-0 flex-1">
+          <Text as="p" className="truncate text-sm font-semibold text-accent-blue">{r.url}</Text>
+          <Text as="p" className="text-[11px] text-ink/50">External link</Text>
+        </Box>
+        <ExternalLink className="h-4 w-4 shrink-0 text-accent-blue" />
+      </a>
+    );
+  }
+  const url = communityResourceFileUrl(post.id);
+  if ((r.mime || "").startsWith("image/")) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="mt-3 block w-fit">
+        {/* A streamed data route next/image cannot optimise; a plain img is right. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={r.name || "Resource"}
+          className="max-h-72 w-auto rounded-lg border border-border object-contain"
+        />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-surface-2 px-3 py-2.5 transition-colors hover:brightness-95"
+    >
+      <FileText className="h-5 w-5 shrink-0 text-accent-blue" />
+      <Box className="min-w-0 flex-1">
+        <Text as="p" className="truncate text-sm font-semibold text-ink">{r.name || "File"}</Text>
+        <Text as="p" className="text-[11px] text-ink/50">{formatBytes(r.size)} · Open</Text>
+      </Box>
+      <ExternalLink className="h-4 w-4 shrink-0 text-ink/50" />
+    </a>
   );
 }
 

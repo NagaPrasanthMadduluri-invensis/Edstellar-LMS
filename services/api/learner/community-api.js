@@ -1,4 +1,10 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient, SERVER_URL } from "@/lib/api-client";
+
+/** Direct URL for a resource post's file (same-site, so the auth cookie rides
+ *  along for <img> and top-level opens). */
+export function communityResourceFileUrl(postId) {
+  return `${SERVER_URL}/api/learner/community/${postId}/file`;
+}
 
 /**
  * Learning Community endpoints (learner side). Everything is org-scoped by the
@@ -24,6 +30,17 @@ export async function createCommunityPost({ type, title, body, certificateId, ha
     method: "POST",
     body: { type, title, body, certificateId, hashtags, groupId },
   });
+}
+
+/** Share a resource — a link OR a PDF/image file (multipart). */
+export async function createCommunityResource({ title, body, hashtags, link, file }) {
+  const form = new FormData();
+  form.set("title", title ?? "");
+  if (body) form.set("body", body);
+  if (hashtags) form.set("hashtags", hashtags);
+  if (link) form.set("link", link);
+  if (file) form.set("file", file);
+  return apiClient("/api/learner/community/resources", { method: "POST", body: form });
 }
 
 // ── Groups ──────────────────────────────────────────────────────────────────
