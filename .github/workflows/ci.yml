@@ -1,0 +1,55 @@
+name: CI
+
+# Runs in the client repo (Edstellar-LMS), where client/ is the root.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# NEXT_PUBLIC_SERVER_URL is inlined at build time (next.config.mjs throws if it
+# is missing). Set it as a repo variable; it falls back to the production origin.
+env:
+  NEXT_PUBLIC_SERVER_URL: ${{ vars.NEXT_PUBLIC_SERVER_URL || 'https://lms-api.edstellar.com' }}
+
+jobs:
+  test:
+    name: unit · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'   # matches the production box
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npx next build --no-lint
+
+  deploy:
+    name: deploy (ssh)
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      # Deploy the API FIRST (its own repo's workflow), then the client — new
+      # pages often call new routes. If you push both, push backend first.
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            cd /var/www/frontend/edstellar_lms
+            before=$(git rev-parse --short HEAD)
+            sudo ./deploy.sh
+            after=$(git rev-parse --short HEAD)
+            echo "deployed: $before -> $after"

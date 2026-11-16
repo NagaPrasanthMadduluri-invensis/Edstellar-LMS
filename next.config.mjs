@@ -49,6 +49,10 @@ if (!SERVER_URL) {
 }
 
 const nextConfig = {
+  // Emit a self-contained server bundle (.next/standalone) for a slim Docker
+  // runtime image. Harmless for `next start`, which ignores it.
+  output: "standalone",
+
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
