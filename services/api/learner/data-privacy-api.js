@@ -7,6 +7,11 @@ export async function fetchMyData() {
   return apiClient("/api/my-data");
 }
 
+/** The notice version acknowledged, and the consent log (0065). */
+export async function fetchMyConsent() {
+  return apiClient("/api/my-data/consent");
+}
+
 export async function fetchMyDataRequests() {
   return apiClient("/api/my-data/requests");
 }

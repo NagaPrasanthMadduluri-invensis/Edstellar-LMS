@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Zap, Target, Star, Info, Sparkles } from "lucide-react";
+import { Trophy, Zap, Target, Star, Info, Sparkles, EyeOff } from "lucide-react";
 import { fetchKudosLeaderboard } from "@/services/api/learner/community-api";
 import { rankAllTime } from "@/lib/leaderboard";
 import Text from "@/components/ui/text";
@@ -225,10 +225,54 @@ const LB_TABS = [
   { key: "kudos", label: "Kudos", icon: Sparkles },
 ];
 
+/*
+ * Leaderboard privacy (0064). Everything here is read from the API's
+ * `privacy` block; the browser decides nothing about who is visible.
+ * An opted-out learner is told so, with their own points, because they are
+ * absent from every list on this page. The count of colleagues who opted out
+ * is shown as a number only, never as names.
+ */
+function PrivacyStrip({ privacy }) {
+  if (!privacy) return null;
+  const { you, hiddenCount } = privacy;
+  if (you?.hidden) {
+    return (
+      <Card className="flex flex-row items-start gap-3 border-accent-blue/30 bg-accent-tint p-4">
+        <EyeOff className="mt-0.5 h-4 w-4 shrink-0 text-accent-blue" />
+        <Box>
+          <Text as="p" className="text-sm font-semibold text-ink">
+            You are hidden from the leaderboard
+          </Text>
+          <Text as="p" className="mt-0.5 text-[13px] text-text-2">
+            Colleagues cannot see you here, and you are not ranked. You still earn
+            points and badges: {you.allTimePoints} points so far, {you.monthPoints} this
+            month. To appear again, turn on &quot;Show me on leaderboards&quot; in My
+            Profile (your account menu).
+          </Text>
+        </Box>
+      </Card>
+    );
+  }
+  if (hiddenCount > 0) {
+    return (
+      <Text as="p" className="flex items-center gap-1.5 text-xs text-text-3">
+        <EyeOff className="h-3.5 w-3.5" />
+        {hiddenCount === 1
+          ? "1 colleague has chosen not to appear on the leaderboard."
+          : `${hiddenCount} colleagues have chosen not to appear on the leaderboard.`}
+      </Text>
+    );
+  }
+  return null;
+}
+
 export function LeaderboardContent() {
   const { user } = useAuth();
   const [data, setData]   = useState(null);
   const [error, setError] = useState(null);
+  // The organization has switched the leaderboard off (0064): the API answers
+  // 403, the same way the community does when it is off.
+  const [disabled, setDisabled] = useState(false);
   const [tab, setTab]         = useState("rankings"); // rankings | points
   const [period, setPeriod]   = useState("alltime"); // alltime | month
   const [deptFilter, setDeptFilter] = useState("All Departments");
@@ -237,7 +281,10 @@ export function LeaderboardContent() {
     if (!user) return;
     apiClient("/api/learner/leaderboard")
       .then(setData)
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        if (e.status === 403) setDisabled(true);
+        else setError(e.message);
+      });
   }, [user]);
 
   // Everyone in the chosen department (or all), shared by the podium and table
@@ -272,6 +319,16 @@ export function LeaderboardContent() {
     ].filter(Boolean);
   }, [rankedAllTime]);
 
+  if (disabled) return (
+    <Card className="p-10 text-center">
+      <Trophy className="mx-auto h-8 w-8 text-ink/30" />
+      <Text as="p" className="mt-3 font-semibold text-ink">The leaderboard is turned off</Text>
+      <Text as="p" className="mt-1 text-sm text-ink/60">
+        Your organization has chosen not to show a leaderboard. You still earn
+        points and badges, which you can see in My Achievements.
+      </Text>
+    </Card>
+  );
   if (error) return (
     <Card className="p-8 text-center">
       <Text as="p" className="text-error text-sm">{error}</Text>
@@ -323,9 +380,13 @@ export function LeaderboardContent() {
       {tab === "points" ? (
         <HowPointsWork rules={data.pointRules} notes={data.pointNotes} />
       ) : tab === "kudos" ? (
-        <KudosBoard deptFilter={deptFilter} />
+        <>
+          <PrivacyStrip privacy={data.privacy} />
+          <KudosBoard deptFilter={deptFilter} />
+        </>
       ) : (
       <>
+      <PrivacyStrip privacy={data.privacy} />
 
       {/* ── Hero banner ── */}
       <Box className="rounded-xl bg-navy px-6 py-5 flex items-center gap-4">

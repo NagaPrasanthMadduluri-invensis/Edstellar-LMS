@@ -298,10 +298,16 @@ export function DashboardContent() {
             <Box className="h-9 w-px bg-line" />
             <Box>
               <Box className="flex items-baseline gap-1">
-                <Text as="p" className="font-mono text-2xl font-extrabold leading-none text-ink">#{rank}</Text>
-                <Text as="span" className="text-xs text-text-3">/ {rank_of}</Text>
+                {/* No public rank when the learner opted out or the board is
+                    off (0064): an em dash, and the label says which. */}
+                <Text as="p" className="font-mono text-2xl font-extrabold leading-none text-ink">
+                  {rank == null ? "—" : `#${rank}`}
+                </Text>
+                {rank != null && <Text as="span" className="text-xs text-text-3">/ {rank_of}</Text>}
               </Box>
-              <Text as="p" className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">Rank</Text>
+              <Text as="p" className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">
+                {rank != null ? "Rank" : cohort_leaderboard ? "Hidden" : "Board off"}
+              </Text>
             </Box>
             <Box className="h-9 w-px bg-line" />
             <Box>

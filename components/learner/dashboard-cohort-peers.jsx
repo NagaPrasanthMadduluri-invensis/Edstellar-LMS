@@ -135,8 +135,9 @@ export function DashboardCohortPeers({ cohort, peers = [] }) {
                 You · {me.name.split(" ")[0]}
               </Text>
               <Box className="flex items-center gap-3">
+                {/* No public rank once they opt out of leaderboards (0064). */}
                 <Text as="span" className="font-mono text-[11px] uppercase tracking-[0.1em] text-text-3">
-                  Rank #{me.rank}
+                  {me.hidden || me.rank == null ? "Hidden from leaderboard" : `Rank #${me.rank}`}
                 </Text>
                 <Text as="span" className="font-mono text-sm font-bold tabular-nums text-ink">{me.points}</Text>
               </Box>

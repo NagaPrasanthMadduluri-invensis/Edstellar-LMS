@@ -57,6 +57,51 @@ const nextConfig = {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
 
+  // No "X-Powered-By: Next.js" advertising the framework and version family.
+  poweredByHeader: false,
+
+  /**
+   * Security headers on every page.
+   *
+   * - `frame-ancestors 'self'` (via CSP, a CSP carrying ONLY that directive):
+   *   nobody else may frame the app, so a login or a "Delete" button cannot be
+   *   overlaid by another site (clickjacking). The app frames ITSELF for
+   *   SCORM (`/scorm` is rewritten to the same origin), which 'self' allows.
+   *   No script-src policy: Next's inline bootstrap scripts and the theme's
+   *   no-flash script would need nonces, which is a project of its own.
+   * - `Referrer-Policy: strict-origin-when-cross-origin`: a link out to an
+   *   external meeting or resource sends only our origin, never a path that
+   *   may carry a course or certificate id.
+   * - Permissions: the app never uses camera, microphone, location or
+   *   payments, so no page (or framed SCORM package) may ask for them.
+   * - HSTS only when the request reached the edge over HTTPS
+   *   (`x-forwarded-proto`), so `next dev` on localhost is never pinned.
+   */
+  async headers() {
+    const common = [
+      { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      {
+        key: "Permissions-Policy",
+        value: "camera=(), microphone=(), geolocation=(), payment=()",
+      },
+    ];
+    return [
+      { source: "/:path*", headers: common },
+      {
+        source: "/:path*",
+        has: [{ type: "header", key: "x-forwarded-proto", value: "https" }],
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+        ],
+      },
+    ];
+  },
+
   /**
    * Proxy SCORM package content from the API.
    *

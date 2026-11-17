@@ -165,8 +165,17 @@ export function AchievementsContent() {
           </Box>
           <Box className="w-px h-10 bg-white/20 mr-6" />
           <Box className="pr-6">
-            <Text as="h2" className="text-3xl font-extrabold text-white leading-none">#{summary.rank}</Text>
-            <Text as="p" className="text-[10px] font-bold tracking-widest uppercase text-white/70 mt-1">Rank of {summary.rankOf}</Text>
+            {/* No public rank when the board is off or the learner opted out (0064). */}
+            <Text as="h2" className="text-3xl font-extrabold text-white leading-none">
+              {summary.rank == null ? "—" : `#${summary.rank}`}
+            </Text>
+            <Text as="p" className="text-[10px] font-bold tracking-widest uppercase text-white/70 mt-1">
+              {summary.rank != null
+                ? `Rank of ${summary.rankOf}`
+                : summary.leaderboardEnabled === false
+                  ? "Leaderboard off"
+                  : "Hidden from ranking"}
+            </Text>
           </Box>
           <Box className="w-px h-10 bg-white/20 mr-6" />
           <Box>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertTriangle, BookOpen, Building2, CalendarCheck, CalendarClock,
-  CheckCircle2, Lock, MessageSquare, Users,
+  CheckCircle2, Lock, MessageSquare, Trophy, Users,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -21,6 +21,9 @@ import {
   fetchMyOrganization, updateMyOrganization,
 } from "@/services/api/profile-api";
 import { CONTRACT_STATE, PLANS, formatMoney } from "@/lib/tenant-account";
+import {
+  DEFAULT_LEADERBOARD_NAME_DISPLAY, LEADERBOARD_NAME_DISPLAYS, nameDisplayLabel,
+} from "@/lib/leaderboard-privacy";
 import { cn } from "@/lib/utils";
 
 /**
@@ -198,6 +201,31 @@ function OrgView({ org: o, canEdit, onEdit }) {
               {o.community_enabled ? "On" : "Off"}
             </Text>
           </Box>
+          {/* Leaderboard privacy (0064). */}
+          <Box className="mt-px flex items-center gap-3 border border-line bg-surface px-3.5 py-3">
+            <Box className="flex size-8 shrink-0 items-center justify-center bg-accent-tint text-accent-blue">
+              <Trophy className="size-4" />
+            </Box>
+            <Box className="min-w-0 flex-1">
+              <Text as="p" className="text-[13px] font-semibold text-ink">
+                Leaderboard
+              </Text>
+              <Text as="p" className="text-[11px] text-text-3">
+                {o.leaderboard_enabled === false
+                  ? "Hidden from learners. Points and badges still count."
+                  : `Colleagues are shown as: ${nameDisplayLabel(o.leaderboard_name_display)}. Each learner can hide themselves.`}
+              </Text>
+            </Box>
+            <Text
+              as="span"
+              className={cn(
+                "chip shrink-0",
+                o.leaderboard_enabled === false ? "chip-idle" : "chip-complete",
+              )}
+            >
+              {o.leaderboard_enabled === false ? "Off" : "On"}
+            </Text>
+          </Box>
         </Box>
 
         <Box>
@@ -312,6 +340,8 @@ function OrgForm({ org: o, onCancel, onSaved }) {
     industry: o.industry ?? "",
     region: o.region ?? "",
     community_enabled: o.community_enabled !== false,
+    leaderboard_enabled: o.leaderboard_enabled !== false,
+    leaderboard_name_display: o.leaderboard_name_display ?? DEFAULT_LEADERBOARD_NAME_DISPLAY,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -329,6 +359,8 @@ function OrgForm({ org: o, onCancel, onSaved }) {
           industry: form.industry.trim() || null,
           region: form.region.trim() || null,
           community_enabled: form.community_enabled,
+          leaderboard_enabled: form.leaderboard_enabled,
+          leaderboard_name_display: form.leaderboard_name_display,
         },
       });
       onSaved(organization);
@@ -400,6 +432,63 @@ function OrgForm({ org: o, onCancel, onSaved }) {
             onCheckedChange={(v) => set("community_enabled", v)}
             aria-label="Learning Community"
           />
+        </Box>
+
+        {/* Leaderboard privacy (0064): the switch, and how colleagues are named. */}
+        <Box className="border border-line bg-surface px-3.5 py-3">
+          <Box className="flex items-center gap-3">
+            <Box className="flex size-8 shrink-0 items-center justify-center bg-accent-tint text-accent-blue">
+              <Trophy className="size-4" />
+            </Box>
+            <Box className="min-w-0 flex-1">
+              <Label className="text-[13px]">Leaderboard</Label>
+              <Text as="p" className="text-[11px] text-text-3">
+                {form.leaderboard_enabled
+                  ? "Learners see the leaderboard, the Home podium and the kudos board. Each learner can hide themselves."
+                  : "Hidden from learners. Points and badges still count, and you keep your own leaderboard view."}
+              </Text>
+            </Box>
+            <Switch
+              checked={form.leaderboard_enabled}
+              onCheckedChange={(v) => set("leaderboard_enabled", v)}
+              aria-label="Leaderboard"
+            />
+          </Box>
+
+          {form.leaderboard_enabled && (
+            <Box className="mt-3 border-t border-line pt-3">
+              <Text as="p" className="mb-1.5 text-[11.5px] font-semibold text-ink">
+                How colleagues are named to each other
+              </Text>
+              <Box role="radiogroup" aria-label="How colleagues are named" className="grid gap-1.5 sm:grid-cols-2">
+                {LEADERBOARD_NAME_DISPLAYS.map((d) => {
+                  const on = form.leaderboard_name_display === d.value;
+                  return (
+                    <Box
+                      as="button"
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      key={d.value}
+                      onClick={() => set("leaderboard_name_display", d.value)}
+                      className={cn(
+                        "cursor-pointer border px-3 py-2 text-left transition-colors",
+                        on
+                          ? "border-accent-blue bg-accent-tint"
+                          : "border-line bg-surface-2 hover:border-line-strong",
+                      )}
+                    >
+                      <Text as="span" className="block text-[12px] font-semibold text-ink">{d.label}</Text>
+                      <Text as="span" className="block font-mono text-[11px] text-text-3">{d.example}</Text>
+                    </Box>
+                  );
+                })}
+              </Box>
+              <Text as="p" className="mt-1.5 text-[10.5px] text-text-3">
+                Admin screens always show full names.
+              </Text>
+            </Box>
+          )}
         </Box>
 
         <Box className="flex items-start gap-2 border border-line bg-surface-2 px-3 py-2">

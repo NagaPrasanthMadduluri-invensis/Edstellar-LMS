@@ -102,6 +102,14 @@ export function AdminLeaderboardContent() {
           </SelectContent>
         </Select>
         <Text as="p" className="text-sm text-muted-foreground">{filtered.length} learner{filtered.length !== 1 ? "s" : ""} ranked</Text>
+        {/* Opted-out learners (0064) are not ranked here either. Their records
+            are in every other admin view; this only says the board is not the
+            full headcount. */}
+        {data.hiddenCount > 0 && (
+          <Text as="p" className="text-xs text-text-3">
+            · {data.hiddenCount} learner{data.hiddenCount !== 1 ? "s have" : " has"} chosen not to appear on leaderboards
+          </Text>
+        )}
       </Box>
 
       {/* Summary stat cards */}

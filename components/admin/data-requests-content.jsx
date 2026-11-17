@@ -121,7 +121,7 @@ export function DataRequestsContent() {
           <Inbox className="mx-auto mb-3 size-8 text-ink/30" />
           <Text as="p" className="font-semibold text-ink">No data requests</Text>
           <Text as="p" className="mx-auto mt-1 max-w-md text-sm text-ink/60">
-            Correction and deletion requests from your people will appear here.
+            Correction, deletion and consent-withdrawal requests from your people will appear here.
           </Text>
         </Card>
       ) : (
@@ -224,6 +224,21 @@ function RespondDialog({ request, onClose, onSaved }) {
           {request.details && (
             <Box className="rounded-md bg-surface-2 px-3 py-2">
               <Text as="p" className="text-sm text-ink/70">{request.details}</Text>
+            </Box>
+          )}
+
+          {request.type === "withdrawal" && (
+            <Box className="border border-line bg-surface-2 px-3 py-2">
+              <Text as="p" className="text-xs leading-relaxed text-text-2">
+                This person has asked to withdraw consent. Their optional
+                choices (leaderboard, recognition emails) they can switch off
+                themselves in My Profile. Their training records are kept for
+                workplace training, so decide with HR or your Data Protection
+                Officer whether to stop processing, which usually means
+                deactivating the account. Closing this request as Resolved or
+                Rejected is written to their consent history; say what was done
+                in the note.
+              </Text>
             </Box>
           )}
 

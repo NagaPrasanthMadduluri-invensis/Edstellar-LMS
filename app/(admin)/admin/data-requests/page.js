@@ -9,7 +9,7 @@ export default function AdminDataRequestsPage() {
         eyebrow="Privacy"
         title="Data"
         emphasis="requests"
-        summary="Correction and deletion requests from people in your organization. Review each one and record the outcome."
+        summary="Correction, deletion and consent-withdrawal requests from people in your organization. Review each one and record the outcome."
       />
       <DataRequestsContent />
     </Box>

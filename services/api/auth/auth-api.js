@@ -25,8 +25,14 @@ export async function verifyMfa({ mfa_token, code }) {
 }
 
 /** Records acceptance of the current privacy notice for the signed-in user. */
-export async function recordConsent() {
-  return apiClient("/api/auth/consent", { method: "POST" });
+/**
+ * Acknowledge the current notice. `choices` is a snapshot of the optional
+ * choices shown on the screen ({ leaderboard_visible, recognition_emails }),
+ * recorded in the consent log beside the acknowledgement. Each changed choice
+ * is SAVED through its own route first; this call does not apply them.
+ */
+export async function recordConsent(choices = {}) {
+  return apiClient("/api/auth/consent", { method: "POST", body: choices });
 }
 
 export async function fetchMfaStatus() {

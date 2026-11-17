@@ -94,7 +94,7 @@ export default function PrivacyPolicyPage() {
                 "Identity & contact: your name, work email, and (where your organization records them) department, job role, location and reporting manager.",
                 "Learning activity: course and session enrolments, lesson and assessment progress, scores, learning hours, certificates and badges.",
                 "Participation: feedback you submit, community posts and direct messages, and in-app notifications.",
-                "Technical & security: sign-in events, session and device information, IP address, and audit logs of significant actions.",
+                "Technical & security: sign-in events, session and device information, IP address, audit logs of significant actions, and the time you were last active (used for the online indicator in messages).",
               ]}
             />
             We do not knowingly collect special-category or sensitive personal
@@ -113,48 +113,93 @@ export default function PrivacyPolicyPage() {
             We process personal data to deliver training, track progress and
             completions, issue certificates, report to your organization&apos;s
             administrators and managers, send service notifications, and keep the
-            platform secure and accountable. Our lawful bases are, as applicable:{" "}
-            <b>consent</b> (PDPA, DPDP Act, GDPR Art. 6(1)(a)); the{" "}
+            platform secure and accountable. Your organization runs workplace
+            learning as part of employing you, so this core processing does not
+            rely on your consent. Its basis is, as applicable: the{" "}
+            <b>employment purposes</b> recognised by the PDPA (with this notice
+            as the required notification); a <b>legitimate use</b> for
+            employment under section 7 of the DPDP Act; and the{" "}
             <b>legitimate interests</b> of your organization in administering
-            workplace learning (GDPR Art. 6(1)(f)); and <b>performance of a
-            contract</b> and <b>legal obligation</b> where relevant. We do not
-            sell your personal data and we do not use it for automated
-            decision-making that produces legal effects about you.
+            workplace learning, <b>performance of a contract</b> and{" "}
+            <b>legal obligation</b> under the GDPR. The optional features in
+            section 7 rely on your own choice instead. We do not sell your
+            personal data and we do not use it for automated decision-making
+            that produces legal effects about you.
           </Section>
 
-          <Section title="7. Consent and withdrawal">
-            Where we rely on consent, you give it when you accept this notice on
-            first sign-in, and you may withdraw it at any time by contacting your
-            organization&apos;s administrator. Withdrawing consent does not affect
-            processing already carried out, and may mean you can no longer use the
-            service.
+          <Section title="7. Your choices and withdrawing consent">
+            When you first sign in you are asked to acknowledge this notice and
+            are shown your optional choices: whether colleagues see you on
+            leaderboards, and whether you receive recognition emails (badges,
+            rank and kudos). These are yours to decide, and you can change them
+            at any time in My Profile with immediate effect. You can also ask to
+            withdraw consent from the{" "}
+            <Link
+              href="/my-data"
+              className="font-medium text-accent-blue underline-offset-2 hover:underline"
+            >
+              My Data
+            </Link>{" "}
+            page; because your training records are kept by your organization
+            for workplace learning, that request is reviewed by your
+            administrator and may mean your account is closed. Every
+            acknowledgement, choice change and withdrawal request is recorded
+            with its date, and you can see that history on My Data. Withdrawing
+            does not affect processing already carried out.
           </Section>
 
           <Section title="8. Who we disclose it to">
             Your learning records are visible to administrators and, where
-            applicable, managers within your organization. Session feedback is
-            shown to the trainer without your name. We use vetted service
-            providers (for example cloud hosting and email delivery) as
-            sub-processors under agreements requiring them to protect your data
-            and use it only as instructed. We may disclose data where required by
-            law or a valid legal request.
+            applicable, your manager within your organization. Trainers see the
+            names and attendance of people in their sessions, and see session
+            feedback without your name. Other learners in your organization can
+            see your name (first name and last initial, unless your organization
+            chooses full names), department, profile picture, points and
+            completion rate on the leaderboard, and your first name and last
+            initial on community posts, course reviews and peer suggestions. You
+            can hide yourself from the leaderboard at any time with &ldquo;Show
+            me on leaderboards&rdquo; in My Profile; you then keep earning points
+            and badges but colleagues cannot see your ranking. Your organization
+            can also turn the leaderboard off. Nobody outside your organization
+            can see your records. We use these service
+            providers as sub-processors, under agreements requiring them to
+            protect your data and use it only as instructed:
+            <List
+              items={[
+                "Amazon Web Services: hosting of the application, database and uploaded files (India).",
+                "Cloudflare: network delivery and security for every request, and storage of course videos and documents.",
+                "Google: delivery of the emails the platform sends you.",
+              ]}
+            />
+            Edstellar support staff may access your organization&apos;s data
+            during a time-limited, logged support session when your organization
+            needs help. We may disclose data where required by law or a valid
+            legal request.
           </Section>
 
           <Section title="9. International data transfers">
-            The platform is hosted on secure cloud infrastructure in India (AWS
-            Asia Pacific, Mumbai). Where personal data is transferred to or
-            accessed from another country, we put appropriate safeguards in place
-            - such as contractual clauses and the transfer-limitation
-            protections required by the PDPA and GDPR - so it continues to
-            receive a comparable standard of protection.
+            The platform, its database and uploaded files are hosted in India
+            (AWS Asia Pacific, Mumbai). If your organization is outside India,
+            your data is therefore transferred to India. In addition, emails are
+            sent through Google, and every request passes through
+            Cloudflare&apos;s global network, so some data (such as your name and
+            email address in a message, or your IP address) may be processed in
+            other countries. For each of these transfers we put appropriate
+            safeguards in place, such as contractual clauses and the
+            transfer-limitation protections required by the PDPA and GDPR, so
+            your data continues to receive a comparable standard of protection.
           </Section>
 
           <Section title="10. How long we keep it">
             We retain personal data for as long as your account is active and as
             long as needed for the purposes in section 6, and to meet your
-            organization&apos;s legal, tax and reporting obligations. When it is
-            no longer needed it is deleted or anonymised. Your organization sets
-            the specific retention periods.
+            organization&apos;s legal, tax and reporting obligations. After your
+            account is deactivated, your personal details are anonymised after a
+            set period (12 months by default); your learning history may be kept
+            in anonymised form for your organization&apos;s reporting. Sent email
+            records are deleted after 90 days. You can ask your organization for
+            the full retention schedule, or request deletion earlier from the My
+            Data page.
           </Section>
 
           <Section title="11. How we protect it">
@@ -185,8 +230,8 @@ export default function PrivacyPolicyPage() {
             >
               My Data
             </Link>{" "}
-            page, and file a correction or deletion request there for an
-            administrator to action. We respond to rights requests within the
+            page, and file a correction, deletion or consent-withdrawal request
+            there for an administrator to action. We respond to rights requests within the
             timeframe the applicable law requires.
           </Section>
 
@@ -205,7 +250,7 @@ export default function PrivacyPolicyPage() {
 
           <Section title="15. Changes to this notice">
             We may update this notice. When the version changes you will be asked
-            to review and accept it again the next time you sign in. The current
+            to review and acknowledge it again the next time you sign in. The current
             version is {CURRENT_PRIVACY_VERSION}.
           </Section>
 
@@ -222,8 +267,8 @@ export default function PrivacyPolicyPage() {
               This is a standard template describing the platform&apos;s actual
               data handling. It is safe to show, but each organization should
               have its Data Protection Officer or legal team confirm the
-              specifics (retention periods, sub-processors, DPO contact) before
-              adopting it as their binding privacy notice.
+              specifics (DPO and grievance contact, and their retention schedule)
+              before adopting it as their binding privacy notice.
             </Text>
           </Box>
 

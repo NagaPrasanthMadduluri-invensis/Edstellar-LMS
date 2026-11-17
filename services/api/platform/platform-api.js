@@ -217,3 +217,41 @@ export async function setOrgJobLevels({ organizationId, jobLevels }) {
     method: "PUT", body: { job_levels: jobLevels },
   });
 }
+
+/* ── Security incident register (0066) ── */
+
+export async function fetchIncidents() {
+  return apiClient("/api/platform/incidents");
+}
+
+export async function fetchIncident({ incidentId }) {
+  return apiClient(`/api/platform/incidents/${incidentId}`);
+}
+
+/** The tenants an incident can name as affected. */
+export async function fetchIncidentOptions() {
+  return apiClient("/api/platform/incidents/options");
+}
+
+export async function createIncident({ data }) {
+  return apiClient("/api/platform/incidents", { method: "POST", body: data });
+}
+
+export async function updateIncident({ incidentId, data }) {
+  return apiClient(`/api/platform/incidents/${incidentId}`, { method: "PATCH", body: data });
+}
+
+export async function addIncidentNote({ incidentId, note }) {
+  return apiClient(`/api/platform/incidents/${incidentId}/notes`, {
+    method: "POST",
+    body: { note },
+  });
+}
+
+/** Bell + email to every admin of every affected organization. */
+export async function notifyIncidentClients({ incidentId, message }) {
+  return apiClient(`/api/platform/incidents/${incidentId}/notify-clients`, {
+    method: "POST",
+    body: { message },
+  });
+}

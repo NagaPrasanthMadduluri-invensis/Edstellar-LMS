@@ -9,7 +9,7 @@ export default function MyDataPage() {
         eyebrow="Privacy"
         title="My data &"
         emphasis="privacy"
-        summary="See what we hold about you, download a copy, and ask for a correction or deletion. You have these rights under data protection law."
+        summary="See what we hold about you, download a copy, see your consent history, and ask for a correction, deletion or consent withdrawal. You have these rights under data protection law."
       />
       <MyDataContent />
     </Box>

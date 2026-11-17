@@ -199,6 +199,8 @@ function ProfileView({ profile: p, onEdit, onClose }) {
 
       {p.role === "learner" && <KudosPanel />}
 
+      {p.role === "learner" && <LeaderboardVisibility initialHidden={!!p.leaderboard_hidden} />}
+
       <EmailPreferences />
 
       {p.role === "admin" && <TwoFactorSection />}
@@ -326,6 +328,67 @@ const EMAIL_GROUPS = [
   { key: "people", label: "People", hint: "Team and account changes" },
   { key: "commercial", label: "Account", hint: "Requests and billing" },
 ];
+
+/* ── Leaderboard visibility ──────────────────────────────────────────────── */
+
+/**
+ * The learner's own leaderboard opt-out (0064). Saved the moment it is ticked,
+ * like the email checkbox below it: an optimistic toggle put back if the write
+ * fails. It says what changes and what does not, because "hide me" reads as
+ * "stop counting me" unless the panel says points and badges carry on.
+ */
+function LeaderboardVisibility({ initialHidden }) {
+  const [hidden, setHidden] = useState(initialHidden);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const save = async (nextHidden) => {
+    const previous = hidden;
+    setHidden(nextHidden);
+    setSaving(true);
+    setFailed(false);
+    try {
+      await updateMyProfile({ data: { leaderboard_hidden: nextHidden } });
+    } catch {
+      setHidden(previous);
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Box className="border-t border-line px-5 py-4">
+      <Text as="p" className="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
+        Leaderboard
+      </Text>
+      <label className="flex cursor-pointer items-start gap-2.5 border border-line bg-surface-2 px-3 py-2.5">
+        <input
+          type="checkbox"
+          className="mt-0.5 size-3.5 cursor-pointer accent-[#3B6FD4]"
+          checked={!hidden}
+          disabled={saving}
+          onChange={(e) => save(!e.target.checked)}
+        />
+        <Box className="min-w-0">
+          <Text as="span" className="text-[12.5px] font-semibold text-ink">
+            Show me on leaderboards
+          </Text>
+          <Text as="p" className="text-[11px] leading-relaxed text-text-3">
+            When this is off, colleagues do not see you on the leaderboard, the
+            Home podium or the kudos board, and you are not ranked. You still
+            earn points and badges, and your admin can still see your progress.
+          </Text>
+        </Box>
+      </label>
+      {failed && (
+        <Text as="p" className="mt-1.5 text-[11px] text-error">
+          That did not save. Please try again.
+        </Text>
+      )}
+    </Box>
+  );
+}
 
 function EmailPreferences() {
   const [prefs, setPrefs] = useState(null);
