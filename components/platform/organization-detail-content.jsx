@@ -1,5 +1,6 @@
 "use client";
 
+import { OrganizationDataDeletion } from "@/components/platform/organization-data-deletion";
 import { useCallback, useEffect, useState } from "react";
 import {
   BookOpen,
@@ -405,6 +406,14 @@ export function OrganizationDetailContent({ organizationId }) {
           </Card>
         ))}
       </Box>
+
+      {!organization.isPlatform && (
+        <OrganizationDataDeletion
+          organizationId={organizationId}
+          organizationName={organization.name}
+          accessEnabled={organization.isActive}
+        />
+      )}
 
       {error && (
         <Card className="gap-0 border-error/30 bg-error/10 p-4">
