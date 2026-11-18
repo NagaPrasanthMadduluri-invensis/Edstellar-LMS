@@ -13,6 +13,8 @@ export {
   recordConsent,
   fetchMfaStatus,
   setupMfa,
+  resendMfaCode,
+  emailMfaCode,
   enableMfa,
   disableMfa,
 } from "./auth-api";

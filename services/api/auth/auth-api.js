@@ -39,8 +39,19 @@ export async function fetchMfaStatus() {
   return apiClient("/api/auth/mfa/status");
 }
 
-export async function setupMfa() {
-  return apiClient("/api/auth/mfa/setup", { method: "POST" });
+/** Begin setup. `method`: "totp" (authenticator app, the default) or "email". */
+export async function setupMfa({ method = "totp" } = {}) {
+  return apiClient("/api/auth/mfa/setup", { method: "POST", body: { method } });
+}
+
+/** Signed in, email method: email me a code (to confirm turning it off). */
+export async function emailMfaCode() {
+  return apiClient("/api/auth/mfa/email-code", { method: "POST" });
+}
+
+/** During sign-in with the email method: send a fresh code. */
+export async function resendMfaCode({ mfa_token }) {
+  return apiClient("/api/auth/mfa/resend", { method: "POST", body: { mfa_token } });
 }
 
 export async function enableMfa({ code }) {
@@ -149,5 +160,6 @@ export function normalizeUser(apiUser) {
     permissions: Array.isArray(apiUser.permissions) ? apiUser.permissions : [],
     /** True until the user accepts the current privacy notice. */
     consentRequired: apiUser.consent_required === true,
+    mfaSetupRequired: apiUser.mfa_setup_required === true,
   };
 }

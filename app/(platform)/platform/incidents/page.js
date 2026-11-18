@@ -9,7 +9,7 @@ export default function PlatformIncidentsPage() {
         eyebrow="Platform · Edstellar"
         title="Security"
         emphasis="incidents"
-        summary="Every suspected personal data breach, with the legal clocks that start the moment it is discovered. Log it first, then assess, contain and notify. The steps are in the privacy pack's Data Breach Response Plan."
+        summary="Every suspected personal data breach, with the legal clocks that start the moment it is discovered. Log it first, then assess, contain and notify. The steps are in the Incident Response Plan (Information Security Policies, document 05)."
       />
       <PlatformIncidentsContent />
     </Box>

@@ -85,7 +85,6 @@ const EMPTY_USER_FORM = {
   firstName: "",
   lastName: "",
   email: "",
-  password: "",
   roleId: "",
   department: "",
   jobRole: "",
@@ -269,17 +268,13 @@ export function OrganizationDetailContent({ organizationId }) {
   };
 
   const createUser = async () => {
-    const { firstName, lastName, email, password, roleId } = userForm;
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) {
-      setUserError("First name, last name, email and password are all required");
+    const { firstName, lastName, email, roleId } = userForm;
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+      setUserError("First name, last name and email are all required");
       return;
     }
     if (!roleId) {
       setUserError("Pick the role this person should have");
-      return;
-    }
-    if (password.length < 8) {
-      setUserError("Password must be at least 8 characters");
       return;
     }
 
@@ -295,7 +290,6 @@ export function OrganizationDetailContent({ organizationId }) {
             firstName: firstName.trim(),
             lastName: lastName.trim(),
             email: email.trim(),
-            password,
             roleId: Number(roleId),
             department: userForm.department.trim() || undefined,
             jobRole: userForm.jobRole.trim() || undefined,
@@ -589,7 +583,8 @@ export function OrganizationDetailContent({ organizationId }) {
               </Text>
               <Text as="p" className="mt-0.5 text-xs text-muted-foreground">
                 Creates an account in {organization.name} on the role you pick —
-                another admin, a trainer, a learner, or any role above.
+                another admin, a trainer, a learner, or any role above. They are
+                emailed a link to set their own password.
               </Text>
             </Box>
           </Box>
@@ -624,20 +619,6 @@ export function OrganizationDetailContent({ organizationId }) {
                   value={userForm.email}
                   onChange={(e) => setUserForm((p) => ({ ...p, email: e.target.value }))}
                 />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label htmlFor="user-password">Password</Label>
-                <Input
-                  id="user-password"
-                  type="password"
-                  value={userForm.password}
-                  onChange={(e) =>
-                    setUserForm((p) => ({ ...p, password: e.target.value }))
-                  }
-                />
-                <Text as="p" className="text-[11px] text-muted-foreground">
-                  At least 8 characters. They can change it once signed in.
-                </Text>
               </Box>
               <Box className="space-y-1.5">
                 <Label htmlFor="user-role">Role</Label>

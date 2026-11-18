@@ -50,6 +50,13 @@ jobs:
           script: |
             cd /var/www/frontend/edstellar_lms
             before=$(git rev-parse --short HEAD)
-            sudo ./deploy.sh
-            after=$(git rev-parse --short HEAD)
-            echo "deployed: $before -> $after"
+            # Post the result to Cliq either way, using the API repo's script
+            # and settings on the same server (BACKEND_STRUCTURE 10.50).
+            if sudo ./deploy.sh; then
+              after=$(git rev-parse --short HEAD)
+              echo "deployed: $before -> $after"
+              sudo node /var/www/frontend/edstellar_lms_api/scripts/cliq-notify.mjs info "Web app deployed" "Web app $before -> $after." || true
+            else
+              sudo node /var/www/frontend/edstellar_lms_api/scripts/cliq-notify.mjs critical "Web app deploy FAILED" "Web app deploy from $before failed. See the GitHub Actions run; incident response plan runbook R10." || true
+              exit 1
+            fi

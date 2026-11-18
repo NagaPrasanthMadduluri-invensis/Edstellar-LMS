@@ -92,7 +92,14 @@ export function AuthProvider({ children, initialUser }) {
     async ({ email, password }) => {
       const data = await loginUser({ email, password });
       if (data?.mfa_required) {
-        return { mfaRequired: true, mfaToken: data.mfa_token };
+        return {
+          mfaRequired: true,
+          mfaToken: data.mfa_token,
+          // "totp" or "email"; for email, where the code went (0069).
+          mfaMethod: data.mfa_method ?? "totp",
+          sentTo: data.sent_to ?? null,
+          sendError: data.send_error ?? null,
+        };
       }
       return finishSignIn(data);
     },

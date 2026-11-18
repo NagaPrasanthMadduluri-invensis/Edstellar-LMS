@@ -35,7 +35,7 @@ import {
   FileSpreadsheet, AlertCircle, BookOpen, ClipboardList,
   CheckCircle2, XCircle, Clock, Trophy, TrendingUp,
   ChevronDown, ChevronUp, CalendarDays, FileArchive, MinusCircle,
-  Eye, EyeOff, Pencil, Power, Trash2, ShieldCheck, GraduationCap, Presentation, UserX,
+  Eye, Pencil, Power, Trash2, ShieldCheck, GraduationCap, Presentation, UserX,
   Mail, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import Text from "@/components/ui/text";
@@ -80,7 +80,7 @@ const DEPARTMENTS = [
   "Operations", "Legal", "Customer Support", "Product", "Design",
 ];
 
-const EMPTY_FORM = { first_name: "", last_name: "", email: "", password: "", department: "", location: "", job_role: "", job_level: "", role_id: "", manager_id: "" };
+const EMPTY_FORM = { first_name: "", last_name: "", email: "", department: "", location: "", job_role: "", job_level: "", role_id: "", manager_id: "" };
 
 const HEADER_MAP = {
   "employee id": "employee_id", "employeeid": "employee_id", "employee_id": "employee_id",
@@ -99,7 +99,8 @@ const HEADER_MAP = {
   "manager email": "manager", "manager_email": "manager", "manageremail": "manager",
   "manager": "manager", "manager mail": "manager",
   "reports to": "manager", "reporting manager": "manager",
-  "password": "password",
+  // No password column (2026-11-18): a file that still has one has it ignored,
+  // because every imported person sets their own from the welcome email.
 };
 
 /**
@@ -769,7 +770,6 @@ export function AdminEmployeesContent() {
   const [orgOptions, setOrgOptions]         = useState(null);
   const [error, setError]                   = useState(null);
   const [dialogOpen, setDialogOpen]         = useState(false);
-  const [showPassword, setShowPassword]     = useState(true);
   const [form, setForm]                     = useState(EMPTY_FORM);
   /* The org's own roles. An admin can now onboard somebody straight onto the
      trainer portal, which is the only way the session form's trainer picker
@@ -940,15 +940,12 @@ export function AdminEmployeesContent() {
         ? "Email is required."
         : !EMAIL_RE.test(form.email.trim())
           ? "That does not look like an email address."
-          : form.password.length < 6
-            ? "A password of at least 6 characters is required."
-            : null;
+          : null;
 
   const handleCreate = async () => {
     if (!form.first_name.trim()) { setFormError("First name is required"); return; }
     if (!form.last_name.trim())  { setFormError("Last name is required");  return; }
     if (!form.email.trim())      { setFormError("Email is required");       return; }
-    if (form.password.length < 6){ setFormError("Password must be at least 6 characters"); return; }
     setSaving(true); setFormError(null);
     try {
       await createUser({
@@ -1858,8 +1855,8 @@ export function AdminEmployeesContent() {
           <DialogHeader>
             <DialogTitle>Add {selectedRole?.label ?? "a learner"}</DialogTitle>
             <DialogDescription>
-              They can sign in as soon as you save. You will need to pass on
-              the password yourself — this product sends no email.
+              They are emailed a link to set their own password, then sign in.
+              Nobody else ever knows their password, including you.
             </DialogDescription>
           </DialogHeader>
 
@@ -1929,38 +1926,6 @@ export function AdminEmployeesContent() {
 
             <FormSection title="Access">
               <Box className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field
-                  id="nu-pass" label="Temporary password" required
-                  hint="You have to read this out to them, so it is shown rather than masked."
-                  error={form.password && form.password.length < 6
-                    ? "At least 6 characters."
-                    : null}
-                >
-                  <Box className="relative">
-                    <Input
-                      id="nu-pass"
-                      /* NOT masked by default, for the reason the tenant
-                         form already records (§10.3.1.11): hiding a value
-                         its author must transcribe helps nobody. The toggle
-                         is there for anyone not alone at their desk. */
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      placeholder="Minimum 6 characters"
-                      className="pr-9"
-                      value={form.password}
-                      onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      title={showPassword ? "Hide password" : "Show password"}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer p-1 text-text-3 hover:text-ink"
-                    >
-                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
-                  </Box>
-                </Field>
 
                 {orgRoles && orgRoles.length > 0 && (
                   <Field
@@ -2087,7 +2052,7 @@ export function AdminEmployeesContent() {
                   <Mail className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                   <Text as="span">
                     {!bulkResult.welcome_emails_requested
-                      ? "No welcome emails were sent — you left that unticked. These learners hold the default password and have not been told it."
+                      ? "No welcome emails were sent — you left that unticked. Each person can still set a password with \"Forgot password\" on the sign-in page, or you can send the welcome later."
                       : bulkResult.welcome_emails_queued > 0
                         ? `${bulkResult.welcome_emails_queued} welcome email${bulkResult.welcome_emails_queued === 1 ? "" : "s"} queued. They go out over the next few minutes — track them on Email Delivery.`
                         : "No welcome emails were queued, although they were asked for. Check Email Delivery for the reason."}
@@ -2145,7 +2110,7 @@ export function AdminEmployeesContent() {
                   <Text as="p" className="text-sm font-semibold">Download the Excel template</Text>
                 </Box>
                 <Text as="p" className="text-xs text-muted-foreground pl-8">
-                  Fill in employee details. Leave Password blank to use the default: <strong>Edstellar@123</strong>
+                  Fill in employee details. There is no password column: each person is emailed a link to set their own.
                 </Text>
                 <Box className="pl-8">
                   <Button
@@ -2199,7 +2164,7 @@ export function AdminEmployeesContent() {
                     <table className="w-full text-xs">
                       <thead className="bg-muted/20 sticky top-0">
                         <tr>
-                          {["Employee ID", "First Name", "Last Name", "Email", "Department", "Location", "Job Role", "Job Level", "Manager", "Password"].map((h) => (
+                          {["Employee ID", "First Name", "Last Name", "Email", "Department", "Location", "Job Role", "Job Level", "Manager"].map((h) => (
                             <th key={h} className="px-3 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -2232,7 +2197,6 @@ export function AdminEmployeesContent() {
                                 <Text as="span" className="ml-1.5 text-[10.5px] text-text-3">· new in this file</Text>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground">{r.password ? "••••••" : "(default)"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2264,7 +2228,7 @@ export function AdminEmployeesContent() {
                     <Text as="p" className="text-[11px] text-text-3 leading-relaxed">
                       {bulkWelcome
                         ? "Each learner gets their own one-time link to set a password. It lasts 7 days, and the mail goes out over the next few minutes rather than all at once."
-                        : "Accounts are created but nobody is told. They will hold the default password with no way to learn it — you will need to send the details yourself, or resend from Email Delivery later."}
+                        : "Accounts are created but nobody is told yet. Nobody knows their password, so each person will need \"Forgot password\" on the sign-in page, or a welcome sent later."}
                     </Text>
                   </Box>
                 </Box>

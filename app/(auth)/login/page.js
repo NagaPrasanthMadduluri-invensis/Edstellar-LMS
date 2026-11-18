@@ -12,6 +12,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { AuthProvider } from "@/providers/auth-provider";
+import { resendMfaCode } from "@/services/api/auth";
 
 /**
  * Why the user is looking at this form.
@@ -63,6 +64,10 @@ function LoginForm() {
   // Set when the password was right but this admin has a second factor. The
   // token is held here, never in storage, and the step renders inline.
   const [mfaToken, setMfaToken] = useState(null);
+  // "totp" (authenticator app) or "email" (a code just emailed), and where it went.
+  const [mfaMethod, setMfaMethod] = useState("totp");
+  const [sentTo, setSentTo] = useState(null);
+  const [resendState, setResendState] = useState(""); // "", "sending", "sent"
   const [code, setCode] = useState("");
   const [useRecovery, setUseRecovery] = useState(false);
   const [email, setEmail] = useState("");
@@ -84,6 +89,9 @@ function LoginForm() {
         const result = await login({ email, password });
         if (result?.mfaRequired) {
           setMfaToken(result.mfaToken);
+          setMfaMethod(result.mfaMethod ?? "totp");
+          setSentTo(result.sentTo ?? null);
+          if (result.sendError) setError(result.sendError);
           setPassword("");
         }
       }
@@ -94,6 +102,19 @@ function LoginForm() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resend = async () => {
+    setError("");
+    setResendState("sending");
+    try {
+      const d = await resendMfaCode({ mfa_token: mfaToken });
+      setSentTo(d.sent_to ?? sentTo);
+      setResendState("sent");
+    } catch (err) {
+      setError(err.message);
+      setResendState("");
     }
   };
 
@@ -110,7 +131,7 @@ function LoginForm() {
           </Text>
         </CardTitle>
         <Text as="p" className="text-muted-foreground text-sm">
-          {mfaToken ? "Two-factor authentication" : "Sign in to your account"}
+          {mfaToken ? "Two-step sign-in" : "Sign in to your account"}
         </Text>
       </CardHeader>
       <CardContent>
@@ -137,8 +158,20 @@ function LoginForm() {
               <Text as="p" className="text-xs text-muted-foreground">
                 {useRecovery
                   ? "Enter one of the recovery codes you saved. Each works once."
-                  : "Enter the code from your authenticator app."}
+                  : mfaMethod === "email"
+                    ? `We emailed a 6-digit code to ${sentTo ?? "your address"}. It expires in 10 minutes.`
+                    : "Enter the code from your authenticator app."}
               </Text>
+              {mfaMethod === "email" && !useRecovery && (
+                <button
+                  type="button"
+                  onClick={resend}
+                  disabled={resendState === "sending"}
+                  className="text-[11.5px] text-accent-blue hover:underline disabled:opacity-60"
+                >
+                  {resendState === "sending" ? "Sending…" : resendState === "sent" ? "New code sent. Send another" : "Send a new code"}
+                </button>
+              )}
               <Box className="flex items-center justify-between">
                 <button
                   type="button"
@@ -149,12 +182,14 @@ function LoginForm() {
                   }}
                   className="text-[11.5px] text-accent-blue hover:underline"
                 >
-                  {useRecovery ? "Use authenticator code" : "Use a recovery code"}
+                  {useRecovery ? (mfaMethod === "email" ? "Use the emailed code" : "Use authenticator code") : "Use a recovery code"}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setMfaToken(null);
+                    setSentTo(null);
+                    setResendState("");
                     setCode("");
                     setUseRecovery(false);
                     setError("");
