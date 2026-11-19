@@ -92,8 +92,7 @@ export function AiReveal({
 
   // idle — the compact trigger
   return (
-    <Box className="relative overflow-hidden rounded-xl border border-line glass">
-      <Box className="ai-spectrum absolute inset-x-0 top-0 h-[3px]" />
+    <Box className="ai-border overflow-hidden rounded-xl glass">
       <Box className="flex flex-wrap items-center gap-3 p-4">
         <Box className="ai-spectrum flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
           <Icon className="h-5 w-5 text-white" />

@@ -28,9 +28,7 @@ export function AiAnalyzing({ stages = DEFAULT_STAGES }) {
   }, [stages.length]);
 
   return (
-    <Box className="ai-rise-in relative flex flex-col items-center justify-center overflow-hidden rounded-xl border border-line glass px-6 py-10 text-center">
-      <Box className="ai-spectrum-animated absolute inset-x-0 top-0 h-[3px]" />
-
+    <Box className="ai-rise-in ai-border-animated flex flex-col items-center justify-center overflow-hidden rounded-xl glass px-6 py-10 text-center">
       {/* The core: two expanding rings, a rotating spectrum ring, a still centre */}
       <Box className="relative mb-6 flex h-28 w-28 items-center justify-center">
         <Box className="ai-ring ai-spectrum absolute h-16 w-16 rounded-full opacity-30" />

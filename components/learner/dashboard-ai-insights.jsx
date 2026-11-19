@@ -85,8 +85,7 @@ function CoachView({ data, onRegenerate }) {
   const generatedAt = data.insight?.generatedAt;
 
   return (
-    <Card className="gap-0 overflow-hidden p-0">
-      <Box className="ai-spectrum h-[3px] w-full" />
+    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border">
       <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line p-4">
         <Box className="flex items-center gap-2.5">
           <Box className="ai-spectrum flex h-8 w-8 items-center justify-center rounded-lg">

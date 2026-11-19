@@ -84,7 +84,6 @@ function LensPanel({ lens, title, description, cta, icon, renderView }) {
 function LensHeader({ icon: Icon, title, subtitle, onRegenerate }) {
   return (
     <>
-      <Box className="ai-spectrum h-[3px] w-full" />
       <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line p-4">
         <Box className="flex items-center gap-2.5">
           <Box className="ai-spectrum flex h-8 w-8 items-center justify-center rounded-lg">
@@ -123,7 +122,7 @@ const FIT = {
 function CourseRecommendationsView(payload, onRegenerate) {
   const recs = Array.isArray(payload?.recommendations) ? payload.recommendations : [];
   return (
-    <Card className="gap-0 overflow-hidden p-0">
+    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border">
       <LensHeader
         icon={BookOpen}
         title="Best courses for you"
@@ -175,7 +174,7 @@ function SkillPlanView(payload, onRegenerate) {
   const gaps = Array.isArray(payload?.gaps) ? payload.gaps : [];
   const plan = Array.isArray(payload?.plan) ? payload.plan : [];
   return (
-    <Card className="gap-0 overflow-hidden p-0">
+    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border">
       <LensHeader
         icon={Target}
         title="Your skill gaps & plan"

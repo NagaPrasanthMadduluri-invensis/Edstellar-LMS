@@ -139,8 +139,7 @@ function BriefingView({ data, onRegenerate }) {
   const generatedAt = data.insight?.generatedAt;
 
   return (
-    <Box className="overflow-hidden rounded-xl border border-line glass">
-      <Box className="ai-spectrum h-[3px] w-full" />
+    <Box className="ai-border overflow-hidden rounded-xl glass">
       <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <Box className="flex items-center gap-2.5">
           <Box className="ai-spectrum flex h-8 w-8 items-center justify-center rounded-lg">

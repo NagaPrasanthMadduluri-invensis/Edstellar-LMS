@@ -51,8 +51,7 @@ export function AdminIntelligence() {
   return (
     <Box className="space-y-4">
       {/* What this whole section is */}
-      <Box className="overflow-hidden rounded-xl border border-line glass">
-        <Box className="ai-spectrum h-[3px] w-full" />
+      <Box className="ai-border overflow-hidden rounded-xl glass">
         <Box className="flex items-center gap-2.5 p-4">
           <Box className="ai-spectrum flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
             <Target className="h-4 w-4 text-white" />
