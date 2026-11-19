@@ -21,3 +21,18 @@ export async function fetchLearnerInsights() {
 export async function refreshLearnerInsights() {
   return apiClient("/api/learner/ai/insights/refresh", { method: "POST" });
 }
+
+/**
+ * A deeper learner lens — the AI options beyond the coach brief
+ * (`course_recommendations` | `skill_plan`). The read returns `{ enabled,
+ * insight }` (no charts); the refresh generates and is rate-limited server-side,
+ * like the coach. Each lens is stored and read org-scoped — it cannot cross
+ * tenants (BACKEND_STRUCTURE §10.54, the tenant fence).
+ */
+export async function fetchLearnerLens(lens) {
+  return apiClient(`/api/learner/ai/lens/${lens}`);
+}
+
+export async function refreshLearnerLens(lens) {
+  return apiClient(`/api/learner/ai/lens/${lens}/refresh`, { method: "POST" });
+}
