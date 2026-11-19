@@ -17,3 +17,9 @@ export async function fetchAdminInsights() {
 export async function refreshAdminInsights() {
   return apiClient("/api/admin/ai/insights/refresh", { method: "POST" });
 }
+
+/** Real-data Learning Intelligence: risk radar, course effectiveness, skill
+ *  intelligence, inactivity, department benchmarks. */
+export async function fetchAdminIntelligence() {
+  return apiClient("/api/admin/ai/intelligence");
+}
