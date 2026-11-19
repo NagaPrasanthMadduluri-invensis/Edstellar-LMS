@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { LearnerShell } from "@/components/layout/learner-shell";
+import { EngagementTracker } from "@/components/shared/engagement-tracker";
 
 export default async function LearnerLayout({ children }) {
   const user = await requireSession();
@@ -15,5 +16,10 @@ export default async function LearnerLayout({ children }) {
     redirect("/trainer/sessions");
   }
 
-  return <LearnerShell user={user}>{children}</LearnerShell>;
+  return (
+    <LearnerShell user={user}>
+      <EngagementTracker />
+      {children}
+    </LearnerShell>
+  );
 }

@@ -18,6 +18,8 @@ import Text from "@/components/ui/text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InsightPanel } from "@/components/admin/insights/insight-panel";
 import { KpiStrip, StatTile } from "@/components/admin/insights/kpi-strip";
+import { AdminDashboardAiInsights } from "@/components/admin/dashboard-ai-insights";
+import { EngagementVsLearning } from "@/components/shared/engagement-vs-learning";
 import {
   fetchActionRequired,
   fetchAdminDashboard,
@@ -195,6 +197,14 @@ export function AdminDashboardContent() {
           </Link>
         }
       />
+
+      {/* AI briefing — real, model-backed org synthesis. Sits under the
+          deterministic Key Insights; renders nothing when the feature is off
+          for the deployment (§10.54). */}
+      <AdminDashboardAiInsights />
+
+      {/* Engagement hours vs learning hours across the org, over time (§10.55). */}
+      <EngagementVsLearning scope="admin" />
 
       <Box className="grid gap-4 lg:grid-cols-2">
         <Panel title="Completion status" subtitle="Overall learner distribution">

@@ -26,6 +26,8 @@ import { DashboardRecommended } from "@/components/learner/dashboard-recommended
 import { DashboardCohortPeers } from "@/components/learner/dashboard-cohort-peers";
 import { DashboardQuickActions } from "@/components/learner/dashboard-quick-actions";
 import { DashboardGlance } from "@/components/learner/dashboard-glance";
+import { DashboardAiInsights } from "@/components/learner/dashboard-ai-insights";
+import { EngagementVsLearning } from "@/components/shared/engagement-vs-learning";
 import { DashboardCommunity } from "@/components/learner/dashboard-community";
 import { BRAND } from "@/lib/brand";
 
@@ -344,6 +346,13 @@ export function DashboardContent() {
         streak={streak}
         pointsThisMonth={points_this_month}
       />
+
+      {/* AI learning coach — real, model-backed suggestions. Renders nothing
+          when the feature is off for the deployment (§10.54). */}
+      <DashboardAiInsights />
+
+      {/* Engagement hours vs learning hours, over time (§10.55). */}
+      <EngagementVsLearning scope="learner" />
 
       {/* ── Continue learning — spotlight card row ── */}
       <Box className="space-y-3">
