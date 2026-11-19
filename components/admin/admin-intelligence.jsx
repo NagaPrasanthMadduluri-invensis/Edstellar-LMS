@@ -2,28 +2,84 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, UserX, Target, GraduationCap } from "lucide-react";
 import {
-  Bar, BarChart, CartesianGrid, PolarAngleAxis, PolarGrid, Radar, RadarChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Activity, AlertTriangle, Award, BarChart3, BookOpen, CheckCircle2, Gauge,
+  GraduationCap, HeartPulse, Target, TrendingUp, UserX, Users,
+} from "lucide-react";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, PolarAngleAxis,
+  PolarGrid, Radar, RadarChart, RadialBar, RadialBarChart, ResponsiveContainer,
+  Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
 } from "recharts";
 
 import { Card } from "@/components/ui/card";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
-import { BRAND, HAIRLINE } from "@/lib/brand";
+import { BRAND, HAIRLINE, STATUS_RAMP } from "@/lib/brand";
 import { fetchAdminIntelligence } from "@/services/api/admin/ai-insights-api";
 
 /**
- * The real-data Learning Intelligence sections (BACKEND_STRUCTURE §10.56): Risk
- * Radar, inactivity, Course Effectiveness, and Organisational Skill Intelligence.
- * Deterministic and accurate — the AI briefing above narrates these; this is the
- * numbers. Each section has an honest empty state.
+ * The real-data Learning Intelligence sections (BACKEND_STRUCTURE §10.56):
+ * headline KPIs, a Learning Health gauge, course-status split, completion and
+ * assessment gauges, Risk Radar, inactivity, Course Effectiveness (table +
+ * scatter) and Organisational Skill Intelligence. Deterministic and accurate —
+ * the AI briefing above narrates these; this is the numbers. Each section has an
+ * honest empty state, and each says in one line what it shows.
  */
 function riskColor(v) {
   if (v >= 60) return BRAND.danger;
   if (v >= 35) return BRAND.warning;
   return BRAND.success;
+}
+
+function scoreColor(v) {
+  if (v >= 75) return BRAND.success;
+  if (v >= 50) return BRAND.warning;
+  return BRAND.danger;
+}
+
+const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: `1px solid ${HAIRLINE}` };
+
+/** A compact real-data KPI tile. */
+function StatTile({ icon: Icon, label, value, sub, tone = "accent" }) {
+  const tile =
+    tone === "success" ? "tile-success"
+      : tone === "warning" ? "tile-warning"
+        : tone === "rust" ? "tile-rust" : "tile-accent";
+  return (
+    <Box className="rounded-lg border border-line bg-surface-2 p-3">
+      <Box className="flex items-center gap-2">
+        <Box className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tile}`}>
+          <Icon className="h-3.5 w-3.5" />
+        </Box>
+        <Text as="p" className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">{label}</Text>
+      </Box>
+      <Text as="p" className="mt-1.5 font-mono text-2xl font-extrabold leading-none text-ink">{value}</Text>
+      {sub && <Text as="p" className="mt-1 text-[11px] text-text-3">{sub}</Text>}
+    </Box>
+  );
+}
+
+/** A labelled radial gauge, 0-100, coloured by the metric band. */
+function Gauge100({ value, label }) {
+  const v = Math.max(0, Math.min(100, Math.round(value ?? 0)));
+  return (
+    <Box className="relative flex items-center justify-center">
+      <Box className="h-[150px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadialBarChart innerRadius="70%" outerRadius="100%" startAngle={90} endAngle={-270}
+            data={[{ value: v, fill: scoreColor(v) }]}>
+            <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+            <RadialBar dataKey="value" cornerRadius={8} background isAnimationActive={false} />
+          </RadialBarChart>
+        </ResponsiveContainer>
+      </Box>
+      <Box className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        <Text as="p" className="font-mono text-2xl font-extrabold leading-none" style={{ color: scoreColor(v) }}>{v}%</Text>
+        <Text as="p" className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-3">{label}</Text>
+      </Box>
+    </Box>
+  );
 }
 
 export function AdminIntelligence() {
@@ -47,6 +103,11 @@ export function AdminIntelligence() {
   const needing = data.coursesNeedingAttention ?? [];
   const skills = data.skillIntelligence ?? { tagged: false, domains: [] };
   const depts = data.departments ?? [];
+  const health = data.healthScore ?? { score: 0, dimensions: [] };
+  const headline = data.headline ?? {};
+  const engagement = data.engagement ?? {};
+  const status = (data.statusBreakdown ?? []).filter((s) => s.value > 0);
+  const scatter = effectiveness.filter((c) => c.avgScore !== null && c.avgScore !== undefined);
 
   return (
     <Box className="space-y-4">
@@ -64,6 +125,96 @@ export function AdminIntelligence() {
             </Text>
           </Box>
         </Box>
+      </Box>
+
+      {/* Headline KPIs */}
+      <Box className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatTile icon={Users} label="Learners" value={headline.totalLearners ?? 0}
+          sub={`${headline.activeLearners ?? 0} active`} tone="accent" />
+        <StatTile icon={CheckCircle2} label="Completion" value={`${headline.completionRate ?? 0}%`} tone="success" />
+        <StatTile icon={Gauge} label="Pass rate" value={`${engagement.passRate ?? 0}%`} tone="success" />
+        <StatTile icon={TrendingUp} label="Avg score"
+          value={engagement.avgScore === null || engagement.avgScore === undefined ? "—" : `${engagement.avgScore}%`} tone="accent" />
+        <StatTile icon={Award} label="Certificates" value={engagement.certificatesIssued ?? 0} tone="warning" />
+        <StatTile icon={BookOpen} label="Active courses" value={engagement.activeCourses ?? 0} tone="rust" />
+      </Box>
+
+      {/* Learning Health Score — gauge + radar */}
+      <Card className="gap-0 p-5">
+        <Box className="mb-1 flex items-center gap-2">
+          <HeartPulse className="h-4 w-4 text-accent-blue" />
+          <Text as="h3" className="text-base font-semibold">Learning Health Score</Text>
+        </Box>
+        <Text as="p" className="mb-3 text-xs text-text-2">
+          A single 0&ndash;100 reading of your organisation&apos;s learning health, averaged over
+          completion, assessment pass rate, participation and certification.
+        </Text>
+        <Box className="grid items-center gap-4 sm:grid-cols-[150px_1fr]">
+          <Box className="text-center">
+            <Text as="p" className="font-mono text-4xl font-extrabold leading-none" style={{ color: scoreColor(health.score) }}>
+              {health.score}
+            </Text>
+            <Text as="p" className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.1em] text-text-3">
+              Overall health
+            </Text>
+          </Box>
+          <Box className="h-[200px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={health.dimensions} outerRadius="72%">
+                <PolarGrid stroke={BRAND.line} />
+                <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: BRAND.text2 }} />
+                <Radar dataKey="value" stroke={BRAND.accent} fill={BRAND.accent} fillOpacity={0.25} isAnimationActive={false} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}%`, "Score"]} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </Box>
+        </Box>
+      </Card>
+
+      <Box className="grid gap-4 lg:grid-cols-2">
+        {/* Course status donut */}
+        <Card className="gap-0 p-5">
+          <Box className="mb-1 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-accent-blue" />
+            <Text as="h3" className="text-base font-semibold">Course status</Text>
+          </Box>
+          <Text as="p" className="mb-3 text-xs text-text-2">
+            Every learner-course across the organisation, split by completed, in progress,
+            not started and failed.
+          </Text>
+          {status.length === 0 ? (
+            <Text as="p" className="py-6 text-center text-sm text-muted-foreground">No enrolments yet.</Text>
+          ) : (
+            <Box className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={status} dataKey="value" nameKey="status" innerRadius="52%" outerRadius="80%"
+                    paddingAngle={2} isAnimationActive={false}>
+                    {status.map((s, i) => <Cell key={i} fill={STATUS_RAMP[i % STATUS_RAMP.length]} />)}
+                  </Pie>
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
+            </Box>
+          )}
+        </Card>
+
+        {/* Completion & assessment gauges */}
+        <Card className="gap-0 p-5">
+          <Box className="mb-1 flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-accent-blue" />
+            <Text as="h3" className="text-base font-semibold">Completion &amp; assessment</Text>
+          </Box>
+          <Text as="p" className="mb-3 text-xs text-text-2">
+            The share of assigned courses completed, and the share of assessment attempts
+            that passed.
+          </Text>
+          <Box className="grid grid-cols-2 gap-2">
+            <Gauge100 value={headline.completionRate} label="Completion" />
+            <Gauge100 value={engagement.passRate} label="Pass rate" />
+          </Box>
+        </Card>
       </Box>
 
       {/* Risk Radar */}
@@ -148,6 +299,38 @@ export function AdminIntelligence() {
           )}
         </Card>
       </Box>
+
+      {/* Course effectiveness scatter — content done vs score, sized by enrolment */}
+      {scatter.length > 0 && (
+        <Card className="gap-0 p-5">
+          <Box className="mb-1 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-accent-blue" />
+            <Text as="h3" className="text-base font-semibold">Effectiveness map</Text>
+          </Box>
+          <Text as="p" className="mb-3 text-xs text-text-2">
+            Each bubble is a course: how much of its content learners have worked through
+            (across) against their average passing score (up), sized by how many are enrolled.
+            Top-right is working well; bottom-left needs attention.
+          </Text>
+          <Box className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 8, right: 16, bottom: 20, left: -8 }}>
+                <CartesianGrid stroke={HAIRLINE} />
+                <XAxis type="number" dataKey="contentCompletionPct" name="Content done" unit="%"
+                  domain={[0, 100]} tick={{ fontSize: 11, fill: BRAND.text2 }} axisLine={false} tickLine={false}>
+                </XAxis>
+                <YAxis type="number" dataKey="avgScore" name="Avg score" unit="%"
+                  domain={[0, 100]} tick={{ fontSize: 11, fill: BRAND.text2 }} axisLine={false} tickLine={false} />
+                <ZAxis type="number" dataKey="enrolled" range={[50, 500]} name="Enrolled" />
+                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }}
+                  formatter={(v, n) => [n === "Enrolled" ? v : `${v}%`, n]}
+                  labelFormatter={() => ""} />
+                <Scatter data={scatter} fill={BRAND.accent} fillOpacity={0.6} isAnimationActive={false} />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </Box>
+        </Card>
+      )}
 
       {/* Course effectiveness */}
       <Card className="gap-0 p-5">

@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { AiReveal } from "@/components/shared/ai-reveal";
+import { AiSections } from "@/components/shared/ai-sections";
 import { ApiError } from "@/lib/api-client";
 import { BRAND } from "@/lib/brand";
 import { LEARNER_STAGES } from "@/lib/ai-visuals";
@@ -126,6 +127,8 @@ function CoachView({ data, onRegenerate }) {
             {payload.summary && (
               <Text as="p" className="text-[13px] leading-relaxed text-ink">{payload.summary}</Text>
             )}
+
+            <AiSections sections={payload.sections} />
 
             {Array.isArray(payload.priorities) && payload.priorities.length > 0 && (
               <Box className="space-y-2">

@@ -12,6 +12,7 @@ import {
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { AiReveal } from "@/components/shared/ai-reveal";
+import { AiSections } from "@/components/shared/ai-sections";
 import { ApiError } from "@/lib/api-client";
 import { BRAND } from "@/lib/brand";
 import { ADMIN_STAGES } from "@/lib/ai-visuals";
@@ -180,6 +181,8 @@ function BriefingView({ data, onRegenerate }) {
             {payload.summary && (
               <Text as="p" className="text-[13px] leading-relaxed text-ink">{payload.summary}</Text>
             )}
+
+            <AiSections sections={payload.sections} />
 
             <Box className="grid gap-4 lg:grid-cols-2">
               <Group

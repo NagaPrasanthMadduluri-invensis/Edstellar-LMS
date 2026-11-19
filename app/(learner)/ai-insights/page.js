@@ -5,6 +5,7 @@ import {
   CourseRecommendationsPanel,
   SkillPlanPanel,
 } from "@/components/learner/learner-ai-lenses";
+import { LearnerInsightsCharts } from "@/components/learner/learner-insights-charts";
 import { EngagementVsLearning } from "@/components/shared/engagement-vs-learning";
 
 export default function LearnerAiInsightsPage() {
@@ -19,6 +20,7 @@ export default function LearnerAiInsightsPage() {
       <DashboardAiInsights />
       <CourseRecommendationsPanel />
       <SkillPlanPanel />
+      <LearnerInsightsCharts />
       <EngagementVsLearning scope="learner" />
     </Box>
   );

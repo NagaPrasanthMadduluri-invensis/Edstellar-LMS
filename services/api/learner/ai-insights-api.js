@@ -36,3 +36,14 @@ export async function fetchLearnerLens(lens) {
 export async function refreshLearnerLens(lens) {
   return apiClient(`/api/learner/ai/lens/${lens}/refresh`, { method: "POST" });
 }
+
+/**
+ * Real-data charts for the AI Insights page (skills, competencies, course
+ * status, categories, badges, points). These are the learner's OWN figures,
+ * reused from the canonical services server-side — not model output — so the
+ * page shows them whether or not the AI model is enabled, the same way the
+ * admin's Learning Intelligence sections do.
+ */
+export async function fetchLearnerCharts() {
+  return apiClient("/api/learner/ai/charts");
+}

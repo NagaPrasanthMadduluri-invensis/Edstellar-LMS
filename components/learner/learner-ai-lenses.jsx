@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { AiReveal } from "@/components/shared/ai-reveal";
+import { RichText } from "@/components/shared/ai-sections";
 import { ApiError } from "@/lib/api-client";
 import { LEARNER_STAGES } from "@/lib/ai-visuals";
 import {
@@ -131,7 +132,7 @@ function CourseRecommendationsView(payload, onRegenerate) {
       />
       <Box className="space-y-3 p-4">
         {payload?.intro && (
-          <Text as="p" className="text-[13px] leading-relaxed text-ink">{payload.intro}</Text>
+          <Text as="p" className="text-[13px] leading-relaxed text-ink"><RichText text={payload.intro} /></Text>
         )}
         {recs.length === 0 ? (
           <Text as="p" className="text-sm text-text-2">No course recommendations came back. Try regenerating.</Text>
@@ -146,7 +147,7 @@ function CourseRecommendationsView(payload, onRegenerate) {
                     {fit.label}
                   </Text>
                 </Box>
-                {r.reason && <Text as="p" className="mt-1 text-xs text-text-2">{r.reason}</Text>}
+                {r.reason && <Text as="p" className="mt-1 text-xs text-text-2"><RichText text={r.reason} /></Text>}
                 {Array.isArray(r.skillsGained) && r.skillsGained.length > 0 && (
                   <Box className="mt-2 flex flex-wrap gap-1">
                     {r.skillsGained.slice(0, 8).map((s, k) => (
@@ -183,7 +184,7 @@ function SkillPlanView(payload, onRegenerate) {
       />
       <Box className="space-y-4 p-4">
         {payload?.summary && (
-          <Text as="p" className="text-[13px] leading-relaxed text-ink">{payload.summary}</Text>
+          <Text as="p" className="text-[13px] leading-relaxed text-ink"><RichText text={payload.summary} /></Text>
         )}
 
         <Box className="grid gap-4 sm:grid-cols-2">
@@ -214,7 +215,7 @@ function SkillPlanView(payload, onRegenerate) {
                     <CircleDot className="h-3.5 w-3.5 shrink-0 text-warning" />
                     <Text as="span" className="text-[12.5px] font-semibold text-ink">{g.skill}</Text>
                   </Box>
-                  {g.why && <Text as="p" className="mt-0.5 pl-5 text-xs text-text-2">{g.why}</Text>}
+                  {g.why && <Text as="p" className="mt-0.5 pl-5 text-xs text-text-2"><RichText text={g.why} /></Text>}
                 </Box>
               ))}
             </Box>
@@ -233,7 +234,7 @@ function SkillPlanView(payload, onRegenerate) {
                 </Box>
                 <Box className="min-w-0 flex-1">
                   <Text as="p" className="text-[13px] font-semibold text-ink">{step.title}</Text>
-                  {step.detail && <Text as="p" className="mt-0.5 text-xs text-text-2">{step.detail}</Text>}
+                  {step.detail && <Text as="p" className="mt-0.5 text-xs text-text-2"><RichText text={step.detail} /></Text>}
                   {step.courseName && (
                     <Text as="span" className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-tint px-2 py-0.5 text-[10px] font-semibold text-accent-blue">
                       <BookOpen className="h-3 w-3" /> {step.courseName}
