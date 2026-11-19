@@ -9,22 +9,24 @@ import {
   RadialBar, RadialBarChart, ResponsiveContainer,
 } from "recharts";
 
-import { Button } from "@/components/ui/button";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
+import { AiReveal } from "@/components/shared/ai-reveal";
 import { ApiError } from "@/lib/api-client";
 import { BRAND } from "@/lib/brand";
+import { ADMIN_STAGES } from "@/lib/ai-visuals";
 import {
   fetchAdminInsights,
   refreshAdminInsights,
 } from "@/services/api/admin/ai-insights-api";
 
 /**
- * "AI briefing" for the admin dashboard (BACKEND_STRUCTURE §10.54). A real,
+ * "AI briefing" for the admin dashboard (BACKEND_STRUCTURE §10.54) — a real,
  * model-backed synthesis of the organisation's learning health, built
- * server-side from org aggregates (no individual is named). It sits under the
- * deterministic Key Insights panel: those restate the numbers, this reasons
- * about what to do. Renders nothing when the feature is off for the deployment.
+ * server-side from org aggregates (no individual is named). Reached through a
+ * compact full-spectrum AI button (`AiReveal`, owner request 2026-11-19), so the
+ * paid model is only called on a deliberate click. Renders nothing when the
+ * feature is off for the deployment.
  */
 
 const SEVERITY = {
@@ -130,99 +132,50 @@ function Item({ title, detail, trailing }) {
   );
 }
 
-export function AdminDashboardAiInsights() {
-  const [state, setState] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchAdminInsights()
-      .then((d) => { if (!cancelled) setState(d); })
-      .catch(() => { if (!cancelled) setState({ enabled: false, insight: null }); });
-    return () => { cancelled = true; };
-  }, []);
-
-  async function regenerate() {
-    setBusy(true);
-    setError(null);
-    try {
-      const d = await refreshAdminInsights();
-      if (d?.error === "generation_failed") {
-        setError("Could not generate the briefing just now. Please try again in a moment.");
-      } else {
-        setState({ enabled: d.enabled, insight: d.insight, charts: d.charts });
-      }
-    } catch (e) {
-      setError(
-        e instanceof ApiError && e.status === 429
-          ? "You have refreshed a few times recently. Try again a little later."
-          : "Could not refresh just now. Please try again.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!state || !state.enabled) return null;
-
-  const payload = state.insight?.payload ?? null;
-  const health = state.charts?.healthScore ?? null;
+/** The revealed briefing — what the AI is showing is labelled up top. */
+function BriefingView({ data, onRegenerate }) {
+  const payload = data.insight?.payload ?? null;
+  const health = data.charts?.healthScore ?? null;
+  const generatedAt = data.insight?.generatedAt;
 
   return (
-    <Box className="border border-line glass">
+    <Box className="overflow-hidden rounded-xl border border-line glass">
+      <Box className="ai-spectrum h-[3px] w-full" />
       <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <Box className="flex items-center gap-2.5">
-          <Box className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-tint">
-            <Sparkles className="h-4 w-4 text-accent-blue" />
+          <Box className="ai-spectrum flex h-8 w-8 items-center justify-center rounded-lg">
+            <Sparkles className="h-4 w-4 text-white" />
           </Box>
           <Box>
             <Box className="flex items-center gap-2">
               <Text as="h3" className="text-[13px] font-bold text-ink">AI briefing</Text>
-              <Text as="span" className="rounded-full bg-accent-tint px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-accent-blue">
+              <Text as="span" className="ai-spectrum rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white">
                 AI
               </Text>
             </Box>
             <Text as="p" className="text-[11px] text-text-3">
-              Generated from your organisation&apos;s learning data
-              {state.insight?.generatedAt ? ` · updated ${relativeTime(state.insight.generatedAt)}` : ""}
+              Where your organisation stands and what to do next, read by AI from your learning data
+              {generatedAt ? ` · ${relativeTime(generatedAt)}` : ""}
             </Text>
           </Box>
         </Box>
-        {payload && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 cursor-pointer gap-1.5 text-xs"
-            onClick={regenerate}
-            disabled={busy}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin" : ""}`} />
-            {busy ? "Refreshing" : "Refresh"}
-          </Button>
-        )}
+        <button
+          type="button"
+          onClick={onRegenerate}
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line px-2.5 text-xs font-medium text-text-2 transition hover:bg-surface-2"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Regenerate
+        </button>
       </Box>
 
       <Box className="p-4">
-        {error && (
-          <Text as="p" className="mb-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
-            {error}
-          </Text>
-        )}
-
         {health && <HealthScore health={health} />}
 
         {!payload ? (
-          <Box className="flex flex-col items-start gap-3 py-2">
-            <Text as="p" className="text-sm text-text-2">
-              Get an AI reading of where your organisation stands, what needs attention,
-              and what to do next, drawn from completion, feedback and department data.
-            </Text>
-            <Button size="sm" className="gap-1.5 bg-accent-blue text-white hover:brightness-110" onClick={regenerate} disabled={busy}>
-              <Sparkles className="h-3.5 w-3.5" />
-              {busy ? "Generating" : "Generate briefing"}
-            </Button>
-          </Box>
+          <Text as="p" className="py-2 text-sm text-text-2">
+            No briefing came back this time. Try regenerating in a moment.
+          </Text>
         ) : (
           <Box className="space-y-4">
             {payload.summary && (
@@ -272,5 +225,61 @@ export function AdminDashboardAiInsights() {
         )}
       </Box>
     </Box>
+  );
+}
+
+export function AdminDashboardAiInsights() {
+  const [meta, setMeta] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAdminInsights()
+      .then((d) => { if (!cancelled) setMeta(d); })
+      .catch(() => { if (!cancelled) setMeta({ enabled: false }); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!meta || !meta.enabled) return null;
+
+  const cached = meta.insight?.payload
+    ? { insight: meta.insight, charts: meta.charts }
+    : null;
+
+  const runRefresh = async () => {
+    const d = await refreshAdminInsights();
+    if (d?.error === "generation_failed") {
+      throw new Error("Could not generate the briefing just now. Please try again in a moment.");
+    }
+    return { insight: d.insight, charts: d.charts };
+  };
+
+  const withFriendlyError = async () => {
+    try {
+      return await runRefresh();
+    } catch (e) {
+      throw new Error(
+        e instanceof ApiError && e.status === 429
+          ? "You have refreshed a few times recently. Try again a little later."
+          : e?.message || "Could not generate just now. Please try again.",
+      );
+    }
+  };
+
+  const generate = async () => (cached ? cached : withFriendlyError());
+
+  return (
+    <AiReveal
+      title="AI briefing"
+      description="AI reads your completion, feedback and team data, then tells you what needs attention."
+      cta={cached ? "Show the briefing" : "Analyze my organisation"}
+      icon={Sparkles}
+      stages={ADMIN_STAGES}
+      generate={generate}
+      regenerate={withFriendlyError}
+    >
+      {(data, { regenerate: onRegenerate }) => (
+        <BriefingView data={data} onRegenerate={onRegenerate} />
+      )}
+    </AiReveal>
   );
 }

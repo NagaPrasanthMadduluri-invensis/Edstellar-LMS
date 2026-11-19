@@ -50,12 +50,33 @@ export function AdminIntelligence() {
 
   return (
     <Box className="space-y-4">
+      {/* What this whole section is */}
+      <Box className="overflow-hidden rounded-xl border border-line glass">
+        <Box className="ai-spectrum h-[3px] w-full" />
+        <Box className="flex items-center gap-2.5 p-4">
+          <Box className="ai-spectrum flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+            <Target className="h-4 w-4 text-white" />
+          </Box>
+          <Box>
+            <Text as="h2" className="text-[15px] font-semibold text-ink">Learning Intelligence</Text>
+            <Text as="p" className="text-xs text-text-2">
+              Computed directly from your organisation&apos;s real data — not AI-written. The
+              AI briefing above reads these numbers and tells you what to do about them.
+            </Text>
+          </Box>
+        </Box>
+      </Box>
+
       {/* Risk Radar */}
       <Card className="gap-0 p-5">
-        <Box className="mb-3 flex items-center gap-2">
+        <Box className="mb-1 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-accent-blue" />
           <Text as="h3" className="text-base font-semibold">Learning Risk Radar</Text>
         </Box>
+        <Text as="p" className="mb-3 text-xs text-text-2">
+          Five risk signals scored 0–100 (0 is best): overdue load, inactivity, low
+          completion, assessment risk and course quality — higher means more to worry about.
+        </Text>
         <Box className="grid items-center gap-4 sm:grid-cols-[150px_1fr]">
           <Box className="text-center">
             <Text as="p" className="font-mono text-4xl font-extrabold leading-none" style={{ color: riskColor(radar.score) }}>
@@ -95,10 +116,14 @@ export function AdminIntelligence() {
 
         {/* Skill intelligence */}
         <Card className="gap-0 p-5">
-          <Box className="mb-2 flex items-center gap-2">
+          <Box className="mb-1 flex items-center gap-2">
             <GraduationCap className="h-4 w-4 text-accent-blue" />
             <Text as="h3" className="text-base font-semibold">Skill intelligence</Text>
           </Box>
+          <Text as="p" className="mb-2 text-xs text-text-2">
+            Competency coverage per skill domain — how many learners hold it and their
+            average level — built as learners complete skill-tagged courses.
+          </Text>
           {skills.domains.length === 0 ? (
             <Text as="p" className="text-sm text-muted-foreground">
               No competencies recorded yet. Tag the skills a course imparts on its{" "}
@@ -127,10 +152,14 @@ export function AdminIntelligence() {
 
       {/* Course effectiveness */}
       <Card className="gap-0 p-5">
-        <Box className="mb-3 flex items-center gap-2">
+        <Box className="mb-1 flex items-center gap-2">
           <Target className="h-4 w-4 text-accent-blue" />
           <Text as="h3" className="text-base font-semibold">Course effectiveness</Text>
         </Box>
+        <Text as="p" className="mb-3 text-xs text-text-2">
+          Per enrolled course: how much of the content learners have worked through,
+          their average passing score, and flags where a course may need attention.
+        </Text>
         {effectiveness.length === 0 ? (
           <Text as="p" className="text-sm text-muted-foreground">No enrolled courses to measure yet.</Text>
         ) : (
@@ -179,7 +208,11 @@ export function AdminIntelligence() {
       {/* Department benchmarks */}
       {depts.length > 0 && (
         <Card className="gap-0 p-5">
-          <Text as="h3" className="mb-3 text-base font-semibold">Department completion</Text>
+          <Text as="h3" className="text-base font-semibold">Department completion</Text>
+          <Text as="p" className="mb-3 text-xs text-text-2">
+            Average course completion by department (small departments are grouped to
+            protect privacy).
+          </Text>
           <Box className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={depts} layout="vertical" margin={{ left: 8 }}>
