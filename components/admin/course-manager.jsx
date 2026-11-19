@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { DescriptionField } from "@/components/shared/description-field";
 import { CourseAssessmentsContent } from "@/components/admin/course-assessments-content";
+import { CourseSkillsTab } from "@/components/admin/course-skills-tab";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import {
@@ -48,6 +49,7 @@ const TABS = [
   { key: "modules", label: "Modules" },
   { key: "lessons", label: "Lessons" },
   { key: "assessments", label: "Assessments" },
+  { key: "skills", label: "Skills" },
   { key: "outline", label: "Outline" },
 ];
 
@@ -240,6 +242,9 @@ export function CourseManager({ courseId }) {
           courseId={courseId} modules={modules} lessons={lessons}
           onChanged={load}
         />
+      )}
+      {tab === "skills" && (
+        <CourseSkillsTab courseId={courseId} locked={isSessionTraining} />
       )}
       {tab === "outline" && (
         <OutlineTab modules={modules} lessons={lessons} assessments={assessments} />
