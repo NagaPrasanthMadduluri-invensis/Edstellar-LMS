@@ -56,7 +56,7 @@ function relativeTime(iso) {
 /** A spider/radar of competency proficiency per skill domain, from REAL data. */
 function SkillRadar({ data }) {
   return (
-    <Box className="mb-4 rounded-lg border border-line bg-surface-2 p-3">
+    <Box className="mb-4 rounded-lg ai-soft-tint p-3">
       <Text as="p" className="mb-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-text-3">
         Your skill profile · from your completed courses
       </Text>
@@ -86,16 +86,16 @@ function CoachView({ data, onRegenerate }) {
   const generatedAt = data.insight?.generatedAt;
 
   return (
-    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border">
-      <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line p-4">
+    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border ai-card">
+      <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 p-4">
         <Box className="flex items-center gap-2.5">
-          <Box className="ai-spectrum flex h-8 w-8 items-center justify-center rounded-lg">
+          <Box className="ai-soft flex h-8 w-8 items-center justify-center rounded-lg">
             <Sparkles className="h-4 w-4 text-white" />
           </Box>
           <Box>
             <Box className="flex items-center gap-2">
               <Text as="h3" className="text-base font-semibold text-ink">Your learning coach</Text>
-              <Text as="span" className="ai-spectrum rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white">
+              <Text as="span" className="ai-soft rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white">
                 AI
               </Text>
             </Box>
@@ -138,7 +138,7 @@ function CoachView({ data, onRegenerate }) {
                 {payload.priorities.slice(0, 5).map((p, i) => {
                   const Icon = ACTION_ICON[p.action] ?? ACTION_ICON.other;
                   return (
-                    <Box key={i} className="flex items-start gap-3 rounded-lg border border-line bg-surface-2 p-2.5">
+                    <Box key={i} className="flex items-start gap-3 rounded-lg ai-soft-tint p-2.5">
                       <Box className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white">
                         <Icon className="h-3.5 w-3.5 text-accent-blue" />
                       </Box>
@@ -175,7 +175,7 @@ function CoachView({ data, onRegenerate }) {
                   </Link>
                 </Box>
                 {payload.recommendedCourses.slice(0, 4).map((c, i) => (
-                  <Box key={i} className="flex items-start gap-3 rounded-lg border border-line p-2.5">
+                  <Box key={i} className="flex items-start gap-3 rounded-lg ai-soft-tint p-2.5">
                     <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-3" />
                     <Box className="min-w-0 flex-1">
                       <Text as="p" className="text-[13px] font-semibold text-ink"><RichText text={c.name} /></Text>
@@ -254,8 +254,8 @@ export function DashboardAiInsights() {
   return (
     <AiReveal
       title="Your learning coach"
-      description="AI reads your courses, assessments and skills, then tells you what to do next."
-      cta={cached ? "Show my insights" : "Analyze my learning"}
+      description="Personal guidance drawn from your own progress — the few things that will move you forward fastest, chosen just for you."
+      cta={cached ? "View my guidance" : "Guide my learning"}
       icon={Sparkles}
       stages={LEARNER_STAGES}
       generate={generate}

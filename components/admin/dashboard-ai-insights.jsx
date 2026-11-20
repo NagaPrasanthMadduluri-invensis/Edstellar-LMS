@@ -62,7 +62,7 @@ function scoreColor(score) {
 function HealthScore({ health }) {
   const colour = scoreColor(health.score);
   return (
-    <Box className="mb-4 grid gap-3 rounded-lg border border-line bg-surface-2 p-3 sm:grid-cols-[180px_1fr]">
+    <Box className="mb-4 grid gap-3 rounded-lg ai-soft-tint p-3 sm:grid-cols-[180px_1fr]">
       <Box className="relative flex flex-col items-center justify-center">
         <Box className="h-[150px] w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -121,9 +121,16 @@ function Group({ icon: Icon, title, items, render }) {
   );
 }
 
-function Item({ title, detail, trailing }) {
+const TONE_CARD = {
+  critical: "ai-tone-critical",
+  warning: "ai-tone-warning",
+  positive: "ai-tone-positive",
+  neutral: "ai-tone-neutral",
+};
+
+function Item({ title, detail, trailing, tone = "neutral" }) {
   return (
-    <Box className="rounded-lg border border-line bg-surface-2 p-2.5">
+    <Box className={`rounded-lg p-2.5 ${TONE_CARD[tone] ?? TONE_CARD.neutral}`}>
       <Box className="flex items-start justify-between gap-2">
         <Text as="p" className="text-[13px] font-semibold text-ink"><RichText text={title} /></Text>
         {trailing}
@@ -140,16 +147,16 @@ function BriefingView({ data, onRegenerate }) {
   const generatedAt = data.insight?.generatedAt;
 
   return (
-    <Box className="ai-border overflow-hidden rounded-xl glass">
-      <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+    <Box className="ai-border ai-card overflow-hidden rounded-xl glass">
+      <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 px-4 py-3">
         <Box className="flex items-center gap-2.5">
-          <Box className="ai-spectrum flex h-8 w-8 items-center justify-center rounded-lg">
+          <Box className="ai-soft flex h-8 w-8 items-center justify-center rounded-lg">
             <Sparkles className="h-4 w-4 text-white" />
           </Box>
           <Box>
             <Box className="flex items-center gap-2">
               <Text as="h3" className="text-[13px] font-bold text-ink">AI briefing</Text>
-              <Text as="span" className="ai-spectrum rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white">
+              <Text as="span" className="ai-soft rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white">
                 AI
               </Text>
             </Box>
@@ -194,6 +201,7 @@ function BriefingView({ data, onRegenerate }) {
                     key={i}
                     title={r.title}
                     detail={r.detail}
+                    tone={r.severity === "high" ? "critical" : r.severity === "medium" ? "warning" : "neutral"}
                     trailing={
                       r.severity && (
                         <Text as="span" className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${SEVERITY[r.severity] ?? SEVERITY.low}`}>
@@ -220,7 +228,7 @@ function BriefingView({ data, onRegenerate }) {
                 icon={PartyPopper}
                 title="Wins"
                 items={payload.wins}
-                render={(w, i) => <Item key={i} title={w.title} detail={w.detail} />}
+                render={(w, i) => <Item key={i} title={w.title} detail={w.detail} tone="positive" />}
               />
             </Box>
           </Box>
@@ -271,9 +279,9 @@ export function AdminDashboardAiInsights() {
 
   return (
     <AiReveal
-      title="AI briefing"
-      description="AI reads your completion, feedback and team data, then tells you what needs attention."
-      cta={cached ? "Show the briefing" : "Analyze my organisation"}
+      title="Organisation briefing"
+      description="A clear reading of where your people's learning stands, what is working, and where to act next — written for you by AI."
+      cta={cached ? "View the briefing" : "Analyze my organisation"}
       icon={Sparkles}
       stages={ADMIN_STAGES}
       generate={generate}

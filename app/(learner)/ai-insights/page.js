@@ -13,13 +13,15 @@ export default function LearnerAiInsightsPage() {
     <Box className="space-y-5">
       <PageHeader
         eyebrow="AI"
-        title="Your learning"
-        emphasis="insights"
-        summary="Several AI options, each drawn from your own learning history: what to do next, the best courses for you, and a plan to close your skill gaps. Pick one to run it."
+        title="Your learning,"
+        emphasis="guided by AI"
+        summary="Your personal AI is ready when you are. Each option reads your own learning story and turns it into clear, confident next steps — choose one to begin."
       />
-      <DashboardAiInsights />
-      <CourseRecommendationsPanel />
-      <SkillPlanPanel />
+      <Box className="grid gap-4 md:grid-cols-2">
+        <DashboardAiInsights />
+        <CourseRecommendationsPanel />
+        <SkillPlanPanel />
+      </Box>
       <LearnerInsightsCharts />
       <EngagementVsLearning scope="learner" />
     </Box>

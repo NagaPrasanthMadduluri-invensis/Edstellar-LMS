@@ -134,7 +134,7 @@ export function LearnerInsightsCharts() {
       {/* What this whole section is — real data, not AI-written */}
       <Box className="ai-border overflow-hidden rounded-xl glass">
         <Box className="flex items-center gap-2.5 p-4">
-          <Box className="ai-spectrum flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+          <Box className="ai-soft flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
             <BarChart3 className="h-4 w-4 text-white" />
           </Box>
           <Box>

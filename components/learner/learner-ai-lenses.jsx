@@ -87,13 +87,13 @@ function LensHeader({ icon: Icon, title, subtitle, onRegenerate }) {
     <>
       <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line p-4">
         <Box className="flex items-center gap-2.5">
-          <Box className="ai-spectrum flex h-8 w-8 items-center justify-center rounded-lg">
+          <Box className="ai-soft flex h-8 w-8 items-center justify-center rounded-lg">
             <Icon className="h-4 w-4 text-white" />
           </Box>
           <Box>
             <Box className="flex items-center gap-2">
               <Text as="h3" className="text-base font-semibold text-ink">{title}</Text>
-              <Text as="span" className="ai-spectrum rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white">
+              <Text as="span" className="ai-soft rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white">
                 AI
               </Text>
             </Box>
@@ -123,7 +123,7 @@ const FIT = {
 function CourseRecommendationsView(payload, onRegenerate) {
   const recs = Array.isArray(payload?.recommendations) ? payload.recommendations : [];
   return (
-    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border">
+    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border ai-card">
       <LensHeader
         icon={BookOpen}
         title="Best courses for you"
@@ -140,7 +140,7 @@ function CourseRecommendationsView(payload, onRegenerate) {
           recs.map((r, i) => {
             const fit = FIT[r.fit] ?? FIT.medium;
             return (
-              <Box key={i} className="rounded-lg border border-line bg-surface-2 p-3">
+              <Box key={i} className="rounded-lg ai-soft-tint p-3">
                 <Box className="flex items-start justify-between gap-2">
                   <Text as="p" className="text-[13px] font-semibold text-ink">{r.name}</Text>
                   <Text as="span" className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${fit.cls}`}>
@@ -175,7 +175,7 @@ function SkillPlanView(payload, onRegenerate) {
   const gaps = Array.isArray(payload?.gaps) ? payload.gaps : [];
   const plan = Array.isArray(payload?.plan) ? payload.plan : [];
   return (
-    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border">
+    <Card className="gap-0 overflow-hidden p-0 border-0 ai-border ai-card">
       <LensHeader
         icon={Target}
         title="Your skill gaps & plan"
@@ -194,7 +194,7 @@ function SkillPlanView(payload, onRegenerate) {
                 Your strengths
               </Text>
               {strengths.slice(0, 8).map((s, i) => (
-                <Box key={i} className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 p-2">
+                <Box key={i} className="flex items-center gap-2 rounded-lg ai-soft-tint p-2">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
                   <Text as="span" className="text-[12.5px] text-ink">{s.skill}</Text>
                   {s.level && (
@@ -228,8 +228,8 @@ function SkillPlanView(payload, onRegenerate) {
               Your plan
             </Text>
             {plan.map((step, i) => (
-              <Box key={i} className="flex items-start gap-3 rounded-lg border border-line p-2.5">
-                <Box className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ai-spectrum text-[11px] font-bold text-white">
+              <Box key={i} className="flex items-start gap-3 rounded-lg ai-soft-tint p-2.5">
+                <Box className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ai-soft text-[11px] font-bold text-white">
                   {step.step ?? i + 1}
                 </Box>
                 <Box className="min-w-0 flex-1">
@@ -254,8 +254,8 @@ export function CourseRecommendationsPanel() {
   return (
     <LensPanel
       lens="course_recommendations"
-      title="Best courses for you"
-      description="AI ranks the catalogue against your role, level and skill gaps."
+      title="Courses chosen for you"
+      description="Our AI weighs the whole catalogue against your role, level and goals, and surfaces the courses that will take you furthest."
       cta="Find my best courses"
       icon={BookOpen}
       renderView={CourseRecommendationsView}
@@ -267,9 +267,9 @@ export function SkillPlanPanel() {
   return (
     <LensPanel
       lens="skill_plan"
-      title="Your skill gaps & plan"
-      description="AI maps your competencies and lays out a path to close the gaps."
-      cta="Build my skill plan"
+      title="Your personal skill plan"
+      description="Turn your strengths and gaps into a clear, step-by-step path to mastery, mapped to real courses."
+      cta="Build my plan"
       icon={Target}
       renderView={SkillPlanView}
     />

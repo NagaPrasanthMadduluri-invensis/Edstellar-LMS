@@ -9,9 +9,9 @@ export default function AdminAiInsightsPage() {
     <Box className="space-y-5">
       <PageHeader
         eyebrow="Admin · AI"
-        title="Organisation"
-        emphasis="AI insights"
-        summary="A model-backed reading of your organisation's learning health, what needs attention, and how engaged time compares with the learning it produced."
+        title="Your organisation,"
+        emphasis="read by AI"
+        summary="A clear, professional reading of where your people's learning stands — what is working, what needs attention, and where to act next."
       />
       <AdminDashboardAiInsights />
       <AdminIntelligence />

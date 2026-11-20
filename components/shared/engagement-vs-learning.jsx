@@ -47,13 +47,9 @@ export function EngagementVsLearning({ scope = "learner" }) {
   const series = data?.series ?? [];
   const totals = data?.totals ?? { learningHours: 0, engagementHours: 0 };
   const hasData = series.some((p) => p.learningHours > 0 || p.engagementHours > 0);
-  // Learning time is PART of active time, so plot it as a share of engagement,
-  // not a separate taller bar: Learning + Other active = total engaged.
-  const chartData = series.map((p) => ({
-    ...p,
-    other: Math.round(Math.max(0, p.engagementHours - p.learningHours) * 10) / 10,
-  }));
-  const otherTotal = Math.round(Math.max(0, totals.engagementHours - totals.learningHours) * 10) / 10;
+  // Two measures compared side by side: total engagement (which already includes
+  // the learning time) against the learning hours within it.
+  const chartData = series;
   const efficiency =
     totals.engagementHours > 0
       ? Math.min(100, Math.round((totals.learningHours / totals.engagementHours) * 100))
@@ -65,7 +61,7 @@ export function EngagementVsLearning({ scope = "learner" }) {
       <Box className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <Box className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-accent-blue" />
-          <Text as="h3" className="text-base font-semibold">Learning within engaged time</Text>
+          <Text as="h3" className="text-base font-semibold">Engagement hours vs Learning hours</Text>
         </Box>
         <Box className="flex gap-1">
           {GRANULARITIES.map((g) => (
@@ -85,9 +81,8 @@ export function EngagementVsLearning({ scope = "learner" }) {
         </Box>
       </Box>
       <Text as="p" className="mb-3 text-xs text-muted-foreground">
-        Engagement is total active time on the platform. Learning hours are the
-        part of it that produced course progress — the bar splits engaged time
-        into learning and other active time.
+        Engagement hours are total active time on the platform. Learning hours
+        are the part of that time which produced course progress.
       </Text>
 
       {!data ? (
@@ -111,15 +106,14 @@ export function EngagementVsLearning({ scope = "learner" }) {
                   formatter={(v, name) => [`${v}h`, name]}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar stackId="engaged" dataKey="learningHours" name="Learning" fill={BRAND.accent} isAnimationActive={false} />
-                <Bar stackId="engaged" dataKey="other" name="Other active" fill={BRAND.text3} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="engagementHours" name="Engagement hours" fill={BRAND.navy} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="learningHours" name="Learning hours" fill={BRAND.accent} radius={[3, 3, 0, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           </Box>
           <Box className="mt-3 flex flex-wrap gap-4 border-t border-line pt-3">
-            <Stat label="Engaged (total)" value={`${totals.engagementHours}h`} color="text-navy" />
-            <Stat label="of which learning" value={`${totals.learningHours}h`} color="text-accent-blue" />
-            <Stat label="Other active" value={`${otherTotal}h`} color="text-text-2" />
+            <Stat label="Engagement hours" value={`${totals.engagementHours}h`} color="text-navy" />
+            <Stat label="Learning hours" value={`${totals.learningHours}h`} color="text-accent-blue" />
             {efficiency !== null && (
               <Text as="p" className="ml-auto self-center text-xs text-text-2">
                 <Text as="span" className="font-semibold text-ink">{efficiency}%</Text>{" "}
