@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, AlertCircle, X } from "lucide-react";
+import { Sparkles, AlertCircle, X, History } from "lucide-react";
 
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
@@ -77,15 +77,17 @@ export function AiReveal({
   regenerate,
   children,
 }) {
-  const [phase, setPhase] = useState("idle"); // idle | analyzing | done | error
+  const [phase, setPhase] = useState("idle"); // idle | analyzing | done | error | collapsed
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [reopened, setReopened] = useState(false);
   const runningRef = useRef(false);
 
   async function invoke(fn) {
     if (runningRef.current) return;
     runningRef.current = true;
     setErrorMsg(null);
+    setReopened(false);
     setPhase("analyzing");
     try {
       const [res] = await Promise.all([fn(), delay(MIN_MS)]);
@@ -103,7 +105,11 @@ export function AiReveal({
   }
 
   const doRegenerate = () => invoke(regenerate ?? generate);
-  const close = () => setPhase("idle");
+  // Closing a report we have already generated collapses to a compact "Last
+  // report" button rather than the full CTA — the person has seen it once, so
+  // the big invitation is no longer the right thing to show.
+  const close = () => setPhase(result != null ? "collapsed" : "idle");
+  const reopen = () => { setReopened(true); setPhase("done"); };
 
   if (phase === "analyzing") {
     return (
@@ -135,8 +141,40 @@ export function AiReveal({
   if (phase === "done" && result != null) {
     return (
       <Overlay onClose={close}>
+        {reopened && (
+          <Box className="mx-auto mb-2 flex w-fit items-center gap-1.5 rounded-full bg-white/85 px-3 py-1.5 text-center text-[11px] text-text-2 shadow-sm backdrop-blur">
+            Showing your last report — click{" "}
+            <Box as="span" className="font-semibold text-ink">Regenerate</Box>{" "}
+            for your latest.
+          </Box>
+        )}
         {children(result, { regenerate: doRegenerate })}
       </Overlay>
+    );
+  }
+
+  // collapsed — generated once, then closed: a compact "Last report" button
+  if (phase === "collapsed") {
+    return (
+      <Box className="ai-card ai-border flex h-full flex-col justify-between gap-3 rounded-2xl glass p-5">
+        <Box className="flex items-center gap-2.5">
+          <Box className="ai-soft flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+            <Icon className="h-4 w-4 text-white" />
+          </Box>
+          <Box className="min-w-0">
+            <Text as="h3" className="text-[14px] font-semibold text-ink">{title}</Text>
+            <Text as="p" className="text-[11px] text-text-3">Your report is ready to view.</Text>
+          </Box>
+        </Box>
+        <button
+          type="button"
+          onClick={reopen}
+          className="ai-trigger inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+        >
+          <History className="h-4 w-4" />
+          Last report
+        </button>
+      </Box>
     );
   }
 
