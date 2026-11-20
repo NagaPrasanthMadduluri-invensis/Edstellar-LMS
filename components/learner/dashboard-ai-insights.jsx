@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { AiReveal } from "@/components/shared/ai-reveal";
-import { AiSections } from "@/components/shared/ai-sections";
+import { AiSections, RichText } from "@/components/shared/ai-sections";
 import { ApiError } from "@/lib/api-client";
 import { BRAND } from "@/lib/brand";
 import { LEARNER_STAGES } from "@/lib/ai-visuals";
@@ -125,7 +125,7 @@ function CoachView({ data, onRegenerate }) {
         ) : (
           <Box className="space-y-4">
             {payload.summary && (
-              <Text as="p" className="text-[13px] leading-relaxed text-ink">{payload.summary}</Text>
+              <Text as="p" className="text-[13px] leading-relaxed text-ink"><RichText text={payload.summary} /></Text>
             )}
 
             <AiSections sections={payload.sections} />
@@ -143,8 +143,8 @@ function CoachView({ data, onRegenerate }) {
                         <Icon className="h-3.5 w-3.5 text-accent-blue" />
                       </Box>
                       <Box className="min-w-0 flex-1">
-                        <Text as="p" className="text-[13px] font-semibold text-ink">{p.title}</Text>
-                        {p.detail && <Text as="p" className="mt-0.5 text-xs text-text-2">{p.detail}</Text>}
+                        <Text as="p" className="text-[13px] font-semibold text-ink"><RichText text={p.title} /></Text>
+                        {p.detail && <Text as="p" className="mt-0.5 text-xs text-text-2"><RichText text={p.detail} /></Text>}
                       </Box>
                     </Box>
                   );
@@ -156,9 +156,9 @@ function CoachView({ data, onRegenerate }) {
               <Box className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
                 <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <Box className="min-w-0">
-                  <Text as="p" className="text-[13px] font-bold text-ink">{payload.nextMilestone.title}</Text>
+                  <Text as="p" className="text-[13px] font-bold text-ink"><RichText text={payload.nextMilestone.title} /></Text>
                   {payload.nextMilestone.detail && (
-                    <Text as="p" className="mt-0.5 text-xs text-text-2">{payload.nextMilestone.detail}</Text>
+                    <Text as="p" className="mt-0.5 text-xs text-text-2"><RichText text={payload.nextMilestone.detail} /></Text>
                   )}
                 </Box>
               </Box>
@@ -178,8 +178,8 @@ function CoachView({ data, onRegenerate }) {
                   <Box key={i} className="flex items-start gap-3 rounded-lg border border-line p-2.5">
                     <BookOpen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-3" />
                     <Box className="min-w-0 flex-1">
-                      <Text as="p" className="text-[13px] font-semibold text-ink">{c.name}</Text>
-                      {c.reason && <Text as="p" className="mt-0.5 text-xs text-text-2">{c.reason}</Text>}
+                      <Text as="p" className="text-[13px] font-semibold text-ink"><RichText text={c.name} /></Text>
+                      {c.reason && <Text as="p" className="mt-0.5 text-xs text-text-2"><RichText text={c.reason} /></Text>}
                     </Box>
                   </Box>
                 ))}
@@ -189,7 +189,7 @@ function CoachView({ data, onRegenerate }) {
             {payload.motivation && (
               <Box className="flex items-start gap-2 border-t border-line pt-3">
                 <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-blue" />
-                <Text as="p" className="text-xs font-medium text-text-2">{payload.motivation}</Text>
+                <Text as="p" className="text-xs font-medium text-text-2"><RichText text={payload.motivation} /></Text>
               </Box>
             )}
           </Box>

@@ -52,7 +52,7 @@ export function AiSections({ sections }) {
           <Box className="mb-1.5 flex items-center gap-2">
             <Box className="ai-spectrum h-4 w-1 shrink-0 rounded-full" />
             <Text as="h4" className="text-[13.5px] font-semibold text-ink">
-              {section.heading}
+              <RichText text={section.heading} />
             </Text>
           </Box>
 

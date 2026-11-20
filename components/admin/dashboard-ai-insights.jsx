@@ -12,7 +12,7 @@ import {
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { AiReveal } from "@/components/shared/ai-reveal";
-import { AiSections } from "@/components/shared/ai-sections";
+import { AiSections, RichText } from "@/components/shared/ai-sections";
 import { ApiError } from "@/lib/api-client";
 import { BRAND } from "@/lib/brand";
 import { ADMIN_STAGES } from "@/lib/ai-visuals";
@@ -125,10 +125,10 @@ function Item({ title, detail, trailing }) {
   return (
     <Box className="rounded-lg border border-line bg-surface-2 p-2.5">
       <Box className="flex items-start justify-between gap-2">
-        <Text as="p" className="text-[13px] font-semibold text-ink">{title}</Text>
+        <Text as="p" className="text-[13px] font-semibold text-ink"><RichText text={title} /></Text>
         {trailing}
       </Box>
-      {detail && <Text as="p" className="mt-0.5 text-xs text-text-2">{detail}</Text>}
+      {detail && <Text as="p" className="mt-0.5 text-xs text-text-2"><RichText text={detail} /></Text>}
     </Box>
   );
 }
@@ -179,7 +179,7 @@ function BriefingView({ data, onRegenerate }) {
         ) : (
           <Box className="space-y-4">
             {payload.summary && (
-              <Text as="p" className="text-[13px] leading-relaxed text-ink">{payload.summary}</Text>
+              <Text as="p" className="text-[13px] leading-relaxed text-ink"><RichText text={payload.summary} /></Text>
             )}
 
             <AiSections sections={payload.sections} />
