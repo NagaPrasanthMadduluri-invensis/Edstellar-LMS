@@ -2,7 +2,7 @@
   "name": "edstellar-lms-client",
   "version": "0.1.0",
   "private": true,
-  "description": "Edstellar LMS frontend. Pure Next.js — no database driver, no server-side business logic. All data comes from the API in server/.",
+  "description": "Edstellar LMS frontend. Pure Next.js \u2014 no database driver, no server-side business logic. All data comes from the API in server/.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +10,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:cov": "vitest run --coverage"
+    "test:cov": "vitest run --coverage",
+    "test:e2e": "playwright test && node e2e/journey-presence.mjs",
+    "test:e2e:ci": "playwright test && node e2e/journey-presence.mjs --strict"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -37,6 +39,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.56",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^6.9.1",

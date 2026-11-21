@@ -9,6 +9,7 @@ import {
   getCurrentUser,
   normalizeUser,
 } from "@/services/api/auth/auth-api";
+import { signInDestination } from "@/lib/sign-in-destination";
 
 export const AuthContext = createContext(null);
 
@@ -42,8 +43,9 @@ export function AuthProvider({ children, initialUser }) {
   }, [initialUser]);
 
   /**
-   * Once a user is established (direct login or MFA verify): unconsented users
-   * go to /consent, everyone else to their portal.
+   * Once a user is established (direct login or MFA verify): a user who owes
+   * two-step setup goes to /mfa-setup, then an unconsented one to /consent,
+   * everyone else to their portal (CONTEXT.md §4 Gate order).
    *
    * The destination is a FULL document navigation, not `router.replace()`.
    *
@@ -70,13 +72,8 @@ export function AuthProvider({ children, initialUser }) {
     }
     setUser(normalizedUser);
 
-    const destination = normalizedUser.consentRequired
-      ? "/consent"
-      : normalizedUser.role === "admin"
-        ? "/admin/dashboard"
-        : normalizedUser.role === "trainer"
-          ? "/trainer/sessions"
-          : "/dashboard";
+    // Gate order: two-step setup, then the privacy notice, then the portal.
+    const destination = signInDestination(normalizedUser);
 
     window.location.assign(destination);
     return { user: normalizedUser };

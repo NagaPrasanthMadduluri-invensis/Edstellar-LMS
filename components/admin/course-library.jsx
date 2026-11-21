@@ -226,9 +226,9 @@ export function CourseLibrary() {
    * and the URL is the only way to say "open it" across a navigation.
    */
   useEffect(() => {
-    const wanted = Number(searchParams.get("edit"));
+    const wanted = searchParams.get("edit");
     if (!wanted || !data?.courses) return;
-    const course = data.courses.find((c) => c.id === wanted);
+    const course = findCourseByRef(data.courses, wanted);
     if (course) openEdit(course);
     // Consume the intent, so a refresh or a Back does not reopen the dialog.
     router.replace("/admin/courses", { scroll: false });
@@ -874,6 +874,23 @@ function RosterDialog({ course, onClose }) {
         </Box>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The course a `?edit=` value names. The course page links with the course's
+ * public_id (a UUID, the id every course URL carries); an older link may still
+ * carry the integer id. Either matches; anything else matches nothing.
+ */
+export function findCourseByRef(courses, ref) {
+  const wanted = String(ref ?? "").trim();
+  if (!wanted || !Array.isArray(courses)) return null;
+  return (
+    courses.find(
+      (c) =>
+        (c.public_id != null && String(c.public_id) === wanted) ||
+        String(c.id) === wanted,
+    ) ?? null
   );
 }
 

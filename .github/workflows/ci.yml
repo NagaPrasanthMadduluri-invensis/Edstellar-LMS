@@ -31,9 +31,55 @@ jobs:
       - name: Build
         run: npx next build --no-lint
 
+  # Playwright journeys (client/e2e) drive the real web app against a real API
+  # built from the server repo and a throwaway Postgres. They must pass before
+  # production is touched. Owner's rule, 2026-11-20.
+  # Needs the secret SERVER_REPO_TOKEN: a read-only token for the server repo.
+  journeys:
+    name: browser journeys (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: e2e
+          POSTGRES_PASSWORD: e2e
+          POSTGRES_DB: edstellar_lms_e2e
+        ports: ['5436:5432']
+        options: >-
+          --health-cmd "pg_isready -U e2e" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgresql://e2e:e2e@127.0.0.1:5436/edstellar_lms_e2e
+      E2E_SERVER_DIR: ${{ github.workspace }}/../server
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the API (server repo)
+        uses: actions/checkout@v4
+        with:
+          repository: NagaPrasanthMadduluri-invensis/esdtellar-lms-backend
+          token: ${{ secrets.SERVER_REPO_TOKEN }}
+          path: _server
+      - name: Place the API beside the client
+        run: mv _server ../server
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm ci
+        working-directory: ../server
+      - name: Journeys (installed Google Chrome, no browser download)
+        run: npm run test:e2e:ci
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+
   deploy:
     name: deploy (ssh)
-    needs: test
+    needs: [test, journeys]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

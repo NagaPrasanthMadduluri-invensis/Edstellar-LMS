@@ -1,0 +1,4 @@
+{
+  "/": "Entry redirect only (sends each role to its portal); exercised by every sign-in.",
+  "/scorm-player/[packageId]": "Needs a real SCORM package in R2 object storage, which the e2e world does not have; the API side is covered by server/test/scorm.e2e-spec.ts."
+}

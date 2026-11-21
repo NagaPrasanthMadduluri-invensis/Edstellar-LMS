@@ -46,3 +46,7 @@ Thumbs.db
 *.pem
 *.swp
 coverage
+.next-e2e/
+playwright-report/
+test-results/
+.next-e2e*/

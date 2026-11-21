@@ -49,6 +49,10 @@ if (!SERVER_URL) {
 }
 
 const nextConfig = {
+  // The Playwright journeys build into their own folder (NEXT_DIST_DIR=.next-e2e)
+  // so a test build never wipes the running dev server's .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
   // Emit a self-contained server bundle (.next/standalone) for a slim Docker
   // runtime image. Harmless for `next start`, which ignores it.
   output: "standalone",

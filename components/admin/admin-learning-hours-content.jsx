@@ -61,6 +61,67 @@ function LoadingSkeleton() {
   );
 }
 
+/* ── CSV export ─────────────────────────────────────────────────────────── */
+
+const CSV_COLUMNS = [
+  ["Learner", (l) => l.name],
+  ["Job role", (l) => l.job_role],
+  ["Department", (l) => l.dept],
+  ["Location", (l) => l.location],
+  ["This month (h)", (l) => l.thisMonth],
+  ["Last month (h)", (l) => l.lastMonth],
+  ["Goal (h)", (l) => l.goal],
+  ["Progress (%)", (l) => l.progressPct],
+  ["All time (h)", (l) => l.allTime],
+  ["Status", (l) => l.status],
+];
+
+/**
+ * One CSV cell. Quoted when it holds a comma, quote or line break; a text
+ * value starting with = + - @ (or a tab/CR) is prefixed with ' so a
+ * spreadsheet shows it rather than running it as a formula. Numbers are
+ * written as they are, so negative hours (never expected) stay numeric.
+ */
+function csvCell(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return String(value);
+  let text = String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * The learner table as CSV: exactly the rows on screen, in the order shown.
+ * CRLF line ends (RFC 4180), which Excel and Sheets both read.
+ */
+export function learningHoursCsv(rows) {
+  const lines = [CSV_COLUMNS.map(([label]) => csvCell(label)).join(",")];
+  for (const row of rows) lines.push(CSV_COLUMNS.map(([, get]) => csvCell(get(row))).join(","));
+  return lines.join("\r\n") + "\r\n";
+}
+
+export function learningHoursFilename(now = new Date()) {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `learning-hours-${y}-${m}-${d}.csv`;
+}
+
+/** Hand the CSV to the browser as a save. A BOM so Excel reads it as UTF-8. */
+function saveCsv(csv, filename) {
+  const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Revoked on a later tick: Safari cancels a download whose object URL is
+  // released in the same frame as the click.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function AdminLearningHoursContent() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
@@ -197,15 +258,20 @@ export function AdminLearningHoursContent() {
             <Text as="h3" className="text-base font-bold">Individual Learner Hours</Text>
             <Text as="p" className="text-xs text-muted-foreground">Click column headers to sort</Text>
           </Box>
-          <Button className="h-9 bg-navy hover:bg-navy-soft text-paper gap-2 px-4 text-sm">
+          <Button
+            className="h-9 bg-navy hover:bg-navy-soft text-paper gap-2 px-4 text-sm"
+            disabled={sorted.length === 0}
+            title={sorted.length === 0 ? "No learners to export yet" : undefined}
+            onClick={() => saveCsv(learningHoursCsv(sorted), learningHoursFilename())}
+          >
             <Download className="h-3.5 w-3.5" />Export CSV
           </Button>
         </Box>
 
         <Box className="overflow-x-auto">
-          <Box className="min-w-[900px]">
+          <Box className="min-w-[800px]">
             {/* Header */}
-            <Box className="grid grid-cols-[40px_1fr_130px_110px_110px_80px_160px_100px_110px_100px] gap-0 px-5 py-2.5 border-b bg-muted/30">
+            <Box className="grid grid-cols-[40px_1fr_130px_110px_110px_80px_160px_100px_110px] gap-0 px-5 py-2.5 border-b bg-muted/30">
               {[
                 { key: null,         label: "#"          },
                 { key: null,         label: "LEARNER"    },
@@ -216,7 +282,6 @@ export function AdminLearningHoursContent() {
                 { key: "progressPct",label: "PROGRESS"   },
                 { key: "allTime",    label: "ALL TIME"   },
                 { key: "status",     label: "STATUS"     },
-                { key: null,         label: "ACTION"     },
               ].map(({ key, label }) => (
                 <Box key={label} className={cn("flex items-center gap-1", key && "cursor-pointer hover:text-foreground")} onClick={() => key && toggleSort(key)}>
                   <Text as="span" className={cn("text-[10px] font-bold uppercase tracking-widest", sortKey === key ? "text-navy" : "text-muted-foreground")}>
@@ -234,7 +299,7 @@ export function AdminLearningHoursContent() {
               const progressBar = l.progressPct >= 100 ? "bg-navy" : l.progressPct >= 60 ? "bg-navy" : "bg-error";
               const isUp = l.thisMonth >= l.lastMonth;
               return (
-                <Box key={l.id} className="grid grid-cols-[40px_1fr_130px_110px_110px_80px_160px_100px_110px_100px] gap-0 items-center px-5 py-3 border-b last:border-b-0 hover:bg-muted/20 transition-colors">
+                <Box key={l.id} className="grid grid-cols-[40px_1fr_130px_110px_110px_80px_160px_100px_110px] gap-0 items-center px-5 py-3 border-b last:border-b-0 hover:bg-muted/20 transition-colors">
                   <Text as="span" className="text-sm font-medium text-muted-foreground">{idx + 1}</Text>
                   <Box className="flex items-center gap-2.5">
                     <Avatar className="h-9 w-9 shrink-0">
@@ -263,7 +328,6 @@ export function AdminLearningHoursContent() {
                   </Box>
                   <Text as="span" className="text-sm font-medium">{l.allTime}h</Text>
                   <Badge className={`text-[11px] font-semibold w-fit ${statusCfg.cls}`}>{l.status}</Badge>
-                  <Button variant="outline" size="sm" className="h-7 text-xs px-2.5">+ Credit</Button>
                 </Box>
               );
             })}

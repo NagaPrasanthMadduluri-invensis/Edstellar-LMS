@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
@@ -27,6 +29,161 @@ import {
   submitAssessmentAttempt,
   fetchAssessmentAttempts,
 } from "@/services/api/learner/learner-api";
+
+/**
+ * The answer a person has given, by question type. Kept in one map keyed by
+ * question id; the value's shape depends on the type:
+ *   mcq / truefalse  an option id
+ *   multiselect      an array of option ids
+ *   fillblank        the typed text
+ *   matching         { [left item]: chosen right item }
+ */
+function isAnswered(question, value) {
+  if (value === undefined || value === null) return false;
+  switch (question.question_type) {
+    case "multiselect":
+      return Array.isArray(value) && value.length > 0;
+    case "fillblank":
+      return typeof value === "string" && value.trim().length > 0;
+    case "matching": {
+      const left = question.match_left || [];
+      return left.length > 0 && left.every((item) => value[item]);
+    }
+    default:
+      return true;
+  }
+}
+
+/** The request body entry for one question (see AnswerDto on the server). */
+function toAnswer(question, value) {
+  const base = { question_id: question.id };
+  switch (question.question_type) {
+    case "multiselect":
+      return { ...base, selected_option_ids: value.map(Number) };
+    case "fillblank":
+      return { ...base, answer: value.trim() };
+    case "matching":
+      return {
+        ...base,
+        pairs: (question.match_left || []).map((left) => ({ left, right: value[left] })),
+      };
+    default:
+      return { ...base, selected_option_id: Number(value) };
+  }
+}
+
+const selectCls =
+  "w-full rounded-md border border-line bg-surface px-2 py-1.5 text-[13px] text-ink sm:w-56";
+
+function QuestionInput({ question: q, value, onChange }) {
+  if (q.question_type === "fillblank") {
+    return (
+      <Box className="ml-10">
+        <Label htmlFor={`q${q.id}-answer`} className="sr-only">Your answer</Label>
+        <Input
+          id={`q${q.id}-answer`}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Type your answer"
+          maxLength={1000}
+          autoComplete="off"
+        />
+      </Box>
+    );
+  }
+
+  if (q.question_type === "matching") {
+    const chosen = value || {};
+    return (
+      <Box className="ml-10 space-y-2">
+        {(q.match_left || []).map((left, i) => (
+          <Box key={left} className="flex flex-col gap-1.5 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+            <Label htmlFor={`q${q.id}-m${i}`} className="text-sm font-normal">{left}</Label>
+            <select
+              id={`q${q.id}-m${i}`}
+              className={selectCls}
+              value={chosen[left] ?? ""}
+              onChange={(e) => onChange({ ...chosen, [left]: e.target.value })}
+            >
+              <option value="">Choose a match</option>
+              {(q.match_right || []).map((right) => (
+                <option key={right} value={right}>{right}</option>
+              ))}
+            </select>
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
+  if (q.question_type === "multiselect") {
+    const selected = Array.isArray(value) ? value : [];
+    return (
+      <Box className="ml-10 space-y-2">
+        <Text as="p" className="text-xs text-muted-foreground">Select all that apply.</Text>
+        {q.options.map((opt) => {
+          const checked = selected.includes(opt.id);
+          return (
+            <Box key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all hover:border-navy/20 hover:bg-paper-cream ${checked ? "border-navy/20 bg-paper-cream" : "border-border"}`}>
+              <Checkbox
+                id={`q${q.id}-o${opt.id}`}
+                checked={checked}
+                onCheckedChange={(on) =>
+                  onChange(on ? [...selected, opt.id] : selected.filter((id) => id !== opt.id))
+                }
+              />
+              <Label htmlFor={`q${q.id}-o${opt.id}`} className="text-sm cursor-pointer flex-1 font-normal">
+                {opt.option_text}
+              </Label>
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  }
+
+  return (
+    <RadioGroup
+      value={value ? String(value) : ""}
+      onValueChange={(val) => onChange(Number(val))}
+      className="space-y-2 ml-10"
+    >
+      {q.options.map((opt) => (
+        <Box key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-navy/20 hover:bg-paper-cream ${String(value) === String(opt.id) ? "border-navy/20 bg-paper-cream" : "border-border"}`}>
+          <RadioGroupItem value={String(opt.id)} id={`q${q.id}-o${opt.id}`} />
+          <Label htmlFor={`q${q.id}-o${opt.id}`} className="text-sm cursor-pointer flex-1 font-normal">
+            {opt.option_text}
+          </Label>
+        </Box>
+      ))}
+    </RadioGroup>
+  );
+}
+
+/** Review line for the answer-based types, which have no options to list. */
+function TextAnswerReview({ review }) {
+  if (review.question_type === "fillblank") {
+    return (
+      <Text as="p" className="text-sm text-ink/70">
+        Expected answer: <span className="font-medium text-navy">{review.correct_answer}</span>
+      </Text>
+    );
+  }
+  const pairs = String(review.correct_answer || "")
+    .split(/[\n;]/)
+    .map((entry) => entry.split("=").map((part) => part.trim()))
+    .filter((parts) => parts.length >= 2 && parts[0] && parts[1]);
+  return (
+    <Box className="space-y-1">
+      <Text as="p" className="text-xs text-muted-foreground">Correct matches</Text>
+      {pairs.map(([left, ...rest]) => (
+        <Text as="p" key={left} className="text-sm text-ink/70">
+          {left} <span className="text-muted-foreground">to</span> <span className="font-medium text-navy">{rest.join("=")}</span>
+        </Text>
+      ))}
+    </Box>
+  );
+}
 
 function LoadingSkeleton() {
   return (
@@ -106,8 +263,12 @@ function ResultView({ result, assessment, questions, optionMap, onRetake, course
             {result.questions_review.map((qr, idx) => {
               const question = questions.find((q) => q.id === qr.question_id);
               if (!question) return null;
-              const selectedOpt = optionMap[qr.selected_option_id];
-              const correctOpt = question.options.find((o) => o.id === qr.correct_option_id);
+              const selectedIds = qr.selected_option_ids?.length
+                ? qr.selected_option_ids
+                : qr.selected_option_id != null ? [qr.selected_option_id] : [];
+              const correctIds = qr.correct_option_ids?.length
+                ? qr.correct_option_ids
+                : qr.correct_option_id != null ? [qr.correct_option_id] : [];
 
               return (
                 <Card key={qr.question_id} className={`border-l-4 ${qr.is_correct ? "border-l-emerald-500" : "border-l-red-500"}`}>
@@ -119,10 +280,15 @@ function ResultView({ result, assessment, questions, optionMap, onRetake, course
                       }
                       <Text as="p" className="text-sm font-semibold">Q{idx + 1}. {question.question_text}</Text>
                     </Box>
+                    {question.options.length === 0 ? (
+                      <Box className="ml-7">
+                        <TextAnswerReview review={qr} />
+                      </Box>
+                    ) : (
                     <Box className="space-y-1.5 ml-7">
                       {question.options.map((opt) => {
-                        const isSelected = opt.id === qr.selected_option_id;
-                        const isCorrectOpt = correctOpt && opt.id === correctOpt.id;
+                        const isSelected = selectedIds.includes(opt.id);
+                        const isCorrectOpt = correctIds.includes(opt.id);
                         return (
                           <Box
                             key={opt.id}
@@ -141,6 +307,7 @@ function ResultView({ result, assessment, questions, optionMap, onRetake, course
                         );
                       })}
                     </Box>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -211,7 +378,7 @@ export function AssessmentContent({ courseId, assessmentId }) {
   useEffect(() => { loadData(); }, [user, user, assessmentId]);
 
   const handleSubmit = async () => {
-    const unanswered = data.questions.filter((q) => !answers[q.id]);
+    const unanswered = data.questions.filter((q) => !isAnswered(q, answers[q.id]));
     if (unanswered.length > 0) {
       setError(`Please answer all questions. ${unanswered.length} unanswered.`);
       return;
@@ -219,10 +386,7 @@ export function AssessmentContent({ courseId, assessmentId }) {
     setError(null);
     setSubmitting(true);
     try {
-      const answerList = Object.entries(answers).map(([question_id, selected_option_id]) => ({
-        question_id: Number(question_id),
-        selected_option_id: Number(selected_option_id),
-      }));
+      const answerList = data.questions.map((q) => toAnswer(q, answers[q.id]));
       const res = await submitAssessmentAttempt({ assessmentId, answers: answerList });
       setResult(res.result);
       setAttempts((prev) => [{ id: Date.now(), percentage: res.result.percentage, is_passed: res.result.is_passed, submitted_at: new Date().toISOString() }, ...prev]);
@@ -260,7 +424,7 @@ export function AssessmentContent({ courseId, assessmentId }) {
   }
 
   const { assessment, questions, attempt_count } = data;
-  const answered = Object.keys(answers).length;
+  const answered = questions.filter((q) => isAnswered(q, answers[q.id])).length;
 
   return (
     <Box className="space-y-5">
@@ -327,28 +491,19 @@ export function AssessmentContent({ courseId, assessmentId }) {
       {/* ── Questions ── */}
       <Box className="space-y-4">
         {questions.map((q, idx) => (
-          <Card key={q.id} className={`transition-all ${answers[q.id] ? "border-navy/20 shadow-sm" : ""}`}>
+          <Card key={q.id} className={`transition-all ${isAnswered(q, answers[q.id]) ? "border-navy/20 shadow-sm" : ""}`}>
             <CardContent className="p-5">
               <Box className="flex items-start gap-3 mb-4">
-                <Box className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${answers[q.id] ? "bg-navy text-white" : "bg-muted text-muted-foreground"}`}>
+                <Box className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isAnswered(q, answers[q.id]) ? "bg-navy text-white" : "bg-muted text-muted-foreground"}`}>
                   {idx + 1}
                 </Box>
                 <Text as="p" className="text-sm font-semibold leading-relaxed">{q.question_text}</Text>
               </Box>
-              <RadioGroup
-                value={answers[q.id] ? String(answers[q.id]) : ""}
-                onValueChange={(val) => setAnswers((prev) => ({ ...prev, [q.id]: Number(val) }))}
-                className="space-y-2 ml-10"
-              >
-                {q.options.map((opt) => (
-                  <Box key={opt.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:border-navy/20 hover:bg-paper-cream ${String(answers[q.id]) === String(opt.id) ? "border-navy/20 bg-paper-cream" : "border-border"}`}>
-                    <RadioGroupItem value={String(opt.id)} id={`q${q.id}-o${opt.id}`} />
-                    <Label htmlFor={`q${q.id}-o${opt.id}`} className="text-sm cursor-pointer flex-1 font-normal">
-                      {opt.option_text}
-                    </Label>
-                  </Box>
-                ))}
-              </RadioGroup>
+              <QuestionInput
+                question={q}
+                value={answers[q.id]}
+                onChange={(val) => setAnswers((prev) => ({ ...prev, [q.id]: val }))}
+              />
             </CardContent>
           </Card>
         ))}
