@@ -46,8 +46,13 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/notifications";
 import { useAuth } from "@/hooks/use-auth";
+import { ReactionControls, ReplyThread, StaffChip } from "@/components/shared/community-engagement";
 import {
   createAdminCommunityDiscussion,
+  createAdminCommunityReply,
+  fetchAdminCommunityReactors,
+  reactToAdminCommunityPost,
+  removeAdminCommunityReaction,
   createAdminCommunityGroup,
   deleteAdminCommunityPost,
   deleteAdminCommunityReply,
@@ -57,6 +62,32 @@ import {
   updateAdminCommunityGroup,
 } from "@/services/api/admin/community-api";
 import { COMMUNITY_TITLE_MAX, COMMUNITY_GROUP_NAME_MAX, DESCRIPTION_MAX_LENGTH } from "@/lib/content-limits";
+
+// The admin portal's calls for the shared engagement component: an Admin
+// takes part like a learner, and sees the full record of who reacted.
+// Module level, so its identity is stable across renders.
+const ADMIN_ENGAGEMENT = {
+  react: (postId, kind) => reactToAdminCommunityPost({ postId, kind }),
+  unreact: (postId) => removeAdminCommunityReaction({ postId }),
+  fetchReactors: async (postId) => {
+    const r = await fetchAdminCommunityReactors({ postId });
+    return {
+      counts: r.counts,
+      people: (r.reactors ?? []).map((p) => ({
+        id: p.userId,
+        name: p.name,
+        avatar: p.avatar,
+        kind: p.kind,
+        isStaff: p.portal === "admin",
+        email: p.email,
+        department: p.department,
+        reactedAt: p.reactedAt,
+      })),
+    };
+  },
+  createReply: (postId, body, parentReplyId) =>
+    createAdminCommunityReply({ postId, body, parentReplyId }),
+};
 
 const TABS = [
   { key: "all", label: "All" },
@@ -118,6 +149,7 @@ export function CommunityModeration() {
       } else {
         await deleteAdminCommunityReply({ replyId: confirm.id });
       }
+      confirm.resolve?.(true);
       setConfirm(null);
     } catch (e) {
       setError(e.message);
@@ -214,7 +246,7 @@ export function CommunityModeration() {
         </Box>
       )}
 
-      <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!working && !o) setConfirm(null); }}>
+      <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!working && !o) { confirm?.resolve?.(false); setConfirm(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -443,6 +475,7 @@ function ModRow({ post, canModerate, onDelete }) {
   const TypeIcon = meta.icon;
   const [open, setOpen] = useState(false);
   const [replies, setReplies] = useState(null);
+  const [replyCount, setReplyCount] = useState(post.replyCount);
 
   async function toggle() {
     const willOpen = !open;
@@ -457,6 +490,21 @@ function ModRow({ post, canModerate, onDelete }) {
     }
   }
 
+  function changeReplies(update) {
+    const prev = replies ?? [];
+    const next = typeof update === "function" ? update(prev) : update;
+    setReplies(next);
+    setReplyCount((c) => Math.max(0, c + (next.length - prev.length)));
+  }
+
+  // A moderator removes any reply after confirming; the thread waits for the
+  // answer. Without moderate_community there is no bin to press.
+  function removeReply(reply) {
+    return new Promise((resolve) => {
+      onDelete({ kind: "reply", id: reply.id, label: reply.isMine ? "your reply" : "this reply", resolve });
+    });
+  }
+
   return (
     <Card className="p-0 overflow-hidden">
       <Box className="flex items-start gap-3 p-4">
@@ -465,6 +513,7 @@ function ModRow({ post, canModerate, onDelete }) {
             <Text as="span" className="text-sm font-semibold text-ink">
               {post.author?.name || "Someone"}
             </Text>
+            {post.author?.isStaff && <StaffChip />}
             {post.author?.email && (
               <Text as="span" className="text-xs text-ink/45">{post.author.email}</Text>
             )}
@@ -476,10 +525,10 @@ function ModRow({ post, canModerate, onDelete }) {
           </Box>
           {post.title && <Text as="p" className="mt-1 font-semibold text-ink">{post.title}</Text>}
           {post.body && <Text as="p" className="mt-0.5 line-clamp-2 text-sm text-ink/70">{post.body}</Text>}
-          <Box className="mt-2 flex items-center gap-4 text-xs text-ink/50">
-            <Text as="span">{post.likeCount} likes</Text>
-            <button type="button" onClick={toggle} className="inline-flex items-center gap-1 font-semibold text-accent-blue hover:underline">
-              {post.replyCount} replies {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          <Box className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <ReactionControls postId={post.id} initial={post} api={ADMIN_ENGAGEMENT} detailed />
+            <button type="button" onClick={toggle} className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-accent-blue hover:underline">
+              {replyCount} {replyCount === 1 ? "reply" : "replies"} {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
           </Box>
         </Box>
@@ -500,32 +549,15 @@ function ModRow({ post, canModerate, onDelete }) {
         <Box className="border-t border-border bg-surface-2 p-4">
           {replies === null ? (
             <Skeleton className="h-10 w-full" />
-          ) : replies.length === 0 ? (
-            <Text as="p" className="text-sm text-ink/50">No replies.</Text>
           ) : (
-            <Box className="space-y-2">
-              {replies.map((r) => (
-                <Box key={r.id} className="flex items-start gap-2 rounded-lg bg-white p-3">
-                  <Box className="min-w-0 flex-1">
-                    <Box className="flex items-center gap-2">
-                      <Text as="span" className="text-xs font-semibold text-ink">{r.author?.name || "Someone"}</Text>
-                      <Text as="span" className="text-[11px] text-ink/40">{relativeTime(r.createdAt)}</Text>
-                    </Box>
-                    <Text as="p" className="mt-0.5 text-sm text-ink/80">{r.body}</Text>
-                  </Box>
-                  {canModerate && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete({ kind: "reply", id: r.id, label: "this reply" })}
-                      className="shrink-0 text-ink/35 hover:text-error"
-                      aria-label="Remove reply"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </Box>
-              ))}
-            </Box>
+            <ReplyThread
+              post={post}
+              replies={replies}
+              onRepliesChange={changeReplies}
+              api={ADMIN_ENGAGEMENT}
+              canDelete={() => canModerate}
+              onDelete={removeReply}
+            />
           )}
         </Box>
       )}

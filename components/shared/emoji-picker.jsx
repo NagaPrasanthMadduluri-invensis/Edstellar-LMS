@@ -30,18 +30,22 @@ export function EmojiPicker({ onSelect, disabled = false, className }) {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={disabled}
-          aria-label="Add emoji"
-          title="Add emoji"
-          className={cn("shrink-0 text-text-2 hover:text-ink", className)}
-        >
-          <Smile className="size-5" />
-        </Button>
+      {/* Base UI has no asChild: `render` makes the Button the trigger
+          itself, where asChild used to nest a button inside a button. */}
+      <PopoverTrigger
+        disabled={disabled}
+        aria-label="Add emoji"
+        title="Add emoji"
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn("shrink-0 text-text-2 hover:text-ink", className)}
+          />
+        }
+      >
+        <Smile className="size-5" />
       </PopoverTrigger>
       <PopoverContent
         align="end"

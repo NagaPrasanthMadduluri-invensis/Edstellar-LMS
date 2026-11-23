@@ -44,8 +44,8 @@ test('question with a hashtag, a contribution and a like, the author is told', a
   const card = peer.locator('[data-slot="card"]', { hasText: title }).first();
   await expect(card).toBeVisible();
   await card.getByRole('button', { name: 'Like this post' }).click();
-  await expect(card.getByRole('button', { name: 'Remove your like' })).toBeVisible();
-  await expect(card.getByText('1 Like', { exact: true })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Remove your reaction (Like)' })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'See who reacted (1)' })).toBeVisible();
   await card.getByRole('button', { name: /Contributions/ }).click();
   const answer = 'Start with the onboarding path, it covers the basics.';
   await card.getByPlaceholder('Share what you know…').fill(answer);
@@ -59,6 +59,74 @@ test('question with a hashtag, a contribution and a like, the author is told', a
   const authorCard = author.locator('[data-slot="card"]', { hasText: title }).first();
   await authorCard.getByRole('button', { name: /Contributions/ }).click();
   await expect(authorCard.getByText(answer)).toBeVisible();
+});
+
+test('quick reactions, the asker responds under an answer, and an admin takes part and sees who reacted', async ({ browser }) => {
+  const f = fx();
+  const title = `Which path first ${uniq('Q')}?`;
+
+  // Setup (not the subject): a question and one answer, through the API.
+  const author = await as(browser, f.A.learner);
+  const authorApi = apiFrom(author);
+  const created = await authorApi.post('/api/learner/community', { type: 'question', title, body: 'Pointers?', hashtags: [uniq('Tag')] });
+  expect(created.status()).toBe(201);
+  const postId = (await created.json()).post.id;
+  const peer = await as(browser, f.A.learner2);
+  const answerText = `Start with onboarding ${uniq('A')}`;
+  const ans = await apiFrom(peer).post(`/api/learner/community/${postId}/replies`, { body: answerText });
+  expect(ans.status()).toBe(201);
+
+  // The peer picks a quick reaction, then changes it: still one reaction.
+  await peer.goto('/community');
+  const card = peer.locator('[data-slot="card"]', { hasText: title }).first();
+  await card.getByRole('button', { name: 'Choose a reaction' }).click();
+  await peer.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: 'Helpful' }).click();
+  await expect(card.getByRole('button', { name: 'Remove your reaction (Helpful)' })).toBeVisible();
+  await card.getByRole('button', { name: 'Choose a reaction' }).click();
+  await peer.getByRole('group', { name: 'Reactions' }).getByRole('button', { name: 'Great explanation' }).click();
+  await expect(card.getByRole('button', { name: 'Remove your reaction (Great explanation)' })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'See who reacted (1)' })).toBeVisible();
+  const kinds = await db('SELECT kind FROM community_reactions r JOIN community_posts p ON p.id = r.post_id WHERE p.public_id = $1', [postId]);
+  expect(kinds).toEqual([{ kind: 'great_explanation' }]);
+
+  // The asker responds directly under the answer.
+  await author.goto('/community');
+  const mine = author.locator('[data-slot="card"]', { hasText: title }).first();
+  await mine.getByRole('button', { name: /Contributions/ }).click();
+  await expect(mine.getByText(answerText)).toBeVisible();
+  await mine.getByRole('button', { name: 'Respond' }).click();
+  const response = `Thanks, that helped ${uniq('R')}`;
+  await mine.getByPlaceholder(/Respond to /).fill(response);
+  await mine.getByRole('button', { name: 'Send response' }).click();
+  await expect(mine.getByText(response)).toBeVisible();
+  await expect(mine.getByText('Asker')).toBeVisible();
+  const [row] = await db('SELECT parent_reply_id FROM community_replies WHERE body = $1', [response]);
+  expect(row.parent_reply_id).toBeTruthy();
+
+  // An admin reacts, replies (marked L&D to learners), and sees who reacted in full.
+  const admin = await as(browser, f.A.admin);
+  await admin.goto('/admin/community');
+  const adminRow = admin.locator('[data-slot="card"]', { hasText: title }).first();
+  await adminRow.getByRole('button', { name: 'Like this post' }).click();
+  await expect(adminRow.getByRole('button', { name: 'See who reacted (2)' })).toBeVisible();
+  await adminRow.getByRole('button', { name: 'See who reacted (2)' }).click();
+  const dlg = admin.getByRole('dialog', { name: 'Reactions' });
+  await expect(dlg.getByText(f.A.learner2.email, { exact: false })).toBeVisible();
+  await dlg.getByRole('tab', { name: /Great explanation 1/ }).click();
+  await expect(dlg.getByText(f.A.learner2.email, { exact: false })).toBeVisible();
+  await admin.keyboard.press('Escape');
+
+  await adminRow.getByRole('button', { name: /replies?/ }).click();
+  const adminReply = `From the L&D team ${uniq('L')}`;
+  await adminRow.getByPlaceholder('Share what you know…').fill(adminReply);
+  await adminRow.getByRole('button', { name: 'Contribute' }).click();
+  await expect(adminRow.getByText(adminReply)).toBeVisible();
+
+  await author.reload();
+  const again = author.locator('[data-slot="card"]', { hasText: title }).first();
+  await again.getByRole('button', { name: /Contributions/ }).click();
+  const staffReply = again.locator('div', { hasText: adminReply }).filter({ has: author.getByTitle('From your L&D team') }).first();
+  await expect(staffReply).toBeVisible();
 });
 
 test('kudos to a colleague reaches the feed and their bell', async ({ browser }) => {

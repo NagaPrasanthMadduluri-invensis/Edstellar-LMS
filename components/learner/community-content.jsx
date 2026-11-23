@@ -80,13 +80,37 @@ import {
   giveKudos,
   joinCommunityGroup,
   leaveCommunityGroup,
-  likeCommunityPost,
+  reactToCommunityPost,
+  removeCommunityReaction,
   searchPeople,
   suggestHashtags,
-  unlikeCommunityPost,
 } from "@/services/api/learner/community-api";
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { ReactionControls, ReplyThread, StaffChip } from "@/components/shared/community-engagement";
 import { Linkify } from "@/components/shared/linkify";
+
+// The learner portal's calls for the shared engagement component. Module
+// level, so its identity is stable across renders.
+const LEARNER_ENGAGEMENT = {
+  react: (postId, kind) => reactToCommunityPost({ postId, kind }),
+  unreact: (postId) => removeCommunityReaction({ postId }),
+  fetchReactors: async (postId) => {
+    const r = await fetchCommunityLikers({ postId });
+    return {
+      counts: r.counts,
+      people: (r.likers ?? []).map((p) => ({
+        id: p.user_id,
+        name: p.name,
+        avatar: p.avatar,
+        kind: p.kind,
+        isMe: p.is_me,
+        isStaff: p.is_staff,
+      })),
+    };
+  },
+  createReply: (postId, body, parentReplyId) =>
+    createCommunityReply({ postId, body, parentReplyId }),
+};
 
 const TYPE_TABS = [
   { key: "all", label: "All" },
@@ -425,44 +449,11 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
   const meta = TYPE_META[post.type] ?? TYPE_META.discussion;
   const TypeIcon = meta.icon;
 
-  const [liked, setLiked] = useState(post.likedByMe);
-  const [likeCount, setLikeCount] = useState(post.likeCount);
   const [replyCount, setReplyCount] = useState(post.replyCount);
   const [open, setOpen] = useState(false);
   const [replies, setReplies] = useState(null);
-  const [replyBody, setReplyBody] = useState("");
-  const replyRef = useRef(null);
-  const [sending, setSending] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [likersOpen, setLikersOpen] = useState(false);
-  const [likers, setLikers] = useState(null);
-
-  async function openLikers() {
-    setLikersOpen(true);
-    setLikers(null);
-    try {
-      const r = await fetchCommunityLikers({ postId: post.id });
-      setLikers(r.likers || []);
-    } catch {
-      setLikers([]);
-    }
-  }
-
-  async function toggleLike() {
-    const next = !liked;
-    setLiked(next);
-    setLikeCount((c) => c + (next ? 1 : -1));
-    try {
-      const r = next
-        ? await likeCommunityPost({ postId: post.id })
-        : await unlikeCommunityPost({ postId: post.id });
-      setLikeCount(r.likeCount);
-    } catch {
-      setLiked(!next);
-      setLikeCount((c) => c + (next ? -1 : 1));
-    }
-  }
 
   async function toggleReplies() {
     const willOpen = !open;
@@ -477,29 +468,20 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
     }
   }
 
-  async function submitReply() {
-    const body = replyBody.trim();
-    if (!body) return;
-    setSending(true);
-    try {
-      const { reply } = await createCommunityReply({ postId: post.id, body });
-      setReplies((prev) => [...(prev ?? []), reply]);
-      setReplyCount((c) => c + 1);
-      setReplyBody("");
-    } catch {
-      /* surfaced by the button staying enabled */
-    } finally {
-      setSending(false);
-    }
+  // Keep the visible count in step with the thread (responses count too).
+  function changeReplies(update) {
+    const prev = replies ?? [];
+    const next = typeof update === "function" ? update(prev) : update;
+    setReplies(next);
+    setReplyCount((c) => Math.max(0, c + (next.length - prev.length)));
   }
 
-  async function removeReply(id) {
+  async function deleteOwnReply(reply) {
     try {
-      await deleteCommunityReply({ replyId: id });
-      setReplies((prev) => (prev ?? []).filter((r) => r.id !== id));
-      setReplyCount((c) => Math.max(0, c - 1));
+      await deleteCommunityReply({ replyId: reply.id });
+      return true;
     } catch {
-      /* ignore */
+      return false;
     }
   }
 
@@ -530,6 +512,7 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
               <Text as="span" className="text-sm font-semibold text-ink">
                 {post.author?.name || "Someone"}
               </Text>
+              {post.author?.isStaff && <StaffChip />}
               <Text as="span" className="text-xs text-ink/45">
                 {relativeTime(post.createdAt)}
               </Text>
@@ -626,33 +609,8 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
           )}
         </Box>
 
-        <Box className="mt-4 flex items-center gap-4 border-t border-border pt-3">
-          {/* Heart toggles the like; the count text opens the list of likers. */}
-          <Box className="inline-flex items-center gap-1.5 text-sm font-semibold">
-            <button
-              type="button"
-              onClick={toggleLike}
-              aria-label={liked ? "Remove your like" : "Like this post"}
-              aria-pressed={liked}
-              className={cn(
-                "inline-flex items-center transition-colors",
-                liked ? "text-error" : "text-ink/55 hover:text-error",
-              )}
-            >
-              <Heart className={cn("h-4 w-4", liked && "fill-current")} />
-            </button>
-            <button
-              type="button"
-              onClick={openLikers}
-              disabled={likeCount === 0}
-              className={cn(
-                "transition-colors",
-                likeCount > 0 ? "text-ink/70 hover:text-ink hover:underline" : "cursor-default text-ink/55",
-              )}
-            >
-              {likeCount > 0 ? `${likeCount} ` : ""}Like{likeCount === 1 ? "" : "s"}
-            </button>
-          </Box>
+        <Box className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
+          <ReactionControls postId={post.id} initial={post} api={LEARNER_ENGAGEMENT} />
           <button
             type="button"
             onClick={toggleReplies}
@@ -670,74 +628,14 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
           {replies === null ? (
             <Skeleton className="h-10 w-full" />
           ) : (
-            <Box className="space-y-3">
-              {replies.map((r) => (
-                <Box key={r.id} className="flex items-start gap-2.5">
-                  {r.author?.avatar ? (
-                    <UserAvatar src={r.author.avatar} name={r.author?.name} className="size-8 shrink-0" />
-                  ) : (
-                    <Box className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-navy/80 text-[11px] font-bold text-white">
-                      {initials(r.author?.name)}
-                    </Box>
-                  )}
-                  <Box className="min-w-0 flex-1 rounded-lg bg-white p-3">
-                    <Box className="flex items-center gap-2">
-                      <Text as="span" className="text-xs font-semibold text-ink">
-                        {r.author?.name || "Someone"}
-                      </Text>
-                      <Text as="span" className="text-[11px] text-ink/40">
-                        {relativeTime(r.createdAt)}
-                      </Text>
-                      {r.isMine && (
-                        <button
-                          type="button"
-                          onClick={() => removeReply(r.id)}
-                          className="ml-auto text-ink/35 hover:text-error"
-                          aria-label="Delete reply"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </Box>
-                    <Text as="p" className="mt-0.5 whitespace-pre-wrap text-sm text-ink/80">
-                      <Linkify className="text-accent-blue">{r.body}</Linkify>
-                    </Text>
-                  </Box>
-                </Box>
-              ))}
-              {replies.length === 0 && (
-                <Text as="p" className="text-sm text-ink/50">
-                  {post.type === "question"
-                    ? "No contributions yet — be the first to help."
-                    : "No comments yet."}
-                </Text>
-              )}
-
-              <Box className="flex items-end gap-2 pt-1">
-                <Textarea
-                  ref={replyRef}
-                  rows={2}
-                  value={replyBody}
-                  maxLength={COMMUNITY_BODY_MAX}
-                  placeholder={
-                    post.type === "question"
-                      ? "Share what you know…"
-                      : "Write a comment…"
-                  }
-                  onChange={(e) => setReplyBody(e.target.value)}
-                  className="min-h-0 resize-none bg-white"
-                />
-                <EmojiPicker onSelect={(e) => insertEmoji(replyRef, setReplyBody, e)} />
-                <Button
-                  size="icon"
-                  disabled={sending || !replyBody.trim()}
-                  onClick={submitReply}
-                  aria-label={meta.reply}
-                >
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </Button>
-              </Box>
-            </Box>
+            <ReplyThread
+              post={post}
+              replies={replies}
+              onRepliesChange={changeReplies}
+              api={LEARNER_ENGAGEMENT}
+              canDelete={(r) => r.isMine}
+              onDelete={deleteOwnReply}
+            />
           )}
         </Box>
       )}
@@ -760,37 +658,6 @@ export function CommunityPostCard({ post, onDeleted, onHashtag }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Who liked this post */}
-      <Dialog open={likersOpen} onOpenChange={setLikersOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Liked by</DialogTitle>
-          </DialogHeader>
-          {likers === null ? (
-            <Box className="space-y-3 py-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Box key={i} className="flex items-center gap-3">
-                  <Skeleton className="h-9 w-9 rounded-full" />
-                  <Skeleton className="h-3 w-32" />
-                </Box>
-              ))}
-            </Box>
-          ) : likers.length === 0 ? (
-            <Text as="p" className="py-6 text-center text-sm text-text-3">No likes yet.</Text>
-          ) : (
-            <Box className="max-h-80 overflow-y-auto">
-              {likers.map((p) => (
-                <Box key={p.user_id} className="flex items-center gap-3 py-2">
-                  <UserAvatar src={p.avatar} name={p.name} className="size-9 shrink-0" />
-                  <Text as="p" className="text-sm font-medium text-ink">
-                    {p.name}{p.is_me ? " (you)" : ""}
-                  </Text>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }

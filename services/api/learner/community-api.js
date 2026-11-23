@@ -62,11 +62,24 @@ export async function deleteCommunityPost({ postId }) {
   return apiClient(`/api/learner/community/${postId}`, { method: "DELETE" });
 }
 
-export async function createCommunityReply({ postId, body }) {
+/** Reply to a post, or respond to a reply on it (`parentReplyId`). */
+export async function createCommunityReply({ postId, body, parentReplyId }) {
   return apiClient(`/api/learner/community/${postId}/replies`, {
     method: "POST",
-    body: { body },
+    body: parentReplyId ? { body, parentReplyId } : { body },
   });
+}
+
+/** Set or change the caller's one quick reaction on a post. */
+export async function reactToCommunityPost({ postId, kind }) {
+  return apiClient(`/api/learner/community/${postId}/reaction`, {
+    method: "PUT",
+    body: { kind },
+  });
+}
+
+export async function removeCommunityReaction({ postId }) {
+  return apiClient(`/api/learner/community/${postId}/reaction`, { method: "DELETE" });
 }
 
 export async function deleteCommunityReply({ replyId }) {
@@ -83,7 +96,7 @@ export async function unlikeCommunityPost({ postId }) {
   return apiClient(`/api/learner/community/${postId}/like`, { method: "DELETE" });
 }
 
-/** The people who liked a post, newest first. */
+/** Who reacted to a post and with what, newest first (`likers` + `counts`). */
 export async function fetchCommunityLikers({ postId }) {
   return apiClient(`/api/learner/community/${postId}/likes`);
 }

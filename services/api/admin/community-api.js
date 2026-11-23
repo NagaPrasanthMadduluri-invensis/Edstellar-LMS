@@ -25,6 +25,31 @@ export async function deleteAdminCommunityReply({ replyId }) {
   });
 }
 
+// ── Taking part (any admin, like a learner) ─────────────────────────────────
+
+export async function createAdminCommunityReply({ postId, body, parentReplyId }) {
+  return apiClient(`/api/admin/community/${postId}/replies`, {
+    method: "POST",
+    body: parentReplyId ? { body, parentReplyId } : { body },
+  });
+}
+
+export async function reactToAdminCommunityPost({ postId, kind }) {
+  return apiClient(`/api/admin/community/${postId}/reaction`, {
+    method: "PUT",
+    body: { kind },
+  });
+}
+
+export async function removeAdminCommunityReaction({ postId }) {
+  return apiClient(`/api/admin/community/${postId}/reaction`, { method: "DELETE" });
+}
+
+/** Who reacted: full participant record, per-kind counts and the total. */
+export async function fetchAdminCommunityReactors({ postId }) {
+  return apiClient(`/api/admin/community/${postId}/reactions`);
+}
+
 // ── Groups + discussion creation (moderate_community) ───────────────────────
 
 export async function fetchAdminCommunityGroups() {
