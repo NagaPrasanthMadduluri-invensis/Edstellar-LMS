@@ -7,6 +7,7 @@ import {
 } from "@/components/learner/learner-ai-lenses";
 import { LearnerInsightsCharts } from "@/components/learner/learner-insights-charts";
 import { EngagementVsLearning } from "@/components/shared/engagement-vs-learning";
+import { MySkillsCard } from "@/components/learner/my-skills-card";
 
 export default function LearnerAiInsightsPage() {
   return (
@@ -23,6 +24,7 @@ export default function LearnerAiInsightsPage() {
         <SkillPlanPanel />
       </Box>
       <LearnerInsightsCharts />
+      <MySkillsCard />
       <EngagementVsLearning scope="learner" />
     </Box>
   );

@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { LEARNING_TYPES } from "@/lib/brand";
 import { sessionTypeLabel } from "@/lib/session-types";
 import { KpiStatCard } from "@/components/shared/kpi-stat-card";
+import { MySkillsCard } from "@/components/learner/my-skills-card";
 
 /* ────────────────────────────────────────────────────────────────────────
    My Progress — refactored to the Harbor reference "Progress" view:
@@ -252,7 +253,7 @@ export function MyProgressContent() {
         </Card>
 
         <Card className="gap-0 overflow-hidden p-0">
-          <CardHead title="Skills & competencies" sub="What your learning paths build towards" />
+          <CardHead title="Learning path skills" sub="What your learning paths build towards" />
           <Box className="p-4">
             {skillGroups.length === 0 ? (
               <Box className="px-2 py-6 text-center">
@@ -282,6 +283,9 @@ export function MyProgressContent() {
           </Box>
         </Card>
       </Box>
+
+      {/* ── My skills: what completed courses have built ─────────── */}
+      <MySkillsCard />
 
       {/* ── Learning Hours ─────────────────────────────────────────── */}
       <Card className="gap-0 overflow-hidden p-0">

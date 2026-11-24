@@ -28,6 +28,11 @@ export async function nudgeLearner({ userId, courseId }) {
 /* ── Analytics ── */
 
 /** Every series for one granularity, in one call — see the controller docblock. */
+/** Skills and competencies: coverage, trends, departments, untagged courses. */
+export async function fetchSkillsAnalytics() {
+  return apiClient("/api/admin/skills/analytics");
+}
+
 export async function fetchAnalytics({ granularity = "monthly" } = {}) {
   return apiClient(`/api/admin/analytics?granularity=${encodeURIComponent(granularity)}`);
 }

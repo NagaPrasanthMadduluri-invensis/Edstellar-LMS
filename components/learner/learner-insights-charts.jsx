@@ -167,7 +167,11 @@ export function LearnerInsightsCharts() {
           title="Skill proficiency"
           description="Your average competency level in each skill domain, built from the courses you have completed."
           isEmpty={skillRadar.length < 3}
-          empty="Complete a few skill-tagged courses to map your skill profile here."
+          empty={
+            skillRadar.length > 0
+              ? `Your skills cover ${skillRadar.length} area${skillRadar.length === 1 ? "" : "s"} so far; the map draws once you reach three. They are listed under My skills below.`
+              : "Complete a few skill-tagged courses to map your skill profile here."
+          }
         >
           <Box className="h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">

@@ -16,7 +16,7 @@ import {
 import {
   PlayCircle, CheckCircle2, ArrowLeft, BookOpen, ClipboardList,
   ChevronRight, Clock, Award, RotateCcw, Lock, FileArchive, Package,
-  Play, FileText, Users, Star,
+  Play, FileText, Users, Star, GraduationCap,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
@@ -102,7 +102,7 @@ export function CourseDetailContent({ courseId }) {
 
   if (!data) return <DetailSkeleton />;
 
-  const { course, enrollment, modules = [], assessments = [], assessmentsUnlocked = false, reward = null } = data;
+  const { course, enrollment, modules = [], assessments = [], assessmentsUnlocked = false, reward = null, skills: skillTags = [] } = data;
   const totalLessons     = modules.reduce((s, m) => s + (m.total_count || 0), 0);
   const completedLessons = modules.reduce((s, m) => s + (m.completed_count || 0), 0);
   const progress         = enrollment?.progress_percentage ?? 0;
@@ -130,8 +130,9 @@ export function CourseDetailContent({ courseId }) {
         ? `${totalMinutes}m`
         : "";
 
-  // Skills/tags — tolerate an array, a comma-separated string, or nothing.
-  const skills = Array.isArray(course.tags)
+  // Topics are the course's free-text Tags: labels, not skills. The skills a
+  // learner gains are `skillTags` (the course's Skill tags), shown above them.
+  const topics = Array.isArray(course.tags)
     ? course.tags
     : typeof course.tags === "string" && course.tags.trim()
       ? course.tags.split(",").map((t) => t.trim()).filter(Boolean)
@@ -203,18 +204,38 @@ export function CourseDetailContent({ courseId }) {
       {/* ── Two-column edX layout: main sections + sticky side card ── */}
       <Box className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         <Box className="min-w-0 space-y-6">
-          {skills.length > 0 && (
+          {skillTags.length > 0 && (
             <Box>
               <Text as="h2" className="mb-3 font-mono text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink">
-                Skills you&apos;ll gain
+                {skillTags.every((s) => s.earned) ? "Skills you gained" : "Skills you\u2019ll gain"}
               </Text>
               <Box className="flex flex-wrap gap-2">
-                {skills.map((t) => (
-                  <Text key={t} as="span" className="rounded-full bg-accent-tint px-3 py-1.5 text-xs font-semibold text-accent-blue">
-                    {t}
+                {skillTags.map((s) => (
+                  <Text
+                    key={s.skillId}
+                    as="span"
+                    title={s.earned ? `Earned${s.heldLevel ? ` (${s.heldLevel})` : ""}` : `Complete the course to earn it at ${s.level} level`}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold",
+                      s.earned ? "bg-success/10 text-success" : "bg-accent-tint text-accent-blue",
+                    )}
+                  >
+                    {s.earned ? <CheckCircle2 className="h-3.5 w-3.5" /> : <GraduationCap className="h-3.5 w-3.5" />}
+                    {s.name}
+                    <Text as="span" className="text-[length:inherit] font-normal capitalize text-inherit opacity-75">· {s.level}</Text>
                   </Text>
                 ))}
               </Box>
+            </Box>
+          )}
+          {topics.length > 0 && (
+            <Box className="flex flex-wrap items-center gap-1.5">
+              <Text as="span" className="mr-1 font-mono text-[10.5px] uppercase tracking-[0.1em] text-text-3">Topics</Text>
+              {topics.map((t) => (
+                <Text key={t} as="span" className="rounded-full bg-surface-3 px-2.5 py-1 text-[11px] font-medium text-text-2">
+                  {t}
+                </Text>
+              ))}
             </Box>
           )}
       {/* ── Course Content ── */}

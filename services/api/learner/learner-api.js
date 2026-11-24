@@ -53,3 +53,8 @@ export async function submitAssessmentAttempt({ assessmentId, answers }) {
 export async function fetchAssessmentAttempts({ assessmentId }) {
   return apiClient(`/api/learner/assessments/${assessmentId}/attempts`);
 }
+
+/** The learner's own gained skills (one row per skill, highest level held). */
+export async function fetchMyCompetencies() {
+  return apiClient("/api/learner/competencies");
+}

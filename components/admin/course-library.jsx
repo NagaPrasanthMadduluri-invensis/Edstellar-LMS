@@ -977,7 +977,8 @@ function CourseDialog({
               placeholder="comma,separated,keywords"
             />
             <Text as="p" className="text-[11px] text-text-3">
-              Searchable only — nothing filters or reports on a tag.
+              Labels for search, shown to learners as Topics. They are not skills:
+              the skills a learner gains are set on the course&apos;s Skills tab.
             </Text>
           </Box>
 
