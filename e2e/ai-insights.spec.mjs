@@ -40,6 +40,38 @@ test('learner generates their coach guidance and sees structured sections', asyn
   expect(sent).not.toContain(f.A.learner.email);
 });
 
+test('"Courses chosen for you" is matched to the job role: an engineer is never offered a sales course', async ({ browser }) => {
+  const f = fx();
+  const stamp = Date.now().toString(36);
+  const salesCourse = `Consultative Selling ${stamp}`;
+  const techCourse = `Secure Coding for Developers ${stamp}`;
+
+  // Setup (not the subject): two new published courses, one built for sales and
+  // one for engineers, and the learner's job role set to Software engineer.
+  const admin = await as(browser, f.A.admin);
+  const adminApi = apiFrom(admin);
+  for (const [name, category, tags] of [[salesCourse, 'Soft Skills', 'sales, negotiation'], [techCourse, 'Technical', 'software']]) {
+    const r = await adminApi.post('/api/admin/courses', { name, category, tags, is_active: true });
+    expect(r.status()).toBeLessThan(300);
+  }
+  await db("UPDATE users SET job_role = 'Software engineer' WHERE id = $1", [f.A.learner2.id]);
+
+  const learner = await as(browser, f.A.learner2);
+  await learner.goto('/ai-insights');
+  const before = aiRequests().length;
+  await learner.getByRole('button', { name: /^(Find my best courses|View .*)$/ }).first().click();
+  await expect(learner.getByText('Matched to your role:')).toBeVisible({ timeout: 30_000 });
+  await expect(learner.getByText('Software engineer', { exact: true })).toBeVisible();
+  await expect(learner.getByText(techCourse)).toBeVisible();
+  await expect(learner.getByText('For your role').first()).toBeVisible();
+  await expect(learner.getByText(salesCourse)).toHaveCount(0);
+
+  // Ground truth: the sales course never even reached the model.
+  const sent = aiRequests().slice(before).join('\n');
+  expect(sent).toContain(techCourse);
+  expect(sent).not.toContain(salesCourse);
+});
+
 test('admin sees the AI briefing and Learning Intelligence figures', async ({ browser }) => {
   const f = fx();
   const admin = await as(browser, f.A.admin);
