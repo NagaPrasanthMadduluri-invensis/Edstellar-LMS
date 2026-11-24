@@ -13,6 +13,10 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { SESSION_TYPE_LABEL, sessionTypeLabel } from "@/lib/session-types";
+import { SittingEntry } from "@/components/shared/sitting-entry";
+import {
+  calendarEntries, formatLongDate, formatTimeRange, pendingEntries, sittingsOf,
+} from "@/lib/sittings";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 
@@ -56,11 +60,7 @@ export function AdminCalendarContent() {
     if (!user) return;
     apiClient("/api/admin/sessions")
       .then((d) => {
-        const mapped = (d.sessions || []).map((s) => {
-          const [y, m, day] = (s.date || "").split("-").map(Number);
-          return { ...s, year: y, month: m - 1, day };
-        });
-        setSessions(mapped);
+        setSessions(d.sessions || []);
       })
       .catch(() => setSessions([]));
   }, [user]);
@@ -68,7 +68,12 @@ export function AdminCalendarContent() {
   const { year, month } = viewDate;
   const daysInMonth  = getDaysInMonth(year, month);
   const firstWeekday = getFirstWeekday(year, month);
-  const sessionsThisMonth = (sessions || []).filter((s) => s.year === year && s.month === month);
+  /* One entry per DAY of every sitting, so a multi-day batch sits on each of
+     its days and two batches on one day are two entries. The month count is
+     of these sitting-days, the same thing the grid draws. */
+  const entries = calendarEntries(sessions);
+  const sessionsThisMonth = entries.filter((e) => e.y === year && e.m === month);
+  const pending = pendingEntries(sessions);
 
   const prevMonth = () => setViewDate(({ year: y, month: m }) =>
     m === 0 ? { year: y - 1, month: 11 } : { year: y, month: m - 1 }
@@ -81,20 +86,13 @@ export function AdminCalendarContent() {
   const isToday = (day) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
-  const sessionsForDay = (day) => sessionsThisMonth.filter((s) => s.day === day);
+  const sessionsForDay = (day) => sessionsThisMonth.filter((e) => e.d === day);
 
   const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
   const cells = Array.from({ length: totalCells }, (_, i) => {
     const day = i - firstWeekday + 1;
     return day >= 1 && day <= daysInMonth ? day : null;
   });
-
-  function formatTime(t) {
-    if (!t) return "";
-    const [h, min] = t.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    return `${h % 12 || 12}:${String(min).padStart(2, "0")} ${ampm}`;
-  }
 
   if (!sessions) return (
     <Box className="space-y-5">
@@ -173,18 +171,9 @@ export function AdminCalendarContent() {
                       {day}{todayCell && <Text as="span" className="ml-1 text-xs text-navy font-semibold">• Today</Text>}
                     </Text>
                     <Box className="space-y-1">
-                      {events.map((ev) => {
-                        const cfg = SESSION_TYPES[ev.session_type] || SESSION_TYPES.ILT;
-                        return (
-                          <Box
-                            key={ev.id}
-                            className={cn("rounded px-2 py-1 text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity truncate", cfg.chip)}
-                            onClick={() => setSelected(ev)}
-                          >
-                            {ev.title}
-                          </Box>
-                        );
-                      })}
+                      {events.map((ev) => (
+                        <SittingEntry key={ev.key} entry={ev} onSelect={setSelected} />
+                      ))}
                     </Box>
                   </>
                 )}
@@ -194,43 +183,66 @@ export function AdminCalendarContent() {
         </Box>
       </Card>
 
-      {/* ── Session detail dialog ── */}
+      {pending.length > 0 && (
+        <Text as="p" className="text-xs text-warning">
+          Date to be set:{" "}
+          {pending.map((p) => (p.sitting.batch_id != null ? `${p.session.title} (${p.sitting.name})` : p.session.title)).join(", ")}
+        </Text>
+      )}
+
+      {/* ── Sitting detail dialog ── */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        {selected && (
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="leading-snug">{selected.title}</DialogTitle>
-            </DialogHeader>
-            <Box className="space-y-3 pt-1">
-              <Box className="flex items-center gap-2">
-                <Badge className={cn("text-xs w-fit border-0", (SESSION_TYPES[selected.session_type] || SESSION_TYPES.ILT).chip)}>
-                  {sessionTypeLabel(selected.session_type)}
-                </Badge>
-                {/* Reads the derived status, so a session already under way no
-                    longer shows as merely scheduled. The three shades this
-                    replaced were also nearly identical to each other. */}
-                <Badge className={cn("text-xs border",
-                  (STATUS_CFG[selected.display_status || selected.status] || STATUS_CFG.upcoming).cls)}>
-                  {(STATUS_CFG[selected.display_status || selected.status] || STATUS_CFG.upcoming).label}
-                </Badge>
-              </Box>
-              {[
-                { icon: CalendarDays, label: `${MONTH_NAMES[selected.month]} ${selected.day}, ${selected.year}` },
-                { icon: Clock,        label: `${formatTime(selected.start_time)} – ${formatTime(selected.end_time)}` },
-                { icon: Users,        label: `${selected.roster_count ?? 0} / ${selected.capacity} enrolled · ${selected.trainer}` },
-                { icon: selected.session_type === "Virtual" ? Video : MapPin, label: selected.venue_url },
-              ].map(({ icon: Icon, label }) => (
-                <Box key={label} className="flex items-start gap-2.5">
-                  <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <Text as="span" className="text-sm break-all">{label}</Text>
+        {selected && (() => {
+          const { session, sitting } = selected;
+          const sess = session.display_status || session.status;
+          const statusCfg = STATUS_CFG[sess] || STATUS_CFG.upcoming;
+          const multi = sittingsOf(session).length > 1;
+          const sameDay = !sitting.end_date || sitting.end_date === sitting.start_date;
+          const dateLabel = sameDay
+            ? formatLongDate(sitting.start_date)
+            : `${formatLongDate(sitting.start_date)} to ${formatLongDate(sitting.end_date)}`;
+          const rows = [
+            { icon: CalendarDays, label: dateLabel || "Date to be set" },
+            { icon: Clock, label: `${formatTimeRange(sitting.start_time, sitting.end_time)}${sameDay ? "" : " each day"}` },
+            { icon: Users, label: `${sitting.registered ?? session.roster_count ?? 0} / ${sitting.capacity} enrolled · ${sitting.trainer_name || session.trainer}` },
+            { icon: Users, label: `${sitting.available ?? 0} available · ${sitting.waitlist ?? 0} waiting` },
+            { icon: session.session_type === "Virtual" ? Video : MapPin, label: session.venue_url },
+          ];
+          return (
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="leading-snug">{session.title}</DialogTitle>
+              </DialogHeader>
+              <Box className="space-y-3 pt-1">
+                <Box className="flex flex-wrap items-center gap-2">
+                  <Badge className={cn("text-xs w-fit border-0", (SESSION_TYPES[session.session_type] || SESSION_TYPES.ILT).chip)}>
+                    {sessionTypeLabel(session.session_type)}
+                  </Badge>
+                  {/* Reads the derived status, so a session already under way no
+                      longer shows as merely scheduled. */}
+                  <Badge className={cn("text-xs border", statusCfg.cls)}>{statusCfg.label}</Badge>
+                  {sitting.batch_id != null && (
+                    <Badge className="text-xs border bg-paper-warm text-ink border-border">{sitting.name}</Badge>
+                  )}
                 </Box>
-              ))}
-              {selected.description && (
-                <Text as="p" className="text-sm text-muted-foreground leading-relaxed border-t pt-3">{selected.description}</Text>
-              )}
-            </Box>
-          </DialogContent>
-        )}
+                {multi && (
+                  <Text as="p" className="text-xs text-muted-foreground">
+                    This session runs in several batches. Each batch has its own dates and seats.
+                  </Text>
+                )}
+                {rows.filter((r) => r.label).map(({ icon: Icon, label }) => (
+                  <Box key={label} className="flex items-start gap-2.5">
+                    <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <Text as="span" className="text-sm break-all">{label}</Text>
+                  </Box>
+                ))}
+                {session.description && (
+                  <Text as="p" className="text-sm text-muted-foreground leading-relaxed border-t pt-3">{session.description}</Text>
+                )}
+              </Box>
+            </DialogContent>
+          );
+        })()}
       </Dialog>
     </Box>
   );

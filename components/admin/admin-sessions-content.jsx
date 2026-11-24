@@ -43,12 +43,17 @@ import {
 import { ThumbnailField } from "@/components/admin/thumbnail-field";
 import { DescriptionField } from "@/components/shared/description-field";
 import { CourseArt } from "@/components/shared/course-art";
+import {
+  SessionFeedbackPanel,
+  SessionReportButtons,
+  SessionSchedulePanel,
+} from "@/components/admin/session-details-panels";
 
 /* ── constants ── */
 
 const EMPTY_FORM = {
   title: "", session_type: "ILT", department: "", course_id: "",
-  capacity: 20, trainer: "", trainer_user_id: "", venue_url: "", date: "",
+  capacity: 20, trainer: "", trainer_user_id: "", venue_url: "", date: "", end_date: "",
   start_time: "", end_time: "", description: "", status: "upcoming",
   // 'assigned' (an admin books people) or 'self' (learners book themselves
   // from the Course Catalogue, and queue when it is full). The column has
@@ -954,7 +959,7 @@ function SessionCard({
               <Text as="span" className="truncate">
                 {isMultiBatch
                   ? `${batches.length} sittings`
-                  : `${formatDate(s.date)} · ${s.start_time}–${s.end_time} IST`}
+                  : `${formatRange(s.date, s.end_date)} · ${s.start_time}–${s.end_time} IST`}
               </Text>
             </Box>
             <Box className="flex items-start gap-1.5">
@@ -1164,7 +1169,13 @@ function CardBtn({ children, onClick, icon: Icon, primary = false, danger = fals
    unenrolled either way — roster rows fall back to "no sitting assigned".
 ────────────────────────────────────────────────────────────────────────────*/
 
-const EMPTY_BATCH = { label: "", date: "", start_time: "", end_time: "", capacity: "" };
+const EMPTY_BATCH = { label: "", date: "", end_date: "", start_time: "", end_time: "", capacity: "" };
+
+/** "1 Dec 2030", or "1 Dec 2030 to 3 Dec 2030" for a multi-day sitting. */
+function formatRange(start, end) {
+  if (!start) return "";
+  return end && end !== start ? `${formatDate(start)} to ${formatDate(end)}` : formatDate(start);
+}
 
 function BatchesDialog({ session, onClose, onChanged }) {
   const [form, setForm] = useState(EMPTY_BATCH);
@@ -1175,11 +1186,20 @@ function BatchesDialog({ session, onClose, onChanged }) {
   const batches = session.batches ?? [];
 
   async function save() {
+    if (form.end_date && form.date && form.end_date < form.date) {
+      setError("The end date cannot be before the start date.");
+      return;
+    }
+    if (form.end_date && !form.date) {
+      setError("Set a start date before an end date.");
+      return;
+    }
     setBusy(true); setError(null);
     try {
       const data = {
         label: form.label.trim() || null,
         date: form.date || null,
+        end_date: form.end_date && form.end_date !== form.date ? form.end_date : null,
         start_time: form.start_time || null,
         end_time: form.end_time || null,
         capacity: form.capacity ? Number(form.capacity) : null,
@@ -1227,8 +1247,10 @@ function BatchesDialog({ session, onClose, onChanged }) {
                       {b.label || `Batch ${b.batch_no}`}
                     </Text>
                     <Text as="p" className="text-[11px] text-text-3">
-                      {b.date ? `${formatDate(b.date)} · ${b.start_time ?? "—"}–${b.end_time ?? "—"}` : "Date not set"}
+                      {b.date ? `${formatRange(b.date, b.end_date)} · ${b.start_time ?? session.start_time}–${b.end_time ?? session.end_time}` : "Date not set"}
                       {" · "}{b.roster_count}/{b.capacity} registered
+                      {" · "}{Math.max(0, b.capacity - b.roster_count)} seats left
+                      {b.waitlist_count > 0 ? ` · ${b.waitlist_count} waiting` : ""}
                     </Text>
                   </Box>
                   <Text
@@ -1247,7 +1269,7 @@ function BatchesDialog({ session, onClose, onChanged }) {
                       onClick={() => {
                         setEditing(b);
                         setForm({
-                          label: b.label ?? "", date: b.date ?? "",
+                          label: b.label ?? "", date: b.date ?? "", end_date: b.end_date ?? "",
                           start_time: b.start_time ?? "", end_time: b.end_time ?? "",
                           capacity: b.capacity ? String(b.capacity) : "",
                         });
@@ -1284,12 +1306,21 @@ function BatchesDialog({ session, onClose, onChanged }) {
                 />
               </Box>
             </Box>
-            <Box className="grid gap-3 sm:grid-cols-3">
+            <Box className="grid gap-3 sm:grid-cols-4">
               <Box className="space-y-1.5">
-                <Label>Date</Label>
+                <Label htmlFor="batch-start-date">Start date</Label>
                 <Input
+                  id="batch-start-date"
                   type="date" value={form.date}
                   onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+                />
+              </Box>
+              <Box className="space-y-1.5">
+                <Label htmlFor="batch-end-date">End date</Label>
+                <Input
+                  id="batch-end-date"
+                  type="date" value={form.end_date} min={form.date || undefined}
+                  onChange={(e) => setForm((p) => ({ ...p, end_date: e.target.value }))}
                 />
               </Box>
               <Box className="space-y-1.5">
@@ -1308,8 +1339,11 @@ function BatchesDialog({ session, onClose, onChanged }) {
               </Box>
             </Box>
             <Text as="p" className="text-[10.5px] text-text-3">
-              Leave the date blank to create the batch now and fix the date later —
-              it shows as <strong>pending</strong> until you do.
+              The batch runs from the start time to the end time on every day from the start
+              date to the end date. Leave the end date blank for a one-day batch, and the start
+              date blank to create it now and fix the date later (it shows as{" "}
+              <strong>pending</strong> until you do). Each batch has its own capacity: nobody can
+              be booked or moved into a full batch.
             </Text>
             <Box className="flex gap-2">
               <Button
@@ -1538,7 +1572,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
               </Box>
               <Box>
                 <Text as="p" className="text-[10px] text-muted-foreground uppercase tracking-wide">Date</Text>
-                <Text as="p" className="text-sm font-semibold">{formatDate(selectedSession.date)}</Text>
+                <Text as="p" className="text-sm font-semibold">{formatRange(selectedSession.date, selectedSession.end_date)}</Text>
               </Box>
               <Box>
                 <Text as="p" className="text-[10px] text-muted-foreground uppercase tracking-wide">Time</Text>
@@ -1563,6 +1597,14 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
             </Box>
           </CardContent>
         </Card>
+      )}
+
+      {/* Download Session Report, and every sitting's schedule and seats (0074) */}
+      {selectedSession && (
+        <>
+          <SessionReportButtons sessionId={selectedSession.id} />
+          <SessionSchedulePanel session={selectedSession} />
+        </>
       )}
 
       {/* Locked banner */}
@@ -1697,6 +1739,9 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
           </Button>
         </Box>
       )}
+
+      {/* Every learner's feedback on this session (0074) */}
+      {selectedSession && <SessionFeedbackPanel sessionId={selectedSession.id} />}
     </Box>
   );
 }
@@ -1951,6 +1996,7 @@ export function AdminSessionsContent() {
       trainer_user_id: s.trainer_user_id ? String(s.trainer_user_id) : "",
       venue_url:    s.venue_url    || "",
       date:         s.date         || "",
+      end_date:     s.end_date     || "",
       start_time:   s.start_time   || "",
       end_time:     s.end_time     || "",
       description:  s.description  || "",
@@ -1970,6 +2016,7 @@ export function AdminSessionsContent() {
     if (!form.date?.trim())       { setFormError("Date is required");                  return; }
     if (!form.start_time?.trim()) { setFormError("Start time is required");            return; }
     if (!form.end_time?.trim())   { setFormError("End time is required");              return; }
+    if (form.end_date && form.end_date < form.date) { setFormError("The end date cannot be before the start date"); return; }
 
     setSaving(true); setFormError(null);
 
@@ -1985,7 +2032,7 @@ export function AdminSessionsContent() {
         const uploaded = await uploadCourseThumbnail({ file: thumbnailFile });
         uploadedUrl = uploaded.url;
       }
-      const body = { ...form, trainer_user_id: form.trainer_user_id ? Number(form.trainer_user_id) : null, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
+      const body = { ...form, end_date: form.end_date && form.end_date !== form.date ? form.end_date : null, trainer_user_id: form.trainer_user_id ? Number(form.trainer_user_id) : null, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
       if (uploadedUrl) body.thumbnail_url = uploadedUrl;
       else if (thumbnailCleared) body.thumbnail_url = null;
 
@@ -2301,20 +2348,31 @@ export function AdminSessionsContent() {
 
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
-                <Label className="text-sm font-medium">Date <Text as="span" className="text-error">*</Text></Label>
-                <Input type="date" value={form.date} onChange={set("date")} className="h-10" />
+                <Label htmlFor="session-start-date" className="text-sm font-medium">Start date <Text as="span" className="text-error">*</Text></Label>
+                <Input id="session-start-date" type="date" value={form.date} onChange={set("date")} className="h-10" />
               </Box>
               <Box className="space-y-2">
-                <Label className="text-sm font-medium">Start Time <Text as="span" className="text-error">*</Text></Label>
-                <Input type="time" value={form.start_time} onChange={set("start_time")} className="h-10" />
+                <Label htmlFor="session-end-date" className="text-sm font-medium">End date <Text as="span" className="text-text-3">(multi-day)</Text></Label>
+                <Input id="session-end-date" type="date" value={form.end_date} min={form.date || undefined} onChange={set("end_date")} className="h-10" />
               </Box>
             </Box>
 
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
+                <Label className="text-sm font-medium">Start Time <Text as="span" className="text-error">*</Text></Label>
+                <Input type="time" value={form.start_time} onChange={set("start_time")} className="h-10" />
+              </Box>
+              <Box className="space-y-2">
                 <Label className="text-sm font-medium">End Time <Text as="span" className="text-error">*</Text></Label>
                 <Input type="time" value={form.end_time} onChange={set("end_time")} className="h-10" />
               </Box>
+            </Box>
+            <Text as="p" className="-mt-2 text-[11px] text-text-3">
+              The session runs at these times on every day from the start date to the end date. Leave the end date
+              blank for a one-day session. For several sittings with their own dates, times and capacity, add batches.
+            </Text>
+
+            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Box className="space-y-2">
                 <Label className="text-sm font-medium">Status</Label>
                 <Select value={form.status} onValueChange={set("status")}>

@@ -11,12 +11,16 @@ import {
 } from "@/components/ui/dialog";
 import {
   ChevronLeft, ChevronRight, CalendarDays, Clock,
-  MapPin, Video, UserCircle, BookOpen,
+  MapPin, Video, UserCircle, BookOpen, Users,
 } from "lucide-react";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { SESSION_TYPE_LABEL } from "@/lib/session-types";
+import { SittingEntry } from "@/components/shared/sitting-entry";
+import {
+  calendarEntries, formatDateRange, formatTimeRange, isMyBatch, pendingEntries, seatsText, sittingsOf,
+} from "@/lib/sittings";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import { SessionFeedbackDialog } from "@/components/learner/session-feedback-dialog";
@@ -60,19 +64,6 @@ const MONTH_NAMES = [
 function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
 function getFirstWeekday(year, month) { return new Date(year, month, 1).getDay(); }
 
-function formatTime(t) {
-  if (!t) return "";
-  const [h, min] = t.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  return `${h % 12 || 12}:${String(min).padStart(2, "0")} ${ampm}`;
-}
-
-function formatDate(iso) {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  return new Date(y, m - 1, d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
-
 export function LearnerTrainingCalendar() {
   const { user } = useAuth();
   const today = new Date();
@@ -110,11 +101,7 @@ export function LearnerTrainingCalendar() {
     if (!user) return;
     apiClient("/api/learner/sessions")
       .then((d) => {
-        const mapped = (d.sessions || []).map((s) => {
-          const [y, m, day] = (s.date || "").split("-").map(Number);
-          return { ...s, year: y, month: m - 1, day };
-        });
-        setSessions(mapped);
+        setSessions(d.sessions || []);
       })
       .catch(() => setSessions([]));
   }, [user]);
@@ -131,8 +118,18 @@ export function LearnerTrainingCalendar() {
      other months underneath its own title is that same disagreement one
      scroll further down. The whole record lives in My Sessions, which is
      where a learner goes to see everything at once (TASTE §10.3.1.17). */
-  const thisMonth     = (sessions || []).filter((s) => s.year === year && s.month === month);
-  const monthUpcoming = thisMonth.filter((s) => displayOf(s) === "upcoming");
+  /* One entry per DAY of every sitting: a multi-day batch sits on each of
+     its days and two batches on one day are two entries. The month's count,
+     the grid and the list all read these same sitting-days. */
+  const entries       = calendarEntries(sessions);
+  const pending       = pendingEntries(sessions);
+  const thisMonth     = entries.filter((e) => e.y === year && e.m === month);
+  const monthUpcoming = thisMonth.filter((e) => displayOf(e.session) === "upcoming");
+
+  /* The learner's own batch is emphasised; the other batches of a batched
+     session stay visible but secondary, so availability can be read. */
+  const toneOf = (e) =>
+    e.sitting.batch_id == null ? "default" : isMyBatch(e.session, e.sitting) ? "mine" : "muted";
 
   /* A learner landing on an empty month should not have to find their own
      sessions by clicking Prev until something appears. Nearest month that
@@ -141,12 +138,11 @@ export function LearnerTrainingCalendar() {
   const nearestMonth = (() => {
     /* `sessions` is null until the fetch lands — this runs above the
        skeleton guard, so it cannot assume an array. */
-    if (thisMonth.length || !sessions?.length) return null;
+    if (thisMonth.length || !entries.length) return null;
     const here = year * 12 + month;
     let best = null;
-    for (const s of sessions) {
-      if (!Number.isFinite(s.year) || !Number.isFinite(s.month)) continue;
-      const delta = s.year * 12 + s.month - here;
+    for (const s of entries) {
+      const delta = s.y * 12 + s.m - here;
       if (
         best === null ||
         Math.abs(delta) < Math.abs(best) ||
@@ -169,7 +165,7 @@ export function LearnerTrainingCalendar() {
   const isToday = (day) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
-  const sessionsForDay = (day) => thisMonth.filter((s) => s.day === day);
+  const sessionsForDay = (day) => thisMonth.filter((e) => e.d === day);
 
   const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
   const cells = Array.from({ length: totalCells }, (_, i) => {
@@ -298,18 +294,9 @@ export function LearnerTrainingCalendar() {
                         {todayCell && <Text as="span" className="ml-1 text-xs text-navy font-semibold">· Today</Text>}
                       </Text>
                       <Box className="space-y-1">
-                        {events.map((ev) => {
-                          const cfg = SESSION_TYPES[ev.session_type] || SESSION_TYPES.ILT;
-                          return (
-                            <Box
-                              key={ev.id}
-                              className={cn("rounded px-2 py-1 text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity truncate", cfg.chip)}
-                              onClick={() => setSelected(ev)}
-                            >
-                              {ev.title}
-                            </Box>
-                          );
-                        })}
+                        {events.map((ev) => (
+                          <SittingEntry key={ev.key} entry={ev} tone={toneOf(ev)} onSelect={setSelected} />
+                        ))}
                       </Box>
                     </>
                   )}
@@ -331,15 +318,19 @@ export function LearnerTrainingCalendar() {
         </Card>
         ) : (
         <Box className="space-y-3">
-          {thisMonth.map((s) => {
+          {thisMonth.map((e) => {
+            const s = e.session;
+            const sit = e.sitting;
+            const mine = toneOf(e) === "mine";
             const typeCfg   = SESSION_TYPES[s.session_type] || SESSION_TYPES.ILT;
             const statusCfg = STATUS_CFG[displayOf(s)] || STATUS_CFG.upcoming;
             const attCfg    = s.attendance_status ? ATTENDANCE_CFG[s.attendance_status] : null;
+            const seats     = seatsText(sit);
             return (
               <Card
-                key={s.id}
-                className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => setSelected(s)}
+                key={e.key}
+                className={cn("p-4 hover:shadow-md transition-shadow cursor-pointer", toneOf(e) === "muted" && "opacity-75")}
+                onClick={() => setSelected(e)}
               >
                 <Box className="flex items-start justify-between gap-4 flex-wrap">
                   <Box className="flex-1 min-w-0 space-y-1.5">
@@ -349,12 +340,20 @@ export function LearnerTrainingCalendar() {
                       </Badge>
                       <Badge className={`text-[11px] font-medium ${statusCfg.cls}`}>{statusCfg.label}</Badge>
                       {attCfg && <Badge className={`text-[11px] font-medium ${attCfg.cls}`}>{attCfg.label}</Badge>}
+                      {mine && <Badge className="text-[11px] font-medium bg-accent-tint text-accent-blue border-accent-blue/40">Your batch</Badge>}
                     </Box>
                     <Text as="h3" className="text-[15px] font-bold leading-snug">{s.title}</Text>
+                    {sit.batch_id != null && (
+                      <Text as="p" className="text-xs font-medium text-ink">{sit.name}</Text>
+                    )}
                     <Box className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
-                      <Box className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{formatDate(s.date)}</Box>
-                      <Box className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{formatTime(s.start_time)} – {formatTime(s.end_time)}</Box>
-                      <Box className="flex items-center gap-1"><UserCircle className="h-3.5 w-3.5" />{s.trainer}</Box>
+                      <Box className="flex items-center gap-1">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        {formatDateRange(e.date, e.date)}{e.dayCount > 1 ? ` · Day ${e.dayNo} of ${e.dayCount}` : ""}
+                      </Box>
+                      <Box className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{formatTimeRange(sit.start_time, sit.end_time)}</Box>
+                      <Box className="flex items-center gap-1"><UserCircle className="h-3.5 w-3.5" />{sit.trainer_name || s.trainer}</Box>
+                      {seats && <Box className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{seats}</Box>}
                     </Box>
                     {s.course_name && (
                       <Box className="flex items-center gap-1 text-xs text-navy">
@@ -377,46 +376,70 @@ export function LearnerTrainingCalendar() {
         )
       )}
 
-      {/* ── Session detail dialog ── */}
+      {pending.length > 0 && (
+        <Text as="p" className="text-xs text-warning">
+          Date to be set:{" "}
+          {pending.map((p) => (p.sitting.batch_id != null ? `${p.session.title} (${p.sitting.name})` : p.session.title)).join(", ")}
+        </Text>
+      )}
+
+      {/* ── Sitting detail dialog ── */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         {selected && (() => {
-          const typeCfg   = SESSION_TYPES[selected.session_type] || SESSION_TYPES.ILT;
-          const statusCfg = STATUS_CFG[displayOf(selected)] || STATUS_CFG.upcoming;
-          const attCfg    = selected.attendance_status ? ATTENDANCE_CFG[selected.attendance_status] : null;
+          const { session: sess, sitting } = selected;
+          const typeCfg   = SESSION_TYPES[sess.session_type] || SESSION_TYPES.ILT;
+          const statusCfg = STATUS_CFG[displayOf(sess)] || STATUS_CFG.upcoming;
+          const attCfg    = sess.attendance_status ? ATTENDANCE_CFG[sess.attendance_status] : null;
+          const mine      = toneOf(selected) === "mine";
+          const multiDay  = sitting.end_date && sitting.end_date !== sitting.start_date;
           return (
             <DialogContent className="sm:max-w-sm">
               <DialogHeader>
-                <DialogTitle className="leading-snug pr-6">{selected.title}</DialogTitle>
+                <DialogTitle className="leading-snug pr-6">{sess.title}</DialogTitle>
               </DialogHeader>
               <Box className="space-y-3 pt-1">
                 <Box className="flex items-center gap-2 flex-wrap">
                   <Badge className={`text-xs border-0 ${typeCfg.chip.replace("border-l-2 ", "")}`}>{typeCfg.label}</Badge>
                   <Badge className={`text-xs ${statusCfg.cls}`}>{statusCfg.label}</Badge>
+                  {sitting.batch_id != null && (
+                    <Badge className="text-xs bg-paper-warm text-ink border-border">{sitting.name}</Badge>
+                  )}
+                  {mine && <Badge className="text-xs bg-accent-tint text-accent-blue border-accent-blue/40">Your batch</Badge>}
                   {attCfg && <Badge className={`text-xs ${attCfg.cls}`}>Your attendance: {attCfg.label}</Badge>}
                 </Box>
 
+                {sittingsOf(sess).length > 1 && !mine && (
+                  <Text as="p" className="text-xs text-muted-foreground">
+                    {sess.my_batch_id != null
+                      ? "This is another batch of your session. It is shown so you can see its availability."
+                      : "Your batch for this session is still to be confirmed."}
+                  </Text>
+                )}
+
                 {[
-                  { icon: CalendarDays, label: formatDate(selected.date) },
-                  { icon: Clock,        label: `${formatTime(selected.start_time)} – ${formatTime(selected.end_time)}` },
-                  { icon: UserCircle,   label: `Trainer: ${selected.trainer}` },
-                  { icon: selected.session_type === "Virtual" ? Video : MapPin, label: selected.venue_url },
-                ].map(({ icon: Icon, label }) => (
+                  { icon: CalendarDays, label: formatDateRange(sitting.start_date, sitting.end_date) },
+                  { icon: Clock,        label: `${formatTimeRange(sitting.start_time, sitting.end_time)}${multiDay ? " each day" : ""}` },
+                  { icon: UserCircle,   label: `Trainer: ${sitting.trainer_name || sess.trainer}` },
+                  { icon: Users,        label: seatsText(sitting) ? `Seats: ${seatsText(sitting)}` : "" },
+                  { icon: Users,        label: sitting.registered != null ? `Capacity ${sitting.capacity} · ${sitting.registered} registered · ${sitting.available ?? 0} available · ${sitting.waitlist ?? 0} waiting` : "" },
+                  { icon: sess.session_type === "Virtual" ? Video : MapPin, label: sess.venue_url },
+                ].filter((r) => r.label).map(({ icon: Icon, label }) => (
                   <Box key={label} className="flex items-start gap-2.5">
                     <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                     <Text as="span" className="text-sm break-all">{label}</Text>
                   </Box>
                 ))}
 
-                {selected.course_name && (
+                {sess.course_name && (
                   <Box className="flex items-start gap-2.5">
                     <BookOpen className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <Text as="span" className="text-sm">{selected.course_name}</Text>
+                    <Text as="span" className="text-sm">{sess.course_name}</Text>
                   </Box>
                 )}
 
-                {selected.description && (
+                {sess.description && (
                   <Text as="p" className="text-sm text-muted-foreground leading-relaxed border-t pt-3">
-                    {selected.description}
+                    {sess.description}
                   </Text>
                 )}
 
@@ -425,7 +448,7 @@ export function LearnerTrainingCalendar() {
                     present/late/partial for AND that are completed, so the
                     button is absent rather than present-and-refused. */}
                 {(() => {
-                  const fb = feedback[selected.id];
+                  const fb = feedback[sess.id];
                   if (!fb) return null;
                   return (
                     <Box className="border-t pt-3">
@@ -464,8 +487,8 @@ export function LearnerTrainingCalendar() {
 
                 {/* Being on the roster IS being assigned the training, so the
                     calendar entry leads to the same card My Courses shows. */}
-                {selected.training_course_id && (
-                  <Link href={`/my-courses/${selected.training_course_id}`} className="block pt-1">
+                {sess.training_course_id && (
+                  <Link href={`/my-courses/${sess.training_course_id}`} className="block pt-1">
                     <Button size="sm" className="w-full bg-navy hover:bg-navy-soft text-paper">
                       Open training
                     </Button>

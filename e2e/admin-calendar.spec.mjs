@@ -37,7 +37,7 @@ test('a scheduled session appears on its date in the admin Training Calendar', a
   const chip = page.getByText(title, { exact: true });
   await expect(chip).toBeVisible();
   // The cell it sits in is the session's date.
-  await expect(chip.locator('xpath=../..')).toHaveText(new RegExp(`^${date.getDate()}(?!\\d)`));
+  await expect(chip.locator('xpath=../../..')).toHaveText(new RegExp(`^${date.getDate()}(?!\\d)`));
 
   await chip.click();
   const dlg = page.getByRole('dialog');

@@ -28,7 +28,7 @@ test('a self-enrol virtual session runs from booking to attendance, completion a
   await dlg.locator('input[type="number"]').fill('5');
   await setSwitch(dlg.getByText('Open to self-enrolment').locator('xpath=../..').getByRole('switch'), true);
   await dlg.getByPlaceholder('Room name / Address — or paste Zoom/Teams/Meet URL').fill('https://meet.example.test/workshop');
-  await dlg.locator('input[type="date"]').fill(tomorrow());
+  await dlg.locator('#session-start-date').fill(tomorrow());
   await dlg.locator('input[type="time"]').nth(0).fill('10:00');
   await dlg.locator('input[type="time"]').nth(1).fill('11:30');
   await dlg.getByRole('button', { name: 'Create Session' }).click();

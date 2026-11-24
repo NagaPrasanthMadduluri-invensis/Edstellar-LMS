@@ -14,6 +14,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { SittingEntry } from "@/components/shared/sitting-entry";
+import {
+  calendarEntries, formatDateRange, formatTimeRange, pendingEntries, seatsText, sittingsOf,
+} from "@/lib/sittings";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -54,20 +58,6 @@ function statusOf(s) {
   return s?.display_status || s?.status || "upcoming";
 }
 
-function formatDate(iso) {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
-    day: "numeric", month: "short", year: "numeric",
-  });
-}
-
-function formatTime(t) {
-  if (!t) return "";
-  const [h, min] = t.split(":").map(Number);
-  return `${h % 12 || 12}:${String(min).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
-}
-
 /** Monday-first, which is how a working week is read here. */
 function mondayFirst(jsDay) {
   return (jsDay + 6) % 7;
@@ -89,21 +79,15 @@ export function TrainerTrainingCalendar() {
       .catch((e) => setError(e.message));
   }, []);
 
-  const dated = useMemo(
-    () =>
-      (sessions || [])
-        .filter((s) => s.date)
-        .map((s) => {
-          const [y, m, d] = s.date.split("-").map(Number);
-          return { ...s, _y: y, _m: m - 1, _d: d };
-        }),
-    [sessions],
-  );
+  /* One entry per DAY of every sitting (a batch is a sitting), so a
+     multi-day batch sits on each of its days and two batches on one day are
+     two entries. */
+  const entries = useMemo(() => calendarEntries(sessions), [sessions]);
 
   const { year, month } = view;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const leading = mondayFirst(new Date(year, month, 1).getDay());
-  const monthSessions = dated.filter((s) => s._y === year && s._m === month);
+  const monthSessions = entries.filter((e) => e.y === year && e.m === month);
 
   const cells = Array.from(
     { length: Math.ceil((leading + daysInMonth) / 7) * 7 },
@@ -160,8 +144,9 @@ export function TrainerTrainingCalendar() {
   }
 
   /* Counted from the rows already on screen, never a second request. */
-  const upcoming = dated.filter((s) => statusOf(s) === "upcoming").length;
-  const undated = (sessions || []).filter((s) => !s.date).length;
+  const upcoming = (sessions || []).filter((s) => statusOf(s) === "upcoming").length;
+  const pending = pendingEntries(sessions);
+  const undated = pending.length;
 
   return (
     <Box className="space-y-4">
@@ -174,7 +159,7 @@ export function TrainerTrainingCalendar() {
           <Text as="p" className="mt-0.5 text-[11.5px] text-text-2">
             {monthSessions.length === 0
               ? "Nothing this month"
-              : `${monthSessions.length} this month`}
+              : `${monthSessions.length} sitting day${monthSessions.length === 1 ? "" : "s"} this month`}
             {" · "}
             {sessions.length} assigned to you
             {upcoming > 0 ? ` · ${upcoming} upcoming` : ""}
@@ -221,7 +206,7 @@ export function TrainerTrainingCalendar() {
 
         <Box className="grid min-w-[46rem] grid-cols-7">
           {cells.map((day, i) => {
-            const events = day ? monthSessions.filter((s) => s._d === day) : [];
+            const events = day ? monthSessions.filter((e) => e.d === day) : [];
             return (
               <Box
                 key={i}
@@ -247,23 +232,9 @@ export function TrainerTrainingCalendar() {
                       {isToday(day) && " · Today"}
                     </Text>
                     <Box className="space-y-1">
-                      {events.map((ev) => {
-                        const cfg = STATUS[statusOf(ev)] || STATUS.upcoming;
-                        return (
-                          <button
-                            key={ev.id}
-                            type="button"
-                            onClick={() => setSelected(ev)}
-                            title={`${ev.title} — ${formatTime(ev.start_time)}`}
-                            className="flex w-full cursor-pointer items-center gap-1 border-l-2 border-accent-blue bg-surface-2 px-1.5 py-1 text-left transition-colors hover:bg-accent-tint"
-                          >
-                            <Box className={cn("size-1.5 shrink-0", cfg.dot)} />
-                            <Text as="span" className="truncate text-[10.5px] font-medium text-ink">
-                              {ev.title}
-                            </Text>
-                          </button>
-                        );
-                      })}
+                      {events.map((ev) => (
+                        <SittingEntry key={ev.key} entry={ev} onSelect={setSelected} />
+                      ))}
                     </Box>
                   </>
                 )}
@@ -277,9 +248,9 @@ export function TrainerTrainingCalendar() {
           leaving it off is how a trainer misses work. Named, not hidden. */}
       {undated > 0 && (
         <Text as="p" className="text-[11px] text-warning">
-          {undated} session{undated === 1 ? " has" : "s have"} no date set and
-          cannot be shown on the grid. {undated === 1 ? "It is" : "They are"}{" "}
-          listed under My Sessions.
+          Date to be set for {undated} sitting{undated === 1 ? "" : "s"}:{" "}
+          {pending.map((p) => (p.sitting.batch_id != null ? `${p.session.title} (${p.sitting.name})` : p.session.title)).join(", ")}.
+          {" "}Pending sittings cannot be shown on the grid and are listed under My Sessions.
         </Text>
       )}
 
@@ -293,62 +264,79 @@ export function TrainerTrainingCalendar() {
         ))}
       </Box>
 
-      {/* ── Day detail ── */}
+      {/* ── Sitting detail ── */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="max-w-md">
-          {selected && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-[15px]">{selected.title}</DialogTitle>
-              </DialogHeader>
+          {selected && (() => {
+            const { session, sitting } = selected;
+            const range = formatTimeRange(sitting.start_time, sitting.end_time);
+            const multi = sittingsOf(session).length > 1;
+            const multiDay = sitting.end_date && sitting.end_date !== sitting.start_date;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-[15px]">{session.title}</DialogTitle>
+                </DialogHeader>
 
-              <Box className="space-y-3">
-                <Box className="flex flex-wrap items-center gap-1.5">
-                  <Text as="span" className={cn("text-[11px]", (STATUS[statusOf(selected)] || STATUS.upcoming).chip)}>
-                    {(STATUS[statusOf(selected)] || STATUS.upcoming).label}
-                  </Text>
-                  {selected.course_name && (
-                    <Text as="span" className="border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] text-text-2">
-                      {selected.course_name}
+                <Box className="space-y-3">
+                  <Box className="flex flex-wrap items-center gap-1.5">
+                    <Text as="span" className={cn("text-[11px]", (STATUS[statusOf(session)] || STATUS.upcoming).chip)}>
+                      {(STATUS[statusOf(session)] || STATUS.upcoming).label}
+                    </Text>
+                    {sitting.batch_id != null && (
+                      <Text as="span" className="border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-ink">
+                        {sitting.name}
+                      </Text>
+                    )}
+                    {session.course_name && (
+                      <Text as="span" className="border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] text-text-2">
+                        {session.course_name}
+                      </Text>
+                    )}
+                  </Box>
+
+                  <Box className="space-y-1.5 border border-line bg-surface-2 p-3">
+                    <Detail icon={CalendarDays} label={formatDateRange(sitting.start_date, sitting.end_date)} />
+                    {range && <Detail icon={Clock} label={`${range} IST${multiDay ? ", each day" : ""}`} />}
+                    <Detail
+                      icon={session.session_type === "Virtual" ? Video : MapPin}
+                      label={session.venue_url || "No venue recorded"}
+                    />
+                    <Detail
+                      icon={Users}
+                      label={seatsText(sitting) || `${session.roster_count ?? 0} of ${session.capacity} registered`}
+                    />
+                    <Detail
+                      icon={Users}
+                      label={`Capacity ${sitting.capacity} · ${sitting.registered ?? session.roster_count ?? 0} registered · ${sitting.available ?? 0} available · ${sitting.waitlist ?? 0} waiting`}
+                    />
+                  </Box>
+                  {multi && (
+                    <Text as="p" className="text-[11px] text-text-2">
+                      This session runs in several batches, each with its own dates and seats.
                     </Text>
                   )}
+
+                  {/* The one thing the trainer might still owe on this session. */}
+                  {statusOf(session) !== "cancelled" &&
+                    Number(session.roster_count) > 0 &&
+                    Number(session.attendance_marked_count ?? 0) === 0 && (
+                      <Text as="p" className="text-[11.5px] text-warning">
+                        Attendance is not marked. Until it is, nobody on this
+                        roster has been credited for the training.
+                      </Text>
+                    )}
+
+                  <Link
+                    href={`/trainer/sessions/${session.public_id ?? session.id}`}
+                    className="inline-flex cursor-pointer items-center gap-1 border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-accent-blue transition-colors hover:bg-accent-blue hover:text-white"
+                  >
+                    Open session <Arrow className="size-3.5" />
+                  </Link>
                 </Box>
-
-                <Box className="space-y-1.5 border border-line bg-surface-2 p-3">
-                  <Detail icon={CalendarDays} label={formatDate(selected.date)} />
-                  <Detail
-                    icon={Clock}
-                    label={`${formatTime(selected.start_time)} – ${formatTime(selected.end_time)} IST`}
-                  />
-                  <Detail
-                    icon={selected.session_type === "Virtual" ? Video : MapPin}
-                    label={selected.venue_url || "No venue recorded"}
-                  />
-                  <Detail
-                    icon={Users}
-                    label={`${selected.roster_count ?? 0} of ${selected.capacity} registered`}
-                  />
-                </Box>
-
-                {/* The one thing the trainer might still owe on this session. */}
-                {statusOf(selected) !== "cancelled" &&
-                  Number(selected.roster_count) > 0 &&
-                  Number(selected.attendance_marked_count ?? 0) === 0 && (
-                    <Text as="p" className="text-[11.5px] text-warning">
-                      Attendance is not marked. Until it is, nobody on this
-                      roster has been credited for the training.
-                    </Text>
-                  )}
-
-                <Link
-                  href={`/trainer/sessions/${selected.public_id ?? selected.id}`}
-                  className="inline-flex cursor-pointer items-center gap-1 border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-accent-blue transition-colors hover:bg-accent-blue hover:text-white"
-                >
-                  Open session <Arrow className="size-3.5" />
-                </Link>
-              </Box>
-            </>
-          )}
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </Box>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  CalendarCheck, CalendarDays, CheckCircle2, Clock, MapPin,
+  CalendarCheck, CalendarDays, CheckCircle2, Clock, Layers, MapPin,
   MessageSquare, TrendingUp, UserCircle, Video,
 } from "lucide-react";
 
@@ -19,6 +19,7 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
 import { SESSION_TYPE_LABEL } from "@/lib/session-types";
 import { cn } from "@/lib/utils";
+import { formatDateRange, formatTimeRange, isMyBatch, sittingsOf } from "@/lib/sittings";
 
 /**
  * My Sessions — every live and in-person session this learner is booked on,
@@ -57,21 +58,6 @@ const ATTENDANCE = {
   excused: { label: "Excused", chip: "chip chip-idle", credited: false },
 };
 
-function formatDate(iso) {
-  if (!iso) return "Date to be confirmed";
-  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
-  if (!y || !m || !d) return "Date to be confirmed";
-  return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
-    day: "numeric", month: "short", year: "numeric",
-  });
-}
-
-function formatTime(t) {
-  if (!t) return "";
-  const [h, min] = String(t).split(":").map(Number);
-  return `${h % 12 || 12}:${String(min || 0).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
-}
-
 /** Duration from start/end, as the reference shows beside the time. */
 function duration(start, end) {
   if (!start || !end) return "";
@@ -104,7 +90,14 @@ function SessionCard({ session: s, mode, eligible, onGiveFeedback }) {
   const att = ATTENDANCE[s.attendance_status] ?? null;
   const isVirtual = s.session_type !== "ILT";
   const isLink = typeof s.venue_url === "string" && s.venue_url.startsWith("http");
-  const dur = duration(s.start_time, s.end_time);
+  /* The learner's own sitting: their batch when the session has batches, or
+     the one sitting when it has none. A batched session they are not yet placed
+     in has no sitting of theirs, and says so rather than naming someone else's. */
+  const sittings = sittingsOf(s);
+  const batched = sittings.some((x) => x.batch_id !== null);
+  const mine = batched ? sittings.find((x) => isMyBatch(s, x)) ?? null : sittings[0] ?? null;
+  const dur = mine ? duration(mine.start_time, mine.end_time) : "";
+  const multiDay = mine && mine.end_date && mine.end_date !== mine.start_date;
 
   return (
     <Card className="flex flex-col gap-0 overflow-hidden p-0">
@@ -146,10 +139,15 @@ function SessionCard({ session: s, mode, eligible, onGiveFeedback }) {
 
         <Box className="flex-1 space-y-1">
           {s.trainer && <Row icon={UserCircle} text={s.trainer} />}
-          <Row
-            icon={CalendarDays}
-            text={`${formatDate(s.date)}${s.start_time ? ` · ${formatTime(s.start_time)}–${formatTime(s.end_time)}` : ""}${dur ? ` · ${dur}` : ""}`}
-          />
+          {batched && mine && <Row icon={Layers} text={mine.name} />}
+          {batched && !mine ? (
+            <Row icon={CalendarDays} text="Batch to be confirmed" />
+          ) : (
+            <Row
+              icon={CalendarDays}
+              text={`${formatDateRange(mine?.start_date, mine?.end_date)}${mine?.start_time ? ` · ${formatTimeRange(mine.start_time, mine.end_time)}${multiDay ? " each day" : ""}` : ""}${dur && !multiDay ? ` · ${dur}` : ""}`}
+            />
+          )}
           <Row
             icon={isVirtual ? Video : MapPin}
             text={s.venue_url || "Venue to be confirmed"}

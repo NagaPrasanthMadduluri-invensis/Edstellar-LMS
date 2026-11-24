@@ -23,6 +23,9 @@ import { ApiError } from "@/lib/api-client";
 import { categoryColor, categoryTint } from "@/lib/course-taxonomy";
 import { sessionTypeLabel } from "@/lib/session-types";
 import {
+  formatDateRange, formatTimeRange, isBookable, seatsText, sittingsOf,
+} from "@/lib/sittings";
+import {
   enrolInCourse,
   enrolInSession,
   fetchCatalogue,
@@ -255,11 +258,11 @@ export function CourseCatalogueContent() {
               key={`s${s.id}`}
               session={s}
               busy={busyId === `s${s.id}`}
-              onEnrol={() =>
-                act(`s${s.id}`, () => enrolInSession(s.id), (r) =>
+              onEnrol={(batchId = null) =>
+                act(`s${s.id}`, () => enrolInSession(s.id, batchId), (r) =>
                   r.state === "waitlisted"
                     ? `You are number ${r.position} on the waitlist for "${s.title}". You will be enrolled if a place frees up.`
-                    : `Your place on "${s.title}" is booked — it is in My Sessions.`,
+                    : `Your place on "${s.title}" is booked, it is in My Sessions.`,
                 )
               }
               onLeave={() =>
@@ -377,7 +380,7 @@ function CourseCard({ course, busy, onEnrol }) {
             </Button>
           </Link>
         ) : (
-          <Button size="sm" className="w-full cursor-pointer text-xs" disabled={busy} onClick={onEnrol}>
+          <Button size="sm" className="w-full cursor-pointer text-xs" disabled={busy} onClick={() => onEnrol()}>
             <Plus className="mr-1.5 size-3.5" />
             {busy ? "Adding…" : "Add to my learning"}
           </Button>
@@ -392,6 +395,9 @@ function CourseCard({ course, busy, onEnrol }) {
 function SessionCard({ session, busy, onEnrol, onLeave }) {
   const tone = SESSION_TONE[session.session_type] ?? SESSION_TONE.ILT;
   const ToneIcon = tone.icon;
+  const sittings = sittingsOf(session);
+  const batched = sittings.some((x) => x.batch_id !== null);
+  const openSittings = sittings.filter(isBookable);
 
   return (
     <Box className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow)] transition-transform hover:-translate-y-0.5">
@@ -415,7 +421,9 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
         <Box className="mt-2 space-y-1 text-[11px] text-text-2">
           <Text as="p" className="flex items-center gap-1.5">
             <CalendarDays className="size-3.5 shrink-0 text-text-3" />
-            {formatDate(session.date)} · {session.start_time}–{session.end_time}
+            {batched
+              ? `${openSittings.length} batch${openSittings.length === 1 ? "" : "es"} open`
+              : `${formatDate(session.date)} · ${session.start_time}–${session.end_time}`}
           </Text>
           <Text as="p" className="flex items-center gap-1.5">
             <ToneIcon className="size-3.5 shrink-0 text-text-3" />
@@ -433,7 +441,9 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
       </Box>
 
       <Box className="space-y-1.5 border-t border-line p-3 pt-2.5">
-        {session.is_enrolled ? (
+        {batched ? (
+          <BatchPicker session={session} sittings={sittings} busy={busy} onEnrol={onEnrol} onLeave={onLeave} />
+        ) : session.is_enrolled ? (
           <>
             <Link href="/my-sessions" className="block">
               <Button variant="outline" size="sm" className="w-full cursor-pointer text-xs">
@@ -462,7 +472,7 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
           </>
         ) : session.is_full ? (
           <>
-            <Button size="sm" variant="outline" disabled={busy} onClick={onEnrol}
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => onEnrol()}
               className="w-full cursor-pointer border-warning/50 text-xs text-warning hover:bg-warning hover:text-white">
               <Hourglass className="mr-1.5 size-3.5" />
               {busy ? "Joining…" : "Join the waitlist"}
@@ -472,12 +482,109 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
             </Text>
           </>
         ) : (
-          <Button size="sm" className="w-full cursor-pointer text-xs" disabled={busy} onClick={onEnrol}>
+          <Button size="sm" className="w-full cursor-pointer text-xs" disabled={busy} onClick={() => onEnrol()}>
             <CalendarDays className="mr-1.5 size-3.5" />
             {busy ? "Booking…" : "Book my place"}
           </Button>
         )}
       </Box>
+    </Box>
+  );
+}
+
+/**
+ * The batch picker for a session that runs in batches. Every row is one
+ * sitting the server derived, and `is_full` / seats come from it, so the row
+ * cannot disagree with what Book will do. A full batch offers ITS waitlist.
+ */
+function BatchPicker({ session, sittings, busy, onEnrol, onLeave }) {
+  const myBatch = session.my_batch_id ?? null;
+  const waitBatch = session.waitlist_batch_id ?? null;
+  const placed = session.is_enrolled || session.is_waitlisted || myBatch != null || waitBatch != null;
+  const rows = sittings.filter(
+    (x) => x.batch_id !== null
+      && (isBookable(x) || x.batch_id === myBatch || x.batch_id === waitBatch),
+  );
+
+  if (rows.length === 0) {
+    return (
+      <Text as="p" className="text-center text-[11px] text-text-3">
+        No batch is open for booking yet.
+      </Text>
+    );
+  }
+
+  return (
+    <Box className="space-y-2">
+      <Text as="p" className="font-mono text-[10px] font-semibold uppercase tracking-wide text-text-3">
+        Choose a batch
+      </Text>
+      {rows.map((x) => {
+        const mine = myBatch != null && x.batch_id === myBatch;
+        const waiting = waitBatch != null && x.batch_id === waitBatch;
+        const range = formatTimeRange(x.start_time, x.end_time);
+        return (
+          <Box
+            key={x.batch_id}
+            className={cn(
+              "space-y-1.5 rounded-lg border p-2.5",
+              mine ? "border-accent-blue bg-accent-tint" : "border-line bg-surface-2",
+            )}
+          >
+            <Box className="flex items-start justify-between gap-2">
+              <Text as="span" className="text-[12.5px] font-bold text-ink">{x.name}</Text>
+              {mine && (
+                <Text as="span" className="shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-wide text-accent-blue">
+                  Your batch
+                </Text>
+              )}
+            </Box>
+            <Text as="p" className="text-[11px] text-text-2">
+              {formatDateRange(x.start_date, x.end_date)}{range ? ` · ${range}${x.end_date && x.end_date !== x.start_date ? " each day" : ""}` : ""}
+            </Text>
+            <Text as="p" className={cn("text-[11px] font-semibold", x.is_full ? "text-warning" : "text-text-2")}>
+              {seatsText(x)}
+            </Text>
+            {waiting && (
+              <Box className="flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/12 px-2 py-1.5">
+                <Hourglass className="size-3.5 text-warning" />
+                <Text as="span" className="text-[11.5px] font-semibold text-warning">
+                  On the waitlist{session.waitlist_position ? ` (#${session.waitlist_position})` : ""}
+                </Text>
+              </Box>
+            )}
+            {!placed && isBookable(x) && (
+              x.is_full ? (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => onEnrol(x.batch_id)}
+                  className="w-full cursor-pointer border-warning/50 text-xs text-warning hover:bg-warning hover:text-white">
+                  <Hourglass className="mr-1.5 size-3.5" />
+                  {busy ? "Joining…" : "Join waitlist"}
+                </Button>
+              ) : (
+                <Button size="sm" disabled={busy} onClick={() => onEnrol(x.batch_id)} className="w-full cursor-pointer text-xs">
+                  <CalendarDays className="mr-1.5 size-3.5" />
+                  {busy ? "Booking…" : "Book this batch"}
+                </Button>
+              )
+            )}
+          </Box>
+        );
+      })}
+      {(session.is_enrolled || myBatch != null) && (
+        <Link href="/my-sessions" className="block">
+          <Button variant="outline" size="sm" className="w-full cursor-pointer text-xs">
+            <CheckCircle2 className="mr-1.5 size-3.5 text-success" />
+            Booked, see My Sessions
+            <ArrowRight className="ml-1.5 size-3.5" />
+          </Button>
+        </Link>
+      )}
+      {placed && (
+        <button type="button" onClick={onLeave} disabled={busy}
+          className="w-full cursor-pointer text-[11px] text-text-3 underline-offset-2 hover:text-danger hover:underline disabled:cursor-not-allowed">
+          {busy ? "Working…" : session.is_enrolled || myBatch != null ? "Give up my place" : "Leave the waitlist"}
+        </button>
+      )}
     </Box>
   );
 }
