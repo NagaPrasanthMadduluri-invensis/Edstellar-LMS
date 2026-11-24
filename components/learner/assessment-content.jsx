@@ -29,6 +29,8 @@ import {
   submitAssessmentAttempt,
   fetchAssessmentAttempts,
 } from "@/services/api/learner/learner-api";
+import { apiClient } from "@/lib/api-client";
+import { courseBasePath, previewEndpoints } from "@/lib/course-preview";
 
 /**
  * The answer a person has given, by question type. Kept in one map keyed by
@@ -195,7 +197,7 @@ function LoadingSkeleton() {
   );
 }
 
-function ResultView({ result, assessment, questions, optionMap, onRetake, courseId }) {
+function ResultView({ result, assessment, questions, optionMap, onRetake, courseId, preview = false }) {
   const router = useRouter();
   const passed = result.is_passed;
 
@@ -239,7 +241,7 @@ function ResultView({ result, assessment, questions, optionMap, onRetake, course
           </Box>
 
           <Box className="flex items-center justify-center gap-3 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => router.push(`/my-courses/${courseId}`)}>
+            <Button variant="outline" size="sm" onClick={() => router.push(courseBasePath(courseId, preview))}>
               <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
               Back to Course
             </Button>
@@ -325,7 +327,7 @@ function ResultView({ result, assessment, questions, optionMap, onRetake, course
               Re-watch the course videos to strengthen your understanding, then retake the assessment to improve your score.
             </Text>
             <Box className="flex items-center gap-3 mt-2 flex-wrap justify-center">
-              <Button variant="outline" size="sm" onClick={() => router.push(`/my-courses/${courseId}`)}>
+              <Button variant="outline" size="sm" onClick={() => router.push(courseBasePath(courseId, preview))}>
                 <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
                 Back to Course
               </Button>
@@ -345,7 +347,12 @@ function ResultView({ result, assessment, questions, optionMap, onRetake, course
   );
 }
 
-export function AssessmentContent({ courseId, assessmentId }) {
+/**
+ * `preview` is the admin audit mode: the assessment is read from the admin
+ * preview endpoint and graded by the preview-attempt route, which stores
+ * nothing, so there is no attempt history either.
+ */
+export function AssessmentContent({ courseId, assessmentId, preview = false }) {
   const { user } = useAuth();
   const router = useRouter();
   const [data, setData] = useState(null);
@@ -362,7 +369,9 @@ export function AssessmentContent({ courseId, assessmentId }) {
     setResult(null);
     setAnswers({});
     setError(null);
-    fetchAssessment({ assessmentId })
+    (preview
+      ? apiClient(previewEndpoints.assessment(assessmentId))
+      : fetchAssessment({ assessmentId }))
       .then((d) => {
         setData(d);
         const map = {};
@@ -370,12 +379,16 @@ export function AssessmentContent({ courseId, assessmentId }) {
         setOptionMap(map);
       })
       .catch((e) => setError(e.message));
-    fetchAssessmentAttempts({ assessmentId })
-      .then((d) => setAttempts(d.attempts || []))
-      .catch(() => {});
+    if (preview) {
+      setAttempts([]);
+    } else {
+      fetchAssessmentAttempts({ assessmentId })
+        .then((d) => setAttempts(d.attempts || []))
+        .catch(() => {});
+    }
   };
 
-  useEffect(() => { loadData(); }, [user, user, assessmentId]);
+  useEffect(() => { loadData(); }, [user, user, assessmentId, preview]);
 
   const handleSubmit = async () => {
     const unanswered = data.questions.filter((q) => !isAnswered(q, answers[q.id]));
@@ -387,9 +400,15 @@ export function AssessmentContent({ courseId, assessmentId }) {
     setSubmitting(true);
     try {
       const answerList = data.questions.map((q) => toAnswer(q, answers[q.id]));
-      const res = await submitAssessmentAttempt({ assessmentId, answers: answerList });
+      const res = preview
+        ? await apiClient(previewEndpoints.assessmentAttempt(assessmentId), {
+            method: "POST",
+            body: { answers: answerList },
+          })
+        : await submitAssessmentAttempt({ assessmentId, answers: answerList });
       setResult(res.result);
-      setAttempts((prev) => [{ id: Date.now(), percentage: res.result.percentage, is_passed: res.result.is_passed, submitted_at: new Date().toISOString() }, ...prev]);
+      // Preview stores no attempt, so there is no history row to add.
+      if (!preview) setAttempts((prev) => [{ id: Date.now(), percentage: res.result.percentage, is_passed: res.result.is_passed, submitted_at: new Date().toISOString() }, ...prev]);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -403,7 +422,7 @@ export function AssessmentContent({ courseId, assessmentId }) {
     return (
       <Card className="p-8 text-center">
         <Text as="p" className="text-error text-sm">{error}</Text>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => router.push(`/my-courses/${courseId}`)}>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => router.push(courseBasePath(courseId, preview))}>
           Back to Course
         </Button>
       </Card>
@@ -419,6 +438,7 @@ export function AssessmentContent({ courseId, assessmentId }) {
         optionMap={optionMap}
         onRetake={loadData}
         courseId={courseId}
+        preview={preview}
       />
     );
   }
@@ -431,7 +451,7 @@ export function AssessmentContent({ courseId, assessmentId }) {
       {/* ── Back ── sticky so it stays reachable instead of scrolling away
           under the top bar on a long assessment. */}
       <Box className="sticky top-0 z-30 -mx-4 -mt-4 mb-1 flex border-b border-line/60 glass px-4 py-2 sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push(`/my-courses/${courseId}`)} className="w-fit">
+        <Button variant="ghost" size="sm" onClick={() => router.push(courseBasePath(courseId, preview))} className="w-fit">
           <ArrowLeft className="h-4 w-4 mr-1.5" />
           Back to Course
         </Button>

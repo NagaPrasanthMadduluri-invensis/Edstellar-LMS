@@ -1,7 +1,7 @@
 "use client";
 
 import { apiClient, SERVER_URL } from "@/lib/api-client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import { fetchLessonContent, markLessonComplete } from "@/services/api/learner/l
 import { YoutubePlayer, isYouTubeUrl, extractYouTubeId } from "@/components/learner/youtube-player";
 import { LocalVideoPlayer, isVideoFile } from "@/components/learner/local-video-player";
 import { LessonPlaylist } from "@/components/learner/lesson-playlist";
+import { courseBasePath, lessonPath, previewEndpoints } from "@/lib/course-preview";
 import { ScormPlayerClient } from "@/components/scorm/scorm-player-client";
 import { toEmbedUrl } from "@/lib/video-embed";
 
@@ -319,7 +320,7 @@ function DocumentLessonView({ lesson, media }) {
  * resource costs nothing. A linked one already has its URL and opens straight
  * away.
  */
-function LessonResources({ resources }) {
+function LessonResources({ resources, preview = false }) {
   const [opening, setOpening] = useState(null);
   const [error, setError] = useState(null);
 
@@ -333,7 +334,9 @@ function LessonResources({ resources }) {
     setError(null);
     setOpening(resource.id);
     try {
-      const { url } = await apiClient(`/api/learner/resources/${resource.id}/url`);
+      const { url } = await apiClient(
+        preview ? previewEndpoints.resourceUrl(resource.id) : `/api/learner/resources/${resource.id}/url`,
+      );
       if (url) window.open(url, "_blank", "noopener,noreferrer");
       else setError("That resource could not be opened.");
     } catch (e) {
@@ -442,7 +445,7 @@ function parseScormTime(t) {
   return out.join(" ") || null;
 }
 
-function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onStatusRefresh }) {
+function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onStatusRefresh, preview = false }) {
   const router = useRouter();
   const { user } = useAuth();
   const [tracking, setTracking] = useState(undefined);
@@ -453,13 +456,15 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
 
   const loadTracking = useCallback(async () => {
     if (!user || !lesson.scorm_package_id) return;
+    // Preview records nothing, so there is no learner tracking to read.
+    if (preview) { setTracking(null); return; }
     try {
       const d = await apiClient(`/api/learner/scorm/${lesson.scorm_package_id}/tracking`);
       setTracking(d.tracking ?? null);
     } catch {
       setTracking(null);
     }
-  }, [user, lesson.scorm_package_id]);
+  }, [user, lesson.scorm_package_id, preview]);
 
   useEffect(() => { if (user) loadTracking(); }, [user, loadTracking]);
 
@@ -483,7 +488,10 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
 
   // Launch by the package's PUBLIC uuid, not the sequential id (0046); fall
   // back to the integer id only for an older payload without it.
-  const playerId = lesson.scorm_package_public_id ?? lesson.scorm_package_id;
+  // Preview reads the admin endpoint, which takes the INTEGER package id.
+  const playerId = preview
+    ? lesson.scorm_package_id
+    : lesson.scorm_package_public_id ?? lesson.scorm_package_id;
 
   /*
    * Opening the player just mounts it INLINE (see `playing` below) — no popup,
@@ -510,11 +518,12 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
           courseId={courseId}
           nextLessonId={nextLessonId}
           embedded
+          preview={preview}
           onExit={closePlayer}
           onNextLesson={() =>
             nextLessonId
-              ? router.push(`/my-courses/${courseId}/lessons/${nextLessonId}`)
-              : router.push(`/my-courses/${courseId}`)
+              ? router.push(lessonPath(courseId, nextLessonId, preview))
+              : router.push(courseBasePath(courseId, preview))
           }
         />
       </Card>
@@ -592,7 +601,9 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
               {isCompleted ? "Course completed." : "Ready to start?"}
             </Text>
             <Text as="p" className="text-xs text-muted-foreground mt-0.5">
-              The course opens right here. Your place is saved if you exit partway.
+              {preview
+                ? "The course opens right here. Nothing is saved in preview."
+                : "The course opens right here. Your place is saved if you exit partway."}
             </Text>
           </Box>
           {/*
@@ -601,15 +612,15 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
             Course". Review stays available as a secondary action so a learner
             can still re-open the package.
           */}
-          {isCompleted ? (
+          {isCompleted || preview ? (
             <Box className="flex items-center gap-2 shrink-0 flex-wrap">
               <Button variant="outline" onClick={openPlayer}>
                 <PlayCircle className="h-4 w-4 mr-1.5" />
-                Review course
+                {preview ? "Launch course" : "Review course"}
               </Button>
               {nextLessonId ? (
                 <Button
-                  onClick={() => router.push(`/my-courses/${courseId}/lessons/${nextLessonId}`)}
+                  onClick={() => router.push(lessonPath(courseId, nextLessonId, preview))}
                   className="bg-navy hover:bg-navy-soft text-paper"
                 >
                   Next Lesson
@@ -617,7 +628,7 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
                 </Button>
               ) : (
                 <Button
-                  onClick={() => router.push(`/my-courses/${courseId}`)}
+                  onClick={() => router.push(courseBasePath(courseId, preview))}
                   className="bg-navy hover:bg-navy-soft text-paper"
                 >
                   Back to course
@@ -636,7 +647,12 @@ function ScormLessonView({ lesson, courseId, nextLessonId, progressStatus, onSta
   );
 }
 
-export function LessonContent({ courseId, lessonId }) {
+/**
+ * `preview` is the admin audit mode: the lesson, media and resources are read
+ * from the admin preview endpoints, links stay under the preview route, and
+ * nothing is written (no completion, no watch progress, no SCORM tracking).
+ */
+export function LessonContent({ courseId, lessonId, preview = false }) {
   const { user } = useAuth();
   const router = useRouter();
   const [data, setData] = useState(null);
@@ -655,6 +671,9 @@ export function LessonContent({ courseId, lessonId }) {
   // keeps the resume point at 0 for the rest of this lesson view.
   const [playNonce, setPlayNonce] = useState(0);
   const [replayed, setReplayed] = useState(false);
+  // The integer lesson id the admin media route needs, kept in a ref so
+  // `loadMedia` stays stable and a learner's media fetch is unchanged.
+  const lessonIntId = useRef(null);
 
   /**
    * Fetches a fresh signed URL pair. Also handed to the player as `onRefresh`
@@ -663,33 +682,43 @@ export function LessonContent({ courseId, lessonId }) {
   /** Fire-and-forget: a lost progress ping is re-sent by the next one. */
   const reportProgress = useCallback(
     (payload) => {
+      if (preview) return;
       apiClient(`/api/learner/lessons/${lessonId}/video-progress`, {
         method: "POST",
         body: payload,
       }).catch(() => {});
     },
-    [lessonId],
+    [lessonId, preview],
   );
 
+  lessonIntId.current = data?.lesson?.id ?? null;
+
   const loadMedia = useCallback(async () => {
-    const res = await apiClient(`/api/learner/lessons/${lessonId}/media`);
+    // The admin media route takes the INTEGER lesson id, not the public one.
+    const res = await apiClient(
+      preview
+        ? previewEndpoints.media(lessonIntId.current)
+        : `/api/learner/lessons/${lessonId}/media`,
+    );
     // The same endpoint serves both: a video URL for a video lesson, a document
     // URL for a document one. Null only when it carries neither, which is what
     // the players and the document view read as "nothing to show".
     setMedia(res.videoUrl || res.documentUrl ? res : null);
     return res;
-  }, [lessonId]);
+  }, [lessonId, preview]);
 
   const loadLesson = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetchLessonContent({ lessonId });
+      const res = preview
+        ? await apiClient(previewEndpoints.lesson(lessonId))
+        : await fetchLessonContent({ lessonId });
       setData(res);
       setStatus(res.progress_status);
     } catch (e) {
       setError(e.message);
     }
-  }, [user, user, lessonId]);
+  }, [user, user, lessonId, preview]);
 
   useEffect(() => { loadLesson(); }, [loadLesson]);
   // A new lesson resets everything the player/overlay track.
@@ -699,7 +728,10 @@ export function LessonContent({ courseId, lessonId }) {
     setCountdown(null);
     setReplayed(false);
     setPlayNonce(0);
-  }, [lessonId]);
+    // Preview signs media by the integer id inside `data`, so drop the previous
+    // lesson's data rather than let a stale id be signed for the new lesson.
+    if (preview) setData(null);
+  }, [lessonId, preview]);
 
   // Autoplay preference, remembered per browser.
   useEffect(() => {
@@ -724,12 +756,15 @@ export function LessonContent({ courseId, lessonId }) {
   const handleMarkComplete = async () => {
     setCompleting(true);
     try {
-      await markLessonComplete({ lessonId });
-      setStatus("completed");
+      // Preview never records a completion: it only moves on.
+      if (!preview) {
+        await markLessonComplete({ lessonId });
+        setStatus("completed");
+      }
       if (data?.next_lesson_id) {
-        router.push(`/my-courses/${courseId}/lessons/${data.next_lesson_id}`);
+        router.push(lessonPath(courseId, data.next_lesson_id, preview));
       } else {
-        router.push(`/my-courses/${courseId}`);
+        router.push(courseBasePath(courseId, preview));
       }
     } catch (e) {
       setError(e.message);
@@ -738,17 +773,17 @@ export function LessonContent({ courseId, lessonId }) {
     }
   };
 
-  const goToLesson = (id) => router.push(`/my-courses/${courseId}/lessons/${id}`);
+  const goToLesson = (id) => router.push(lessonPath(courseId, id, preview));
 
   // Continue to the next lesson from the end card / Next button. If the lesson
   // is already complete, just navigate; otherwise complete it first (which also
   // unlocks the next), exactly like the footer's Save-and-move button.
   const continueNext = () => {
     if (!data?.next_lesson_id) {
-      router.push(`/my-courses/${courseId}`);
+      router.push(courseBasePath(courseId, preview));
       return;
     }
-    if (status === "completed") goToLesson(data.next_lesson_id);
+    if (status === "completed" || preview) goToLesson(data.next_lesson_id);
     else handleMarkComplete();
   };
 
@@ -790,7 +825,7 @@ export function LessonContent({ courseId, lessonId }) {
       <Card className="p-8 text-center">
         {isLocked && <Lock className="h-10 w-10 mx-auto text-ink/70 mb-3" />}
         <Text as="p" className={`text-sm font-medium mb-1 ${isLocked ? "text-ink/70" : "text-error"}`}>{error}</Text>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => router.push(`/my-courses/${courseId}`)}>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => router.push(courseBasePath(courseId, preview))}>
           Back to Course
         </Button>
       </Card>
@@ -824,7 +859,7 @@ export function LessonContent({ courseId, lessonId }) {
   const isYT = !isScorm && !isSession && !isDocument && !isHosted && isYouTubeUrl(lesson.content_url);
   const isLocal = !isScorm && !isSession && !isDocument && !isHosted && isVideoFile(lesson.content_url);
   const canMarkComplete =
-    !isSession && (isScorm || isDocument || ((!isYT && !isLocal && !isHosted) || videoEnded));
+    !isSession && (preview || isScorm || isDocument || ((!isYT && !isLocal && !isHosted) || videoEnded));
 
   // When there is a next lesson, the button saves AND moves on, and names where
   // it goes — a friendlier end to a lesson than a bare "Mark complete".
@@ -841,9 +876,13 @@ export function LessonContent({ courseId, lessonId }) {
       <CheckCircle2 className="h-4 w-4 mr-1.5" />
       {completing
         ? "Saving..."
-        : hasNextLesson
-          ? "Save & move to next lesson"
-          : "Save & finish course"}
+        : preview
+          ? hasNextLesson
+            ? "Next lesson"
+            : "Back to course"
+          : hasNextLesson
+            ? "Save & move to next lesson"
+            : "Save & finish course"}
       {hasNextLesson && !completing && <ArrowRight className="h-4 w-4 ml-1.5" />}
     </Button>
   );
@@ -888,7 +927,9 @@ export function LessonContent({ courseId, lessonId }) {
         </Box>
         <Text as="p" className="text-sm font-semibold">Lesson finished</Text>
         <Text as="p" className="mt-0.5 text-xs text-paper/70">
-          {lesson.duration_minutes
+          {preview
+            ? "Nothing is recorded in preview"
+            : lesson.duration_minutes
             ? `${lesson.duration_minutes} min added to your learning hours`
             : "Nice work — you watched the whole lesson"}
         </Text>
@@ -963,7 +1004,7 @@ export function LessonContent({ courseId, lessonId }) {
           variant="outline"
           size="sm"
           className="shrink-0 gap-1.5 bg-background shadow-sm"
-          onClick={() => router.push(`/my-courses/${courseId}`)}
+          onClick={() => router.push(courseBasePath(courseId, preview))}
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Course
@@ -1023,6 +1064,7 @@ export function LessonContent({ courseId, lessonId }) {
           nextLessonId={data.next_lesson_id}
           progressStatus={status}
           onStatusRefresh={loadLesson}
+          preview={preview}
         />
       ) : isHosted ? (
         <Card className="relative overflow-hidden aspect-video sm:aspect-auto sm:h-[80dvh]">
@@ -1102,7 +1144,23 @@ export function LessonContent({ courseId, lessonId }) {
       {isVideoType && autoplayBar}
 
       {/* Supporting material, for every lesson type that has any. */}
-      <LessonResources resources={data.resources} />
+      <LessonResources resources={data.resources} preview={preview} />
+
+      {/* Preview only: a session lesson has no completion, so give the admin a
+          way on to the next lesson the way a learner would navigate. */}
+      {preview && isSession && (
+        <Card className="p-4">
+          <Box className="flex items-center justify-between gap-4 flex-wrap">
+            <Text as="p" className="text-sm text-muted-foreground">
+              {hasNextLesson && nextLessonTitle ? `Next up: ${nextLessonTitle}` : "This is the last lesson."}
+            </Text>
+            <Button size="sm" onClick={continueNext} className="shrink-0 bg-navy hover:bg-navy-soft text-paper">
+              {hasNextLesson ? "Next lesson" : "Back to course"}
+              {hasNextLesson && <ArrowRight className="h-4 w-4 ml-1.5" />}
+            </Button>
+          </Box>
+        </Card>
+      )}
 
       {/* Footer action card — only where the learner can complete the lesson */}
       {!isScorm && !isSession && (
@@ -1129,6 +1187,8 @@ export function LessonContent({ courseId, lessonId }) {
                         {nextLessonTitle}
                       </Text>
                     </>
+                  ) : preview ? (
+                    "This is the last lesson. Return to the course page."
                   ) : isDocument ? (
                     "Finished reading? Save this lesson to finish the course."
                   ) : (
@@ -1160,7 +1220,7 @@ export function LessonContent({ courseId, lessonId }) {
             padlocks for locked, one-click jump. Sticky on wide screens. */}
         {data.playlist?.length ? (
           <Box className="lg:order-1 lg:sticky lg:top-16">
-            <LessonPlaylist playlist={data.playlist} courseId={courseId} />
+            <LessonPlaylist playlist={data.playlist} courseId={courseId} preview={preview} />
           </Box>
         ) : null}
       </Box>

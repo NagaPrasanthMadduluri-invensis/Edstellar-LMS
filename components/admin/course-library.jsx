@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Archive, ArchiveRestore, Ban, BookOpen, CheckCircle2, ClipboardList,
   Clock, Layers, Pencil, Plus, Search, TrendingUp, Trash2, Users, Percent,
-  AlertTriangle, CalendarDays,
+  AlertTriangle, CalendarDays, Eye,
 } from "lucide-react";
 
 import Box from "@/components/ui/box";
@@ -40,6 +40,7 @@ import {
 } from "@/lib/course-taxonomy";
 import { BRAND, progressFill } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+import { previewEntryPath } from "@/lib/course-preview";
 
 const EMPTY_FORM = {
   name: "", description: "", is_active: false,
@@ -493,6 +494,7 @@ export function CourseLibrary() {
                   ? `/admin/sessions?session=${course.session_id}`
                   : `/admin/courses/${course.public_id ?? course.id}`,
               )}
+              onPreview={() => router.push(previewEntryPath(course.public_id ?? course.id))}
               onEdit={() => openEdit(course)}
               onPublish={() => runOne(course.is_active ? "unpublish" : "publish", course.id)}
               onArchive={() => runOne(showArchived ? "restore" : "archive", course.id)}
@@ -564,7 +566,7 @@ function BulkButton({ children, onClick, disabled, plain = false }) {
 
 function CourseCard({
   course, archived, selected, busy, priority = false,
-  onToggleSelect, onOpen, onEdit, onPublish, onArchive, onDelete, onOpenRoster,
+  onToggleSelect, onOpen, onPreview, onEdit, onPublish, onArchive, onDelete, onOpenRoster,
 }) {
   const colour = categoryColor(course.category);
   const mandatory = course.mandatory ?? isMandatory(course);
@@ -732,12 +734,14 @@ function CourseCard({
       <Box className="flex border-t border-line">
         {archived ? (
           <>
+            <CardAction icon={Eye} label="Preview as learner" onClick={onPreview} disabled={busy} />
             <CardAction icon={ArchiveRestore} label="Restore to the library" onClick={onArchive} disabled={busy} tone="text-success hover:!bg-success hover:!text-white" />
             <CardAction icon={Trash2} label="Delete permanently" onClick={onDelete} disabled={busy} danger />
           </>
         ) : (
           <>
             <CardAction icon={Layers} label="Manage modules & lessons" onClick={onOpen} disabled={busy} />
+            <CardAction icon={Eye} label="Preview as learner" onClick={onPreview} disabled={busy} />
             <CardAction
               icon={Pencil}
               label={isSessionTraining ? "Edit this in Sessions — a session training is generated" : "Edit course details"}

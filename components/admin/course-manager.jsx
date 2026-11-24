@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, BookOpen, ChevronDown, ChevronUp, ClipboardList, Clock,
+  ArrowLeft, BookOpen, Eye, ChevronDown, ChevronUp, ClipboardList, Clock,
   FileText, Image as ImageIcon, Layers, Link2, Package, Pencil, PlayCircle,
   Plus, Trash2, Unlink, Upload, Users, AlertTriangle,
 } from "lucide-react";
@@ -30,6 +30,7 @@ import { CourseAssessmentsContent } from "@/components/admin/course-assessments-
 import { CourseSkillsTab } from "@/components/admin/course-skills-tab";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { previewEntryPath } from "@/lib/course-preview";
 import {
   createCourseLesson, createModule, deleteLesson, deleteModule,
   deleteScormPackage, fetchAssessments, fetchCourseLessons, fetchModules,
@@ -186,13 +187,24 @@ export function CourseManager({ courseId }) {
 
         {/* Edits go back to the library's editor rather than a second copy of
             the same form — see the `?edit=` handler in course-library.jsx. */}
-        <Link
-          href={`/admin/courses?edit=${courseId}`}
-          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border border-line-strong bg-surface px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-accent-blue hover:text-white"
-        >
-          <Pencil className="size-3.5" />
-          Edit course
-        </Link>
+        <Box className="flex shrink-0 flex-wrap items-center gap-2">
+          {/* The learner's view of this course, draft or published, with
+              nothing recorded: see components/learner `preview` props. */}
+          <Link
+            href={previewEntryPath(courseId)}
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border border-line-strong bg-surface px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-accent-blue hover:text-white"
+          >
+            <Eye className="size-3.5" />
+            Preview as learner
+          </Link>
+          <Link
+            href={`/admin/courses?edit=${courseId}`}
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border border-line-strong bg-surface px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-accent-blue hover:text-white"
+          >
+            <Pencil className="size-3.5" />
+            Edit course
+          </Link>
+        </Box>
       </Box>
 
       {isSessionTraining && (

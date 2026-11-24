@@ -14,6 +14,7 @@ import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { lessonPath, previewEndpoints } from "@/lib/course-preview";
 
 const STATUS_CFG = {
   "not attempted": { label: "Not Started",  cls: "bg-paper-warm text-ink/60 border-border"          },
@@ -93,6 +94,10 @@ export function ScormPlayerClient({
   embedded = false,
   onExit = null,
   onNextLesson = null,
+  // Admin preview: package metadata comes from the admin endpoint (integer
+  // package id) and NOTHING is tracked: no tracking read or write, no
+  // data-model recorder. The content itself still runs against the SCORM API.
+  preview = false,
 }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -116,7 +121,7 @@ export function ScormPlayerClient({
 
   /* ── Persist CMI data to server ── */
   const persistTracking = useCallback(async (api, recorder) => {
-    if (!user || !api) return;
+    if (!user || !api || preview) return;
     try {
       const cmiData = JSON.parse(JSON.stringify(api.cmi ?? {}));
 
@@ -149,7 +154,7 @@ export function ScormPlayerClient({
     } catch {
       setSaveMsg("save failed");
     }
-  }, [user, packageId]);
+  }, [user, packageId, preview]);
 
   /* ── Bootstrap: fetch metadata + tracking, init scorm-again ── */
   useEffect(() => {
@@ -158,8 +163,10 @@ export function ScormPlayerClient({
     let cancelled = false;
 
     Promise.all([
-      apiClient(`/api/learner/scorm/${packageId}`),
-      apiClient(`/api/learner/scorm/${packageId}/tracking`).catch(() => ({ tracking: null })),
+      apiClient(preview ? previewEndpoints.scormPackage(packageId) : `/api/learner/scorm/${packageId}`),
+      preview
+        ? Promise.resolve({ tracking: null })
+        : apiClient(`/api/learner/scorm/${packageId}/tracking`).catch(() => ({ tracking: null })),
     ])
       .then(async ([pkgData, trackingData]) => {
         if (cancelled) return;
@@ -188,9 +195,9 @@ export function ScormPlayerClient({
          * timeline, not just the latest snapshot. Attached before any restore
          * or event wiring so no write can slip past it.
          */
-        const recorder = createDatamodelRecorder({ packageId });
+        const recorder = preview ? null : createDatamodelRecorder({ packageId });
         recorderRef.current = recorder;
-        attachRecorder(api, recorder);
+        if (recorder) attachRecorder(api, recorder);
 
         /* Restore saved data */
         const savedCmi = trackingData.tracking?.cmi_data;
@@ -212,7 +219,7 @@ export function ScormPlayerClient({
          */
         const save = () => {
           const tracking = persistTracking(api, recorder);
-          const deltas = recorder.flush();
+          const deltas = recorder ? recorder.flush() : Promise.resolve();
           // Reveal the completion footer the moment the package reports done,
           // from the same values that are being persisted.
           if (readCompleted(api, recorder)) setCompleted(true);
@@ -256,7 +263,7 @@ export function ScormPlayerClient({
       delete window.API;
       delete window.API_1484_11;
     };
-  }, [user, packageId, persistTracking]);
+  }, [user, packageId, persistTracking, preview]);
 
   /** Flush the final save/batch while the page still exists (unlike pagehide). */
   const saveThenLeave = async () => {
@@ -298,7 +305,7 @@ export function ScormPlayerClient({
       onNextLesson?.();
       return;
     }
-    window.location.href = `/my-courses/${courseId}/lessons/${nextLessonId}`;
+    window.location.href = lessonPath(courseId, nextLessonId, preview);
   };
 
   // Fill the sized parent when embedded; own the viewport when standalone.

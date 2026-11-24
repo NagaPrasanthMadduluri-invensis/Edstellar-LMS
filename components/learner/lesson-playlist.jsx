@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { lessonPath } from "@/lib/course-preview";
 
 const TYPE_LABEL = {
   scorm: "SCORM",
@@ -42,7 +43,7 @@ const typeLabel = (t) => TYPE_LABEL[t] || "Video";
  * server (LearnerService.lesson) so the sidebar and the lock the page enforces
  * can never disagree.
  */
-export function LessonPlaylist({ playlist = [], courseId }) {
+export function LessonPlaylist({ playlist = [], courseId, preview = false }) {
   const [open, setOpen] = useState(true);
   useEffect(() => {
     try {
@@ -111,7 +112,7 @@ export function LessonPlaylist({ playlist = [], courseId }) {
                 {g.title}
               </Text>
               {g.items.map((l, i) => (
-                <LessonRow key={`${gi}-${i}`} lesson={l} courseId={courseId} />
+                <LessonRow key={`${gi}-${i}`} lesson={l} courseId={courseId} preview={preview} />
               ))}
             </Box>
           ))}
@@ -121,7 +122,7 @@ export function LessonPlaylist({ playlist = [], courseId }) {
   );
 }
 
-function LessonRow({ lesson, courseId }) {
+function LessonRow({ lesson, courseId, preview }) {
   const { status } = lesson;
   const locked = status === "locked";
   const current = status === "current";
@@ -178,7 +179,7 @@ function LessonRow({ lesson, courseId }) {
     );
   }
   return (
-    <Link href={`/my-courses/${courseId}/lessons/${lesson.id}`} className="block">
+    <Link href={lessonPath(courseId, lesson.id, preview)} className="block">
       {inner}
     </Link>
   );

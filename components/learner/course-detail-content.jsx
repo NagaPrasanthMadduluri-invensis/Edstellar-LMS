@@ -26,6 +26,13 @@ import { fetchCourseDetail, fetchCourseReviews, fetchCatalogue } from "@/service
 import { CourseArt } from "@/components/shared/course-art";
 import { CourseRewardHeroLine } from "@/components/learner/course-reward";
 import { CourseFeedbackCard } from "@/components/learner/course-feedback-card";
+import { apiClient } from "@/lib/api-client";
+import {
+  assessmentPath,
+  backToCoursePath,
+  lessonPath,
+  previewEndpoints,
+} from "@/lib/course-preview";
 
 
 /**
@@ -61,7 +68,12 @@ function DetailSkeleton() {
   );
 }
 
-export function CourseDetailContent({ courseId }) {
+/**
+ * `preview` renders the course as an admin sees it when auditing: the admin
+ * preview endpoint, links that stay under the preview route, and none of the
+ * learner-personal sections (reviews, feedback, recommendations).
+ */
+export function CourseDetailContent({ courseId, preview = false }) {
   const { user } = useAuth();
   const router = useRouter();
   const [data, setData] = useState(null);
@@ -76,25 +88,32 @@ export function CourseDetailContent({ courseId }) {
 
   useEffect(() => {
     if (!user) return;
-    fetchCourseDetail({ courseId }).then(setData).catch((e) => setError(e.message));
-  }, [user, user, courseId]);
+    const load = preview
+      ? apiClient(previewEndpoints.course(courseId))
+      : fetchCourseDetail({ courseId });
+    load.then(setData).catch((e) => setError(e.message));
+  }, [user, user, courseId, preview]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || preview) return;
     fetchCourseReviews({ courseId }).then(setReviews).catch(() => setReviews(null));
-  }, [user, courseId]);
+  }, [user, courseId, preview]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || preview) return;
     fetchCatalogue().then(setCatalogue).catch(() => setCatalogue(null));
-  }, [user]);
+  }, [user, preview]);
+
+  const backHref = backToCoursePath(courseId, preview);
+  const backLabel = preview ? "Back to course" : "Back to My Courses";
+  const backTo = preview ? backHref : "/my-courses";
 
   if (error) {
     return (
       <Card className="p-8 text-center">
         <Text as="p" className="text-error text-sm">{error}</Text>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => router.push("/my-courses")}>
-          Back to My Courses
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => router.push(backTo)}>
+          {backLabel}
         </Button>
       </Card>
     );
@@ -166,9 +185,9 @@ export function CourseDetailContent({ courseId }) {
   return (
     <Box className="space-y-5">
       {/* ── Back ── */}
-      <Button variant="ghost" size="sm" onClick={() => router.push("/my-courses")} className="w-fit -ml-1 text-muted-foreground">
+      <Button variant="ghost" size="sm" onClick={() => router.push(backTo)} className="w-fit -ml-1 text-muted-foreground">
         <ArrowLeft className="h-4 w-4 mr-1.5" />
-        Back to My Courses
+        {backLabel}
       </Button>
 
       {/* ── Course hero (edX-style gradient band) ── */}
@@ -451,7 +470,7 @@ export function CourseDetailContent({ courseId }) {
                         ) : (
                           <Link
                             key={lesson.id}
-                            href={`/my-courses/${courseId}/lessons/${lesson.public_id ?? lesson.id}`}
+                            href={lessonPath(courseId, lesson.public_id ?? lesson.id, preview)}
                             className="block"
                           >
                             {row}
@@ -540,7 +559,7 @@ export function CourseDetailContent({ courseId }) {
                     </Box>
 
                     {assessmentsUnlocked ? (
-                      <Link href={`/my-courses/${courseId}/assessments/${a.public_id ?? a.id}`}>
+                      <Link href={assessmentPath(courseId, a.public_id ?? a.id, preview)}>
                         <Button
                           size="sm"
                           className={cn(
@@ -615,7 +634,7 @@ export function CourseDetailContent({ courseId }) {
       {/* ── Learner reviews — the ratings and comments other learners left,
           derived from the course feedback they gave. Absent until at least one
           rated review exists, rather than an empty panel. ── */}
-      {reviews && reviews.count > 0 && (
+      {!preview && reviews && reviews.count > 0 && (
         <Box>
           <Text as="h2" className="mb-3 font-mono text-[12.5px] font-semibold uppercase tracking-[0.08em] text-ink">
             Learner reviews
@@ -699,7 +718,7 @@ export function CourseDetailContent({ courseId }) {
 
       {/* ── Feedback — the course's own feedback form; renders nothing when the
           course asks for none. ── */}
-      <CourseFeedbackCard courseId={courseId} />
+      {!preview && <CourseFeedbackCard courseId={courseId} />}
         </Box>
 
         {/* ── Sticky side column: the course card, then recommendations ── */}
@@ -728,7 +747,7 @@ export function CourseDetailContent({ courseId }) {
                 </Box>
               )}
               {nextLesson && (
-                <Link href={`/my-courses/${courseId}/lessons/${nextLesson.public_id ?? nextLesson.id}`} className="block">
+                <Link href={lessonPath(courseId, nextLesson.public_id ?? nextLesson.id, preview)} className="block">
                   <Button className="w-full gap-1.5 bg-navy text-paper hover:bg-navy-soft">
                     {isComplete ? "Review course" : progress > 0 ? "Continue learning" : "Start course"}
                     <ChevronRight className="h-4 w-4" />
@@ -753,7 +772,7 @@ export function CourseDetailContent({ courseId }) {
           {/* ── Recommended — the self-enrol catalogue (courses + sessions),
               so a learner can pick up something else from right here. Absent
               when nothing is open to join. ── */}
-          {recommended.length > 0 && (
+          {!preview && recommended.length > 0 && (
             <Card className="p-4">
               <Text as="h2" className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/70">
                 Recommended courses
