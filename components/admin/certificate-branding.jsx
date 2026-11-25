@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   fetchOwnOrganization,
   updateOwnOrganization,
@@ -59,6 +60,11 @@ const LOGO_ACCEPT = "image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp";
 const LOGO_MAX_BYTES = 5 * 1024 * 1024;
 
 export function CertificateBranding() {
+  const { can } = usePermissions();
+  // Saving is PATCH /api/admin/organization; the logo picker posts to the
+  // media route, which needs upload_content on top.
+  const canManage = can("manage_organization");
+  const canUpload = can("upload_content");
   const [org, setOrg] = useState(null);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -71,6 +77,7 @@ export function CertificateBranding() {
   const [form, setForm] = useState(null);
 
   useEffect(() => {
+    if (!canManage) return;
     fetchOwnOrganization()
       .then((d) => {
         const o = d.organization ?? d;
@@ -84,7 +91,11 @@ export function CertificateBranding() {
         });
       })
       .catch((e) => setError(e.message));
-  }, []);
+  }, [canManage]);
+
+  // Branding is an edit form with nothing to read on its own, so a viewer
+  // who cannot save it is not shown it.
+  if (!canManage) return null;
 
   if (error) {
     return (
@@ -226,14 +237,16 @@ export function CertificateBranding() {
                 )}
               </Box>
               <Box className="flex flex-col gap-1.5">
-                <Button
-                  size="sm" variant="outline" className="gap-1.5"
-                  disabled={uploading || saving}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  {uploading ? "Uploading…" : form.logo_url ? "Replace" : "Upload logo"}
-                </Button>
+                {canUpload && (
+                  <Button
+                    size="sm" variant="outline" className="gap-1.5"
+                    disabled={uploading || saving}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploading ? "Uploading…" : form.logo_url ? "Replace" : "Upload logo"}
+                  </Button>
+                )}
                 {form.logo_url && (
                   <button
                     type="button"

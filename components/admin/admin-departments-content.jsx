@@ -7,6 +7,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Building2 } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 
@@ -32,15 +33,25 @@ const LEGEND_ITEMS = [
 
 export function AdminDepartmentsContent() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canView = can("view_reports");
   const [departments, setDepartments] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !canView) return;
     apiClient("/api/admin/departments")
       .then((d) => setDepartments(d.departments || []))
       .catch((e) => setError(e.message));
-  }, [user]);
+  }, [user, canView]);
+
+  if (user && !canView) return (
+    <Card className="p-16 text-center">
+      <Text as="p" className="text-sm text-muted-foreground">
+        Department reports are not part of your access.
+      </Text>
+    </Card>
+  );
 
   if (error) return (
     <Card className="p-6 text-center">

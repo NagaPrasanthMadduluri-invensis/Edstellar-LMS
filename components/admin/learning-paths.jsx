@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { DescriptionField } from "@/components/shared/description-field";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   bulkLearningPaths, createLearningPath, fetchAdminCourses, fetchLearningPath,
   fetchLearningPathLearners, fetchLearningPaths, setLearningPathCourses,
@@ -57,6 +58,8 @@ const EMPTY_FORM = {
  */
 export function LearningPaths() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canManage = can("manage_journeys");
 
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -277,13 +280,15 @@ export function LearningPaths() {
           {showArchived ? "Active paths" : `Archived${data.archived_count ? ` (${data.archived_count})` : ""}`}
         </Button>
 
-        <Button
-          onClick={openCreate}
-          disabled={showArchived}
-          className="h-9 cursor-pointer gap-1.5 rounded-none bg-navy px-3.5 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
-        >
-          <Plus className="size-3.5" />Create path
-        </Button>
+        {canManage && (
+          <Button
+            onClick={openCreate}
+            disabled={showArchived}
+            className="h-9 cursor-pointer gap-1.5 rounded-none bg-navy px-3.5 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
+          >
+            <Plus className="size-3.5" />Create path
+          </Button>
+        )}
       </Box>
 
       {error && (
@@ -293,7 +298,7 @@ export function LearningPaths() {
       )}
 
       {/* ── Bulk bar ── */}
-      {selected.size > 0 && (
+      {canManage && selected.size > 0 && (
         <Box className="flex flex-wrap items-center gap-2 bg-navy px-4 py-2.5">
           <Text as="span" className="text-[12.5px] font-semibold text-white">
             {selected.size} selected
@@ -324,12 +329,14 @@ export function LearningPaths() {
       {/* ── Select-all + count ── */}
       {visible.length > 0 && (
         <Box className="flex items-center gap-2.5">
-          <Checkbox
-            checked={allVisibleSelected}
-            onCheckedChange={toggleAll}
-            aria-label="Select all paths"
-            className="cursor-pointer"
-          />
+          {canManage && (
+            <Checkbox
+              checked={allVisibleSelected}
+              onCheckedChange={toggleAll}
+              aria-label="Select all paths"
+              className="cursor-pointer"
+            />
+          )}
           <Text as="p" className="text-[12px] text-text-3">
             {visible.length} path{visible.length === 1 ? "" : "s"}
             {showArchived && " · archived"}
@@ -339,7 +346,7 @@ export function LearningPaths() {
 
       {/* ── Cards ── */}
       {visible.length === 0 ? (
-        <EmptyState showArchived={showArchived} filtered={paths.length > 0} onCreate={openCreate} />
+        <EmptyState showArchived={showArchived} filtered={paths.length > 0} canManage={canManage} onCreate={openCreate} />
       ) : (
         <Box className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {visible.map((path) => (
@@ -349,6 +356,7 @@ export function LearningPaths() {
               selected={selected.has(path.id)}
               archived={showArchived}
               busy={busy}
+              canManage={canManage}
               onToggle={() => toggleOne(path.id)}
               onEdit={() => openEdit(path)}
               onCourses={() => setCoursesFor(path)}
@@ -453,7 +461,7 @@ function BulkBtn({ children, onClick, disabled, danger = false }) {
 }
 
 function PathCard({
-  path, selected, archived, busy,
+  path, selected, archived, busy, canManage = false,
   onToggle, onEdit, onCourses, onRoster, onArchive, onDelete,
 }) {
   return (
@@ -464,12 +472,14 @@ function PathCard({
       )}
     >
       <Box className="flex items-start gap-2.5 px-4 pt-3.5">
-        <Checkbox
-          checked={selected}
-          onCheckedChange={onToggle}
-          aria-label={`Select ${path.title}`}
-          className="mt-0.5 cursor-pointer"
-        />
+        {canManage && (
+          <Checkbox
+            checked={selected}
+            onCheckedChange={onToggle}
+            aria-label={`Select ${path.title}`}
+            className="mt-0.5 cursor-pointer"
+          />
+        )}
         <Box className="min-w-0 flex-1">
           <Box className="flex flex-wrap items-center gap-2">
             <Text as="span" className={path.is_active ? "chip chip-complete" : "chip chip-idle"}>
@@ -507,18 +517,20 @@ function PathCard({
         <Stat value={`${path.completion_pct}%`} label="Complete" />
       </Box>
 
-      <Box className="flex items-center gap-1 px-3 py-2">
-        <CardAction icon={Layers} label="Manage courses" onClick={onCourses} disabled={archived || busy} />
-        <CardAction icon={Pencil} label="Edit path" onClick={onEdit} disabled={archived || busy} />
-        <CardAction
-          icon={archived ? ArchiveRestore : Archive}
-          label={archived ? "Restore path" : "Archive path"}
-          onClick={onArchive}
-          disabled={busy}
-        />
-        <Box className="flex-1" />
-        <CardAction icon={Trash2} label="Delete path" danger onClick={onDelete} disabled={busy} />
-      </Box>
+      {canManage && (
+        <Box className="flex items-center gap-1 px-3 py-2">
+          <CardAction icon={Layers} label="Manage courses" onClick={onCourses} disabled={archived || busy} />
+          <CardAction icon={Pencil} label="Edit path" onClick={onEdit} disabled={archived || busy} />
+          <CardAction
+            icon={archived ? ArchiveRestore : Archive}
+            label={archived ? "Restore path" : "Archive path"}
+            onClick={onArchive}
+            disabled={busy}
+          />
+          <Box className="flex-1" />
+          <CardAction icon={Trash2} label="Delete path" danger onClick={onDelete} disabled={busy} />
+        </Box>
+      )}
     </Box>
   );
 }
@@ -556,7 +568,7 @@ function CardAction({ icon: Icon, label, onClick, danger = false, disabled = fal
   );
 }
 
-function EmptyState({ showArchived, filtered, onCreate }) {
+function EmptyState({ showArchived, filtered, canManage = false, onCreate }) {
   return (
     <Box className="border border-dashed border-line-strong bg-surface px-6 py-16 text-center">
       <TrendingUp className="mx-auto mb-3 size-8 text-text-3" />
@@ -570,7 +582,7 @@ function EmptyState({ showArchived, filtered, onCreate }) {
             ? "Clear the search or widen the status filter."
             : "A path is an ordered run of existing courses with a badge at the end. Create one, then add its courses."}
       </Text>
-      {!showArchived && !filtered && (
+      {canManage && !showArchived && !filtered && (
         <Button
           onClick={onCreate}
           className="mt-4 cursor-pointer gap-1.5 rounded-none bg-navy text-accent-soft hover:bg-accent-blue hover:text-white"

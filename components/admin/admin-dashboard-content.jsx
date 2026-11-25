@@ -28,6 +28,7 @@ import {
 } from "@/services/api/admin/admin-api";
 import { BRAND, HAIRLINE, metricTone, NEUTRAL_TONE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const STATUS_COLOR = {
   Completed: BRAND.success,
@@ -96,6 +97,9 @@ const HOURS_PERIODS = [
 ];
 
 export function AdminDashboardContent() {
+  const { can } = usePermissions();
+  // Analytics, the AI briefing and the engagement trend are all view_reports.
+  const canReports = can("view_reports");
   const [data, setData] = useState(null);
   const [hoursPeriod, setHoursPeriod] = useState("monthly");
   const [actions, setActions] = useState(null);
@@ -186,7 +190,7 @@ export function AdminDashboardContent() {
            there (BACKEND_STRUCTURE §10.12). A reader who has just been told
            something is wrong wants the trend behind it, and until now had to
            find it in the sidebar. */
-        action={
+        action={canReports ? (
           <Link href="/admin/analytics" className="shrink-0">
             <Button
               size="sm"
@@ -195,16 +199,16 @@ export function AdminDashboardContent() {
               See full analytics<ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </Link>
-        }
+        ) : undefined}
       />
 
       {/* AI briefing — real, model-backed org synthesis. Sits under the
           deterministic Key Insights; renders nothing when the feature is off
           for the deployment (§10.54). */}
-      <AdminDashboardAiInsights />
+      {canReports && <AdminDashboardAiInsights />}
 
       {/* Engagement hours vs learning hours across the org, over time (§10.55). */}
-      <EngagementVsLearning scope="admin" />
+      {canReports && <EngagementVsLearning scope="admin" />}
 
       <Box className="grid gap-4 lg:grid-cols-2">
         <Panel title="Completion status" subtitle="Overall learner distribution">

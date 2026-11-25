@@ -9,6 +9,7 @@ import Text from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { courseArtFor } from "@/components/shared/course-art";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   THUMBNAIL_ACCEPT,
   THUMBNAIL_MAX_BYTES,
@@ -46,6 +47,7 @@ export function ThumbnailField({
   label = "Thumbnail",
 }) {
   const inputRef = useRef(null);
+  const { can } = usePermissions();
   const [error, setError] = useState(null);
   const [objectUrl, setObjectUrl] = useState(null);
 
@@ -64,6 +66,9 @@ export function ThumbnailField({
     setError(null);
     onSelect(picked);
   };
+
+  // The picture goes up through upload_content; without it there is nothing to offer.
+  if (!can("upload_content")) return null;
 
   const hasOwnImage = Boolean(objectUrl || value);
   const src = objectUrl || value || courseArtFor({});

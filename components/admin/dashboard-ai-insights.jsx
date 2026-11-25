@@ -20,6 +20,7 @@ import {
   fetchAdminInsights,
   refreshAdminInsights,
 } from "@/services/api/admin/ai-insights-api";
+import { usePermissions } from "@/hooks/use-permissions";
 
 /**
  * "AI briefing" for the admin dashboard (BACKEND_STRUCTURE §10.54) — a real,
@@ -239,17 +240,20 @@ function BriefingView({ data, onRegenerate }) {
 }
 
 export function AdminDashboardAiInsights() {
+  const { can } = usePermissions();
+  const canView = can("view_reports");
   const [meta, setMeta] = useState(null);
 
   useEffect(() => {
+    if (!canView) return;
     let cancelled = false;
     fetchAdminInsights()
       .then((d) => { if (!cancelled) setMeta(d); })
       .catch(() => { if (!cancelled) setMeta({ enabled: false }); });
     return () => { cancelled = true; };
-  }, []);
+  }, [canView]);
 
-  if (!meta || !meta.enabled) return null;
+  if (!canView || !meta || !meta.enabled) return null;
 
   const cached = meta.insight?.payload
     ? { insight: meta.insight, charts: meta.charts }

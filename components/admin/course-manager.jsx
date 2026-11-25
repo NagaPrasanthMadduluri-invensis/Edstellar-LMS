@@ -29,6 +29,7 @@ import { DescriptionField } from "@/components/shared/description-field";
 import { CourseAssessmentsContent } from "@/components/admin/course-assessments-content";
 import { CourseSkillsTab } from "@/components/admin/course-skills-tab";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { apiClient } from "@/lib/api-client";
 import { previewEntryPath } from "@/lib/course-preview";
 import {
@@ -79,6 +80,8 @@ function formatDuration(minutes) {
 
 export function CourseManager({ courseId }) {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canManage = can("manage_courses");
   const [tab, setTab] = useState("modules");
 
   const [course, setCourse] = useState(null);
@@ -197,13 +200,15 @@ export function CourseManager({ courseId }) {
             <Eye className="size-3.5" />
             Preview as learner
           </Link>
-          <Link
-            href={`/admin/courses?edit=${courseId}`}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border border-line-strong bg-surface px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-accent-blue hover:text-white"
-          >
-            <Pencil className="size-3.5" />
-            Edit course
-          </Link>
+          {canManage && (
+            <Link
+              href={`/admin/courses?edit=${courseId}`}
+              className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border border-line-strong bg-surface px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-accent-blue hover:text-white"
+            >
+              <Pencil className="size-3.5" />
+              Edit course
+            </Link>
+          )}
         </Box>
       </Box>
 
@@ -220,7 +225,7 @@ export function CourseManager({ courseId }) {
 
       {/* ── Tabs ── */}
       <Box className="flex border border-line bg-surface-2">
-        {TABS.map((t) => (
+        {TABS.filter((t) => canManage || t.key !== "skills").map((t) => (
           <button
             key={t.key}
             type="button"
@@ -240,13 +245,13 @@ export function CourseManager({ courseId }) {
       {tab === "modules" && (
         <ModulesTab
           courseId={courseId} modules={modules} lessons={lessons}
-          locked={isSessionTraining} onChanged={load}
+          locked={isSessionTraining} canManage={canManage} onChanged={load}
         />
       )}
       {tab === "lessons" && (
         <LessonsTab
           courseId={courseId} modules={modules} lessons={lessons}
-          locked={isSessionTraining} onChanged={load}
+          locked={isSessionTraining} canManage={canManage} onChanged={load}
         />
       )}
       {tab === "assessments" && (
@@ -255,7 +260,7 @@ export function CourseManager({ courseId }) {
           onChanged={load}
         />
       )}
-      {tab === "skills" && (
+      {tab === "skills" && canManage && (
         <CourseSkillsTab courseId={courseId} locked={isSessionTraining} />
       )}
       {tab === "outline" && (
@@ -269,7 +274,7 @@ export function CourseManager({ courseId }) {
    Modules
    ══════════════════════════════════════════════════════════════════════════ */
 
-function ModulesTab({ courseId, modules, lessons, locked, onChanged }) {
+function ModulesTab({ courseId, modules, lessons, locked, canManage, onChanged }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ title: "", description: "", is_active: true });
@@ -353,13 +358,15 @@ function ModulesTab({ courseId, modules, lessons, locked, onChanged }) {
         <Text as="p" className="text-[12px] text-text-3">
           {modules.length} module{modules.length === 1 ? "" : "s"}
         </Text>
-        <Button
-          onClick={openCreate}
-          disabled={locked}
-          className="h-8 gap-1.5 rounded-none bg-navy px-3 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
-        >
-          <Plus className="size-3.5" />Add module
-        </Button>
+        {canManage && (
+          <Button
+            onClick={openCreate}
+            disabled={locked}
+            className="h-8 gap-1.5 rounded-none bg-navy px-3 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
+          >
+            <Plus className="size-3.5" />Add module
+          </Button>
+        )}
       </Box>
 
       {modules.length === 0 ? (
@@ -379,18 +386,20 @@ function ModulesTab({ courseId, modules, lessons, locked, onChanged }) {
                   {/* Buttons, not a drag handle. A handle that cannot be
                       dragged is a control that lies, and up/down is keyboard
                       reachable besides. */}
-                  <Box className="mt-0.5 flex shrink-0 flex-col">
-                    <IconBtn
-                      icon={ChevronUp} label="Move up" small
-                      onClick={() => move(index, -1)}
-                      disabled={locked || busy || index === 0}
-                    />
-                    <IconBtn
-                      icon={ChevronDown} label="Move down" small
-                      onClick={() => move(index, 1)}
-                      disabled={locked || busy || index === modules.length - 1}
-                    />
-                  </Box>
+                  {canManage && (
+                    <Box className="mt-0.5 flex shrink-0 flex-col">
+                      <IconBtn
+                        icon={ChevronUp} label="Move up" small
+                        onClick={() => move(index, -1)}
+                        disabled={locked || busy || index === 0}
+                      />
+                      <IconBtn
+                        icon={ChevronDown} label="Move down" small
+                        onClick={() => move(index, 1)}
+                        disabled={locked || busy || index === modules.length - 1}
+                      />
+                    </Box>
+                  )}
                   <Text as="span" className="mt-1 shrink-0 font-mono text-[11px] font-bold text-text-3">
                     {index + 1}
                   </Text>
@@ -409,10 +418,12 @@ function ModulesTab({ courseId, modules, lessons, locked, onChanged }) {
                       {minutes > 0 && ` · ${formatDuration(minutes)}`}
                     </Text>
                   </Box>
-                  <Box className="flex shrink-0 items-center gap-1">
-                    <IconBtn icon={Pencil} label="Edit module" onClick={() => openEdit(m)} disabled={locked} />
-                    <IconBtn icon={Trash2} label="Delete module" danger onClick={() => setConfirm(m)} disabled={locked} />
-                  </Box>
+                  {canManage && (
+                    <Box className="flex shrink-0 items-center gap-1">
+                      <IconBtn icon={Pencil} label="Edit module" onClick={() => openEdit(m)} disabled={locked} />
+                      <IconBtn icon={Trash2} label="Delete module" danger onClick={() => setConfirm(m)} disabled={locked} />
+                    </Box>
+                  )}
                 </Box>
                 {inside.length > 0 && (
                   <Box className="divide-y divide-line border-t border-line">
@@ -513,7 +524,7 @@ function ModulesTab({ courseId, modules, lessons, locked, onChanged }) {
    Lessons
    ══════════════════════════════════════════════════════════════════════════ */
 
-function LessonsTab({ courseId, modules, lessons, locked, onChanged }) {
+function LessonsTab({ courseId, modules, lessons, locked, canManage, onChanged }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -556,36 +567,40 @@ function LessonsTab({ courseId, modules, lessons, locked, onChanged }) {
       {/* The link control. A select rather than drag-and-drop: it is keyboard
           reachable, says what the options are, and "Not placed" is a real
           choice in the same list rather than a separate unlink button. */}
-      <Select
-        value={l.module_id ? String(l.module_id) : "none"}
-        onValueChange={(v) => link(l.id, v === "none" ? null : Number(v))}
-        disabled={locked || busy}
-      >
-        {/* This Select renders the raw VALUE unless given children, so the
-            label is spelled out — a bare <SelectValue/> here showed the module
-            id instead of its title. */}
-        <SelectTrigger
-          className="h-8 w-[210px] shrink-0 text-[12px]"
-          title={l.module_id ? (modules.find((m) => m.id === l.module_id)?.title ?? "") : "Not placed (staged)"}
+      {canManage && (
+        <Select
+          value={l.module_id ? String(l.module_id) : "none"}
+          onValueChange={(v) => link(l.id, v === "none" ? null : Number(v))}
+          disabled={locked || busy}
         >
-          <SelectValue>
-            {l.module_id
-              ? (modules.find((m) => m.id === l.module_id)?.title ?? "Unknown module")
-              : "Not placed (staged)"}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">Not placed (staged)</SelectItem>
-          {modules.map((m) => (
-            <SelectItem key={m.id} value={String(m.id)}>{m.title}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+          {/* This Select renders the raw VALUE unless given children, so the
+              label is spelled out — a bare <SelectValue/> here showed the module
+              id instead of its title. */}
+          <SelectTrigger
+            className="h-8 w-[210px] shrink-0 text-[12px]"
+            title={l.module_id ? (modules.find((m) => m.id === l.module_id)?.title ?? "") : "Not placed (staged)"}
+          >
+            <SelectValue>
+              {l.module_id
+                ? (modules.find((m) => m.id === l.module_id)?.title ?? "Unknown module")
+                : "Not placed (staged)"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Not placed (staged)</SelectItem>
+            {modules.map((m) => (
+              <SelectItem key={m.id} value={String(m.id)}>{m.title}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
-      <Box className="flex shrink-0 items-center gap-1">
-        <IconBtn icon={Pencil} label="Edit lesson" onClick={() => { setEditing(l); setOpen(true); }} disabled={locked} />
-        <IconBtn icon={Trash2} label="Delete lesson" danger onClick={() => setConfirm(l)} disabled={locked} />
-      </Box>
+      {canManage && (
+        <Box className="flex shrink-0 items-center gap-1">
+          <IconBtn icon={Pencil} label="Edit lesson" onClick={() => { setEditing(l); setOpen(true); }} disabled={locked} />
+          <IconBtn icon={Trash2} label="Delete lesson" danger onClick={() => setConfirm(l)} disabled={locked} />
+        </Box>
+      )}
     </Box>
   );
 
@@ -596,13 +611,15 @@ function LessonsTab({ courseId, modules, lessons, locked, onChanged }) {
           {lessons.length} lesson{lessons.length === 1 ? "" : "s"}
           {staged.length > 0 && ` · ${staged.length} staged`}
         </Text>
-        <Button
-          onClick={() => { setEditing(null); setOpen(true); }}
-          disabled={locked}
-          className="h-8 gap-1.5 rounded-none bg-navy px-3 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
-        >
-          <Plus className="size-3.5" />Add lesson
-        </Button>
+        {canManage && (
+          <Button
+            onClick={() => { setEditing(null); setOpen(true); }}
+            disabled={locked}
+            className="h-8 gap-1.5 rounded-none bg-navy px-3 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
+          >
+            <Plus className="size-3.5" />Add lesson
+          </Button>
+        )}
       </Box>
 
       {err && (
@@ -709,6 +726,7 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
   const [form, setForm] = useState(EMPTY_LESSON);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const { can } = usePermissions();
 
   useEffect(() => {
     if (!open) return;
@@ -763,6 +781,8 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
   const isVideo = form.content_type === "video";
   const isDocument = ["pdf", "image"].includes(form.content_type);
   const canUpload = Boolean(type?.upload);
+  // Sending a file needs upload_content; without it the lesson can still link to one.
+  const mayUpload = can("upload_content");
 
   const hasUpload = isScorm
     ? Boolean(form.scorm_file || form.scorm_package_id)
@@ -1107,7 +1127,7 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
             because a disabled control whose reason is invisible reads as a
             bug rather than a rule.
           */}
-          {canUpload && (
+          {canUpload && mayUpload && (
             <Box className="space-y-2">
               <Label>
                 {type?.label ?? "File"}
@@ -1220,7 +1240,7 @@ function LessonDialog({ open, onOpenChange, courseId, modules, editing, onSaved 
           )}
 
           {/* `link` is the one type with nothing to upload. */}
-          {!canUpload && (
+          {(!canUpload || !mayUpload) && (
             <Box className="space-y-1.5">
               <Label>
                 URL<Text as="span" className="text-danger"> *</Text>

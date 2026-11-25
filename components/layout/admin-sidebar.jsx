@@ -7,9 +7,12 @@ import {
   SidebarHeader,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { SidebarNavSections, SidebarSignOut } from "@/components/layout/sidebar-nav";
+import { SidebarNavGroup, SidebarNavSections, SidebarSignOut } from "@/components/layout/sidebar-nav";
 import { SidebarBrand } from "@/components/layout/sidebar-brand";
+import { ArrowLeft } from "lucide-react";
+
 import { adminNav } from "@/lib/nav-config";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Built to match the reference HTML's admin sidebar: the same order, the same
@@ -19,6 +22,16 @@ import { adminNav } from "@/lib/nav-config";
  */
 export function AdminSidebar() {
   const [signOut] = adminNav.footer;
+  const { user } = useAuth();
+  // Somebody whose role is on another portal and was given admin permissions
+  // as extras lands here from the "Admin" group of their own sidebar; this is
+  // their way back. An admin-portal account never sees it.
+  const home =
+    user && user.role !== "admin"
+      ? user.role === "trainer"
+        ? { title: "Back to My Sessions", icon: ArrowLeft, href: "/trainer/sessions" }
+        : { title: "Back to My Learning", icon: ArrowLeft, href: "/dashboard" }
+      : null;
   return (
     <Sidebar collapsible="icon" hoverExpand>
       <SidebarHeader className="p-2">
@@ -26,6 +39,7 @@ export function AdminSidebar() {
       </SidebarHeader>
       <SidebarSeparator />
       <SidebarContent className="overflow-visible">
+        {home && <SidebarNavGroup items={[home]} />}
         <SidebarNavSections sections={adminNav.sections} />
       </SidebarContent>
       <SidebarSeparator />

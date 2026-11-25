@@ -17,6 +17,7 @@ import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { BRAND, HAIRLINE, STATUS_RAMP } from "@/lib/brand";
 import { fetchAdminIntelligence } from "@/services/api/admin/ai-insights-api";
+import { usePermissions } from "@/hooks/use-permissions";
 
 /**
  * The real-data Learning Intelligence sections (BACKEND_STRUCTURE §10.56):
@@ -83,18 +84,21 @@ function Gauge100({ value, label }) {
 }
 
 export function AdminIntelligence() {
+  const { can } = usePermissions();
+  const canView = can("view_reports");
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (!canView) return;
     let cancelled = false;
     fetchAdminIntelligence()
       .then((d) => { if (!cancelled) setData(d); })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, []);
+  }, [canView]);
 
-  if (failed) return null;
+  if (!canView || failed) return null;
   if (!data) return <Box className="h-72 animate-pulse rounded-xl bg-surface-2" />;
 
   const radar = data.riskRadar ?? { score: 0, dimensions: [] };

@@ -7,6 +7,7 @@ import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { usePermissions } from "@/hooks/use-permissions";
 
 /**
  * File pickers and progress readout for a lesson's video and captions.
@@ -114,7 +115,11 @@ export function LessonMediaFields({
   onVideoSelect, onVideoClear, onCaptionSelect, onCaptionClear,
   progress, disabled,
 }) {
+  const { can } = usePermissions();
   const uploading = Boolean(progress?.stage);
+
+  // Video and caption files go through upload_content.
+  if (!can("upload_content")) return null;
 
   return (
     <Box className="space-y-4">

@@ -19,6 +19,7 @@ import Text from "@/components/ui/text";
 import { useAuth } from "@/hooks/use-auth";
 import { useUnreadMessages } from "@/hooks/use-unread-messages";
 import { cn } from "@/lib/utils";
+import { itemAllowed } from "@/lib/permissions";
 
 /**
  * The one navigation renderer for all three portals.
@@ -61,10 +62,7 @@ function useCloseOnNavigate() {
  */
 function useVisibleItems(items) {
   const { user } = useAuth();
-  const held = new Set(user?.permissions ?? []);
-  return (items ?? []).filter(
-    (item) => !item.permission || held.has(item.permission),
-  );
+  return (items ?? []).filter((item) => itemAllowed(user, item));
 }
 
 export function SidebarNavGroup({ label, items }) {
@@ -337,8 +335,7 @@ function FlyoutSection({ section, pathname, onNavigate }) {
  */
 function useVisibleSections(sections) {
   const { user } = useAuth();
-  const held = new Set(user?.permissions ?? []);
-  const allowed = (item) => !item.permission || held.has(item.permission);
+  const allowed = (item) => itemAllowed(user, item);
 
   return (sections ?? [])
     .map((section) =>

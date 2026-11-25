@@ -42,6 +42,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { usePermissions } from "@/hooks/use-permissions";
 
 function formatDate(iso) {
   if (!iso) return "—";
@@ -50,6 +51,8 @@ function formatDate(iso) {
 
 export function CertificatesTable() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canManage = can("manage_certificates");
 
   const [certificates, setCertificates] = useState(null);
   const [error, setError] = useState(null);
@@ -198,6 +201,7 @@ export function CertificatesTable() {
               {filtered.length} of {certificates.length} certificates shown
             </Text>
           </Box>
+          {canManage && (
           <Button
             size="sm"
             className="bg-navy hover:bg-navy-soft text-paper shrink-0"
@@ -212,6 +216,7 @@ export function CertificatesTable() {
             <Plus className="h-4 w-4 mr-1.5" />
             Issue Certificate
           </Button>
+          )}
         </Box>
 
         {/* ── Filter Bar ── */}
@@ -307,7 +312,7 @@ export function CertificatesTable() {
                     )}
                   </TableCell>
                   <TableCell className="px-4 py-3.5">
-                    {cert.isRevoked ? (
+                    {!canManage ? null : cert.isRevoked ? (
                       <Button
                         variant="outline"
                         size="sm"

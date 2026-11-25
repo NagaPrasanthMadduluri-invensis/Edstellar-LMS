@@ -20,6 +20,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   assignLearningPath, assignUsersBulk, fetchAdminCourses, fetchEmployees,
   fetchLearningPaths,
@@ -46,6 +47,8 @@ const MODES = [
  */
 export function AssignLearning() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canListPeople = can("view_employees");
 
   const [courses, setCourses] = useState(null);
   const [paths, setPaths] = useState([]);
@@ -87,7 +90,8 @@ export function AssignLearning() {
       const [c, p, e] = await Promise.all([
         fetchAdminCourses(),
         fetchLearningPaths({ status: "active" }),
-        fetchEmployees(),
+        // The people list is gated by view_employees; without it, skip the call.
+        canListPeople ? fetchEmployees() : Promise.resolve({ employees: [] }),
       ]);
       // Only what can actually be delivered: a draft or archived item, or a
       // session training (which is assigned by adding someone to its roster,
@@ -102,7 +106,7 @@ export function AssignLearning() {
       setLoadError(err.message);
       setCourses([]);
     }
-  }, [user]);
+  }, [user, canListPeople]);
 
   useEffect(() => { load(); }, [load]);
 

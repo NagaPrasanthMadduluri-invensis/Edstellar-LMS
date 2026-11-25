@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 
 /**
  * One session, its participants, and attendance — `specs/rbac.md` §3.6.1.
@@ -60,6 +61,9 @@ function formatDate(iso) {
 }
 
 export function TrainerSessionDetail({ sessionId }) {
+  const { can } = usePermissions();
+  const canSeeRoster = can("view_session_participants");
+  const canMark = can("mark_attendance");
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState(null);
   const [draft, setDraft] = useState({});
@@ -69,9 +73,13 @@ export function TrainerSessionDetail({ sessionId }) {
 
   const load = useCallback(async () => {
     try {
+      // The roster is its own permission; without it the page renders the
+      // session alone rather than failing on a 403.
       const [s, p] = await Promise.all([
         apiClient(`/api/trainer/sessions/${sessionId}`),
-        apiClient(`/api/trainer/sessions/${sessionId}/participants`),
+        canSeeRoster
+          ? apiClient(`/api/trainer/sessions/${sessionId}/participants`)
+          : Promise.resolve({ participants: [] }),
       ]);
       setSession(s.session);
       setParticipants(p.participants || []);
@@ -83,7 +91,7 @@ export function TrainerSessionDetail({ sessionId }) {
     } catch (e) {
       setError(e.message);
     }
-  }, [sessionId]);
+  }, [sessionId, canSeeRoster]);
 
   useEffect(() => {
     load();
@@ -195,6 +203,7 @@ export function TrainerSessionDetail({ sessionId }) {
             </Box>
           </Box>
 
+          {canSeeRoster && (
           <Box className="ml-auto flex w-full shrink-0 flex-col items-start gap-1 sm:w-auto sm:items-end">
             <Text as="p" className="text-sm font-semibold text-muted-foreground">
               Registered{" "}
@@ -206,10 +215,12 @@ export function TrainerSessionDetail({ sessionId }) {
               Attendance marked for {marked} of {participants.length}
             </Text>
           </Box>
+          )}
         </Box>
       </Card>
 
       {/* ── Participants + attendance ── */}
+      {canSeeRoster && (
       <Card className="gap-0 overflow-hidden p-0">
         <Box className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <Box className="min-w-0">
@@ -227,15 +238,17 @@ export function TrainerSessionDetail({ sessionId }) {
                 Saved
               </Text>
             )}
-            <Button
-              size="sm"
-              className="h-9 gap-2 bg-navy text-paper hover:bg-navy-soft"
-              disabled={!dirty || saving}
-              onClick={save}
-            >
-              <Check className="h-3.5 w-3.5" />
-              {saving ? "Saving…" : "Save attendance"}
-            </Button>
+            {canMark && (
+              <Button
+                size="sm"
+                className="h-9 gap-2 bg-navy text-paper hover:bg-navy-soft"
+                disabled={!dirty || saving}
+                onClick={save}
+              >
+                <Check className="h-3.5 w-3.5" />
+                {saving ? "Saving…" : "Save attendance"}
+              </Button>
+            )}
           </Box>
         </Box>
 
@@ -275,6 +288,7 @@ export function TrainerSessionDetail({ sessionId }) {
                 )}
               </Box>
 
+              {canMark ? (
               <Box className="ml-auto flex flex-wrap items-center gap-1.5">
                 {STATUS_OPTIONS.map((opt) => {
                   const active = (draft[p.user_id] || "") === opt.value;
@@ -302,10 +316,16 @@ export function TrainerSessionDetail({ sessionId }) {
                   );
                 })}
               </Box>
+              ) : (
+                <Text as="span" className="ml-auto text-xs text-muted-foreground">
+                  {STATUS_OPTIONS.find((o) => o.value === p.status)?.label ?? "Not marked"}
+                </Text>
+              )}
             </Box>
           ))
         )}
       </Card>
+      )}
     </Box>
   );
 }

@@ -34,6 +34,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { SESSION_TYPE_LABEL, sessionTypeLabel } from "@/lib/session-types";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { apiClient } from "@/lib/api-client";
 import {
   bulkSessionAction, createSessionBatch, updateSessionBatch, deleteSessionBatch,
@@ -170,6 +171,8 @@ function LoadingSkeleton() {
 ══════════════════════════════════════════ */
 
 function RosterDialog({ sessionId, sessionTitle, open, onClose, onRosterSaved }) {
+  const { can } = usePermissions();
+  const canRoster = can("manage_session_roster");
   const [enrolled,    setEnrolled]    = useState([]);
   const [available,   setAvailable]   = useState([]);
   const [loading,     setLoading]     = useState(false);
@@ -244,17 +247,19 @@ function RosterDialog({ sessionId, sessionTitle, open, onClose, onRosterSaved })
                     >
                       {dept}
                     </Button>
-                    <Button
-                      variant="outline" size="sm"
-                      className="h-7 text-xs px-2 text-navy border-navy/20 hover:bg-paper-cream"
-                      onClick={() => handleEnrollAll(dept)}
-                      title={`Enroll all ${dept}`}
-                    >
-                      + All
-                    </Button>
+                    {canRoster && (
+                      <Button
+                        variant="outline" size="sm"
+                        className="h-7 text-xs px-2 text-navy border-navy/20 hover:bg-paper-cream"
+                        onClick={() => handleEnrollAll(dept)}
+                        title={`Enroll all ${dept}`}
+                      >
+                        + All
+                      </Button>
+                    )}
                   </Box>
                 ))}
-                {enrolledDepts.length === 0 && available.length > 0 && (
+                {canRoster && enrolledDepts.length === 0 && available.length > 0 && (
                   <Text as="span" className="text-xs text-muted-foreground">No departments yet — add learners below</Text>
                 )}
               </Box>
@@ -279,13 +284,15 @@ function RosterDialog({ sessionId, sessionTitle, open, onClose, onRosterSaved })
                       {u.department && (
                         <Badge variant="outline" className="text-[10px] border-border text-ink/60 shrink-0">{u.department}</Badge>
                       )}
-                      <Button
-                        variant="ghost" size="sm"
-                        className="h-7 text-xs text-error hover:bg-error/10 hover:text-error shrink-0"
-                        onClick={() => handleRemove(u.id)}
-                      >
-                        Remove
-                      </Button>
+                      {canRoster && (
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-7 text-xs text-error hover:bg-error/10 hover:text-error shrink-0"
+                          onClick={() => handleRemove(u.id)}
+                        >
+                          Remove
+                        </Button>
+                      )}
                     </Box>
                   ))}
                 </Box>
@@ -293,55 +300,57 @@ function RosterDialog({ sessionId, sessionTitle, open, onClose, onRosterSaved })
             </Box>
 
             {/* ── ADD INDIVIDUAL section ── */}
-            <Box>
-              <Text as="p" className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-3">
-                Add Individual Learners
-              </Text>
+            {canRoster && (
+              <Box>
+                <Text as="p" className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-3">
+                  Add Individual Learners
+                </Text>
 
-              <Select value={addDept} onValueChange={setAddDept}>
-                <SelectTrigger className="h-8 text-xs w-[180px] mb-3">
-                  <SelectValue>{addDept === "all" ? "All Departments" : addDept}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
-                  {availableDepts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
+                <Select value={addDept} onValueChange={setAddDept}>
+                  <SelectTrigger className="h-8 text-xs w-[180px] mb-3">
+                    <SelectValue>{addDept === "all" ? "All Departments" : addDept}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {availableDepts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
 
-              {filteredAvailable.length === 0 ? (
-                <Box className="py-4 text-center border border-dashed rounded-lg">
-                  <Text as="p" className="text-sm text-muted-foreground">
-                    {available.length === 0 ? "All learners are already enrolled." : "No learners in this department."}
-                  </Text>
-                </Box>
-              ) : (
-                <Box className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                  {filteredAvailable.map((u) => (
-                    <Box key={u.id} className="flex items-center gap-3 p-2.5 rounded-lg border hover:bg-paper-warm transition-colors">
-                      <Avatar className="h-8 w-8 shrink-0">
-                        <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(u.id)}`}>
-                          {avatarInitials(u.first_name, u.last_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <Box className="flex-1 min-w-0">
-                        <Text as="p" className="text-sm font-semibold leading-none">{u.first_name} {u.last_name}</Text>
-                        <Text as="p" className="text-xs text-muted-foreground">{u.email}</Text>
+                {filteredAvailable.length === 0 ? (
+                  <Box className="py-4 text-center border border-dashed rounded-lg">
+                    <Text as="p" className="text-sm text-muted-foreground">
+                      {available.length === 0 ? "All learners are already enrolled." : "No learners in this department."}
+                    </Text>
+                  </Box>
+                ) : (
+                  <Box className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {filteredAvailable.map((u) => (
+                      <Box key={u.id} className="flex items-center gap-3 p-2.5 rounded-lg border hover:bg-paper-warm transition-colors">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarFallback className={`text-xs font-bold text-white ${avatarColor(u.id)}`}>
+                            {avatarInitials(u.first_name, u.last_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <Box className="flex-1 min-w-0">
+                          <Text as="p" className="text-sm font-semibold leading-none">{u.first_name} {u.last_name}</Text>
+                          <Text as="p" className="text-xs text-muted-foreground">{u.email}</Text>
+                        </Box>
+                        {u.department && (
+                          <Badge variant="outline" className="text-[10px] border-border text-ink/60 shrink-0">{u.department}</Badge>
+                        )}
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-7 text-xs text-navy border-navy/20 hover:bg-paper-cream shrink-0"
+                          onClick={() => handleAdd(u.id)}
+                        >
+                          <UserPlus className="h-3 w-3 mr-1" />+ Add
+                        </Button>
                       </Box>
-                      {u.department && (
-                        <Badge variant="outline" className="text-[10px] border-border text-ink/60 shrink-0">{u.department}</Badge>
-                      )}
-                      <Button
-                        variant="outline" size="sm"
-                        className="h-7 text-xs text-navy border-navy/20 hover:bg-paper-cream shrink-0"
-                        onClick={() => handleAdd(u.id)}
-                      >
-                        <UserPlus className="h-3 w-3 mr-1" />+ Add
-                      </Button>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            )}
           </Box>
         )}
 
@@ -369,6 +378,9 @@ function SessionsTab({
   showArchived, setShowArchived, archivedCount,
   setBatchTarget, setWaitlistTarget,
 }) {
+  const { can } = usePermissions();
+  const canManage = can("manage_sessions");
+  const canComplete = can("complete_session");
   const focusRef = useRef(null);
 
   // Bring the session the admin came here for into view, once, after the list
@@ -626,13 +638,15 @@ function SessionsTab({
           {showArchived ? "Active" : `Archived${archivedCount ? ` (${archivedCount})` : ""}`}
         </Button>
 
-        <Button
-          className="h-10 shrink-0 cursor-pointer gap-1.5 bg-navy px-5 text-sm text-paper hover:bg-navy-soft"
-          onClick={openCreate}
-          disabled={showArchived}
-        >
-          <Plus className="h-4 w-4" />New Session
-        </Button>
+        {canManage && (
+          <Button
+            className="h-10 shrink-0 cursor-pointer gap-1.5 bg-navy px-5 text-sm text-paper hover:bg-navy-soft"
+            onClick={openCreate}
+            disabled={showArchived}
+          >
+            <Plus className="h-4 w-4" />New Session
+          </Button>
+        )}
       </Box>
 
       {bulkError && (
@@ -642,7 +656,7 @@ function SessionsTab({
       )}
 
       {/* ── Bulk action bar ── */}
-      {selected.size > 0 && (
+      {canManage && selected.size > 0 && (
         <Box className="flex flex-wrap items-center gap-2 bg-navy px-4 py-2.5">
           <Text as="span" className="text-[12.5px] font-semibold text-white">
             {selected.size} selected
@@ -671,7 +685,7 @@ function SessionsTab({
 
       {/* ── Select all + count ── */}
       <Box className="flex items-center gap-2.5">
-        {filtered.length > 0 && (
+        {canManage && filtered.length > 0 && (
           <Checkbox
             checked={allVisibleSelected}
             onCheckedChange={toggleAll}
@@ -729,6 +743,8 @@ function SessionsTab({
             <SessionCard
               key={s.id}
               session={s}
+              canManage={canManage}
+              canComplete={canComplete}
               selected={selected.has(s.id)}
               highlighted={String(s.id) === String(highlighted)}
               cardRef={String(s.id) === String(focusSessionId) ? focusRef : null}
@@ -820,7 +836,7 @@ function SessionsTab({
 ────────────────────────────────────────────────────────────────────────────*/
 
 function SessionCard({
-  session: s, selected, highlighted, cardRef,
+  session: s, canManage = false, canComplete = false, selected, highlighted, cardRef,
   onToggle, onRoster, onBatches, onWaitlist, onAttendance, onEdit,
   onComplete, onCancel,
 }) {
@@ -891,14 +907,16 @@ function SessionCard({
           sizes="(max-width: 768px) 100vw, 33vw"
           className="h-full w-full"
         />
-        <Box className="absolute left-2 top-2 z-10 flex size-[22px] items-center justify-center border border-line bg-white">
-          <Checkbox
-            checked={selected}
-            onCheckedChange={onToggle}
-            aria-label={`Select ${s.title}`}
-            className="size-3.5 cursor-pointer"
-          />
-        </Box>
+        {canManage && (
+          <Box className="absolute left-2 top-2 z-10 flex size-[22px] items-center justify-center border border-line bg-white">
+            <Checkbox
+              checked={selected}
+              onCheckedChange={onToggle}
+              aria-label={`Select ${s.title}`}
+              className="size-3.5 cursor-pointer"
+            />
+          </Box>
+        )}
         <Text
           as="span"
           className={cn(
@@ -1033,7 +1051,7 @@ function SessionCard({
               icon with no accessible name is an unlabelled control
               (§10.3.1.2). ── */}
         <Box className="mt-3 flex border-t border-line">
-          {!isCancelled && (
+          {canManage && !isCancelled && (
             <CardAction
               icon={Layers}
               label={pending.length ? `Batches — ${pending.length} need a date` : "Batches"}
@@ -1049,11 +1067,11 @@ function SessionCard({
               onClick={onAttendance}
             />
           )}
-          {!isCompleted && <CardAction icon={Pencil} label="Edit session" onClick={onEdit} />}
-          {!isCompleted && !isCancelled && (
+          {canManage && !isCompleted && <CardAction icon={Pencil} label="Edit session" onClick={onEdit} />}
+          {canComplete && !isCompleted && !isCancelled && (
             <CardAction icon={CheckCircle2} label="Mark completed" onClick={onComplete} accent />
           )}
-          {isUpcoming && <CardAction icon={X} label="Cancel session" onClick={onCancel} danger />}
+          {canManage && isUpcoming && <CardAction icon={X} label="Cancel session" onClick={onCancel} danger />}
         </Box>
       </Box>
     </Card>
@@ -1387,6 +1405,8 @@ function BatchesDialog({ session, onClose, onChanged }) {
 ────────────────────────────────────────────────────────────────────────────*/
 
 function WaitlistDialog({ session, onClose, onChanged }) {
+  const { can } = usePermissions();
+  const canRoster = can("manage_session_roster");
   const [rows, setRows] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -1451,14 +1471,16 @@ function WaitlistDialog({ session, onClose, onChanged }) {
                   </Text>
                   <Text as="p" className="truncate text-[11px] text-text-3">{r.email}</Text>
                 </Box>
-                <Box className="flex shrink-0 gap-1">
-                  <CardBtn primary disabled={busy} onClick={() => act(promoteFromWaitlist, r.user_id)}>
-                    Enrol
-                  </CardBtn>
-                  <CardBtn danger disabled={busy} onClick={() => act(dropFromWaitlist, r.user_id)}>
-                    Remove
-                  </CardBtn>
-                </Box>
+                {canRoster && (
+                  <Box className="flex shrink-0 gap-1">
+                    <CardBtn primary disabled={busy} onClick={() => act(promoteFromWaitlist, r.user_id)}>
+                      Enrol
+                    </CardBtn>
+                    <CardBtn danger disabled={busy} onClick={() => act(dropFromWaitlist, r.user_id)}>
+                      Remove
+                    </CardBtn>
+                  </Box>
+                )}
               </Box>
             ))}
           </Box>
@@ -1479,6 +1501,9 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
   const [loadingAtt,     setLoadingAtt]     = useState(false);
   const [saving,         setSaving]         = useState(false);
   const [localRows,      setLocalRows]      = useState([]);
+  const { can } = usePermissions();
+  // Recording attendance needs mark_attendance; without it the sheet is read-only.
+  const canMark = can("mark_attendance");
 
   const selectedSession = sessions.find((s) => String(s.id) === selectedId);
 
@@ -1621,7 +1646,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
       )}
 
       {/* Quick mark all */}
-      {!isLocked && localRows.length > 0 && (
+      {canMark && !isLocked && localRows.length > 0 && (
         <Box className="flex items-center gap-3 flex-wrap">
           <Text as="span" className="text-sm font-medium">Quick mark all:</Text>
           {Object.entries(ATTENDANCE_STATUS_CFG).map(([key, cfg]) => (
@@ -1685,7 +1710,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
                 <Text as="span" className="text-sm text-muted-foreground">{rec.department || "—"}</Text>
 
                 {/* Status select */}
-                <Select value={row.status || ""} onValueChange={(v) => updateRow(row.user_id, "status", v)} disabled={isLocked}>
+                <Select value={row.status || ""} onValueChange={(v) => updateRow(row.user_id, "status", v)} disabled={isLocked || !canMark}>
                   <SelectTrigger className={cn("h-8 text-xs w-[140px]", statusCfgItem ? statusCfgItem.triggerCls : "")}>
                     <SelectValue placeholder="— Select —">
                       {statusCfgItem ? statusCfgItem.label : "— Select —"}
@@ -1705,7 +1730,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
                   value={row.join_time}
                   onChange={(e) => updateRow(row.user_id, "join_time", e.target.value)}
                   className="h-8 text-xs w-[95px]"
-                  disabled={isLocked}
+                  disabled={isLocked || !canMark}
                   placeholder="HH:MM"
                 />
 
@@ -1714,7 +1739,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
                   value={row.notes}
                   onChange={(e) => updateRow(row.user_id, "notes", e.target.value)}
                   className="h-8 text-xs"
-                  disabled={isLocked}
+                  disabled={isLocked || !canMark}
                   placeholder="Optional notes"
                 />
 
@@ -1729,7 +1754,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
       )}
 
       {/* Footer buttons */}
-      {!isLocked && localRows.length > 0 && (
+      {canMark && !isLocked && localRows.length > 0 && (
         <Box className="flex items-center justify-end gap-3">
           <Button variant="outline" className="gap-2" onClick={() => handleSave(false)} disabled={saving}>
             <Save className="h-4 w-4" />{saving ? "Saving…" : "Save Draft"}
@@ -1900,6 +1925,8 @@ export function AdminSessionsContent() {
   // the one they just clicked.
   const focusSessionId = useSearchParams().get("session");
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canListPeople = can("view_employees");
 
   /** "sessions" | "attendance" | "reports" — a place the page goes, reached
    *  from a card, not a tab the page always wears. */
@@ -1950,7 +1977,8 @@ export function AdminSessionsContent() {
     Promise.all([
       apiClient(`/api/admin/sessions${showArchived ? "?archived=true" : ""}`),
       apiClient("/api/admin/courses"),
-      apiClient("/api/admin/employees"),
+      // Only used for the department list; the call is gated by view_employees.
+      canListPeople ? apiClient("/api/admin/employees") : Promise.resolve({ employees: [] }),
       // The organization's trainer accounts. Assigning one is what puts the
       // session in that trainer's portal (`specs/rbac.md` §3.6.1).
       apiClient("/api/admin/sessions/trainers"),
@@ -1964,7 +1992,7 @@ export function AdminSessionsContent() {
         setDeptOptions(depts);
       })
       .catch((e) => setError(e.message));
-  }, [user, showArchived]);
+  }, [user, showArchived, canListPeople]);
 
   useEffect(() => { load(); }, [load]);
 

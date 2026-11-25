@@ -30,6 +30,7 @@ import { DescriptionField } from "@/components/shared/description-field";
 import { ThumbnailField } from "@/components/admin/thumbnail-field";
 import { fetchSurveyOptions } from "@/services/api/surveys-api";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   bulkCourseAction, createCourse, deleteCourse, discardCourseThumbnail,
   fetchAdminCourses, fetchAssignments, updateCourse, uploadCourseThumbnail,
@@ -118,6 +119,8 @@ function LibrarySkeleton() {
 
 export function CourseLibrary() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canManage = can("manage_courses");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -230,7 +233,7 @@ export function CourseLibrary() {
     const wanted = searchParams.get("edit");
     if (!wanted || !data?.courses) return;
     const course = findCourseByRef(data.courses, wanted);
-    if (course) openEdit(course);
+    if (course && canManage) openEdit(course);
     // Consume the intent, so a refresh or a Back does not reopen the dialog.
     router.replace("/admin/courses", { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -414,19 +417,21 @@ export function CourseLibrary() {
             : `Archived${data.archived_count ? ` (${data.archived_count})` : ""}`}
         </Button>
 
-        <Button
-          onClick={openCreate}
-          disabled={showArchived}
-          title={showArchived ? "Switch to the active library to add a course" : undefined}
-          className="h-9 gap-1.5 rounded-none bg-navy px-4 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
-        >
-          <Plus className="size-3.5" />
-          Add course
-        </Button>
+        {canManage && (
+          <Button
+            onClick={openCreate}
+            disabled={showArchived}
+            title={showArchived ? "Switch to the active library to add a course" : undefined}
+            className="h-9 gap-1.5 rounded-none bg-navy px-4 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
+          >
+            <Plus className="size-3.5" />
+            Add course
+          </Button>
+        )}
       </Box>
 
       {/* ── Bulk action bar ── */}
-      {selected.size > 0 && (
+      {canManage && selected.size > 0 && (
         <Box className="flex flex-wrap items-center gap-2 bg-navy px-4 py-2.5">
           <Text as="span" className="text-[12.5px] font-semibold text-on-navy">
             {selected.size} selected
@@ -447,7 +452,7 @@ export function CourseLibrary() {
 
       {/* ── Select all + count ── */}
       <Box className="flex items-center gap-3">
-        {filtered.length > 0 && (
+        {canManage && filtered.length > 0 && (
           <label className="flex cursor-pointer items-center gap-2 text-[12px] text-text-2">
             <input
               type="checkbox"
@@ -488,6 +493,7 @@ export function CourseLibrary() {
               archived={showArchived}
               selected={selected.has(course.id)}
               busy={busy}
+              canManage={canManage}
               onToggleSelect={() => toggleOne(course.id)}
               onOpen={() => router.push(
                 course.session_id
@@ -506,7 +512,7 @@ export function CourseLibrary() {
       )}
 
       <CourseDialog
-        open={dialogOpen}
+        open={canManage && dialogOpen}
         onOpenChange={setDialogOpen}
         editing={editing}
         form={form}
@@ -565,7 +571,7 @@ function BulkButton({ children, onClick, disabled, plain = false }) {
 /* ── One course card ─────────────────────────────────────────────────────── */
 
 function CourseCard({
-  course, archived, selected, busy, priority = false,
+  course, archived, selected, busy, priority = false, canManage = false,
   onToggleSelect, onOpen, onPreview, onEdit, onPublish, onArchive, onDelete, onOpenRoster,
 }) {
   const colour = categoryColor(course.category);
@@ -604,18 +610,20 @@ function CourseCard({
           className="h-full w-full"
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 25vw"
         />
-        <label
-          className="absolute left-2 top-2 flex size-[22px] cursor-pointer items-center justify-center border border-line bg-white"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onToggleSelect}
-            aria-label={`Select ${course.name}`}
-            className="size-3 accent-accent-blue"
-          />
-        </label>
+        {canManage && (
+          <label
+            className="absolute left-2 top-2 flex size-[22px] cursor-pointer items-center justify-center border border-line bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={onToggleSelect}
+              aria-label={`Select ${course.name}`}
+              className="size-3 accent-accent-blue"
+            />
+          </label>
+        )}
         {mandatory && (
           <Text
             as="span"
@@ -735,32 +743,40 @@ function CourseCard({
         {archived ? (
           <>
             <CardAction icon={Eye} label="Preview as learner" onClick={onPreview} disabled={busy} />
-            <CardAction icon={ArchiveRestore} label="Restore to the library" onClick={onArchive} disabled={busy} tone="text-success hover:!bg-success hover:!text-white" />
-            <CardAction icon={Trash2} label="Delete permanently" onClick={onDelete} disabled={busy} danger />
+            {canManage && (
+              <>
+                <CardAction icon={ArchiveRestore} label="Restore to the library" onClick={onArchive} disabled={busy} tone="text-success hover:!bg-success hover:!text-white" />
+                <CardAction icon={Trash2} label="Delete permanently" onClick={onDelete} disabled={busy} danger />
+              </>
+            )}
           </>
         ) : (
           <>
             <CardAction icon={Layers} label="Manage modules & lessons" onClick={onOpen} disabled={busy} />
             <CardAction icon={Eye} label="Preview as learner" onClick={onPreview} disabled={busy} />
-            <CardAction
-              icon={Pencil}
-              label={isSessionTraining ? "Edit this in Sessions — a session training is generated" : "Edit course details"}
-              onClick={onEdit}
-              disabled={busy || isSessionTraining}
-            />
-            <CardAction
-              icon={course.is_active ? Ban : CheckCircle2}
-              label={isSessionTraining ? "A session training follows its session" : course.is_active ? "Unpublish" : "Publish"}
-              onClick={onPublish}
-              disabled={busy || isSessionTraining}
-            />
-            <CardAction
-              icon={Archive}
-              label={isSessionTraining ? "Delete the session to remove its training" : "Archive"}
-              onClick={onArchive}
-              disabled={busy || isSessionTraining}
-            />
-            <CardAction icon={Trash2} label="Delete" onClick={onDelete} disabled={busy} danger />
+            {canManage && (
+              <>
+                <CardAction
+                  icon={Pencil}
+                  label={isSessionTraining ? "Edit this in Sessions — a session training is generated" : "Edit course details"}
+                  onClick={onEdit}
+                  disabled={busy || isSessionTraining}
+                />
+                <CardAction
+                  icon={course.is_active ? Ban : CheckCircle2}
+                  label={isSessionTraining ? "A session training follows its session" : course.is_active ? "Unpublish" : "Publish"}
+                  onClick={onPublish}
+                  disabled={busy || isSessionTraining}
+                />
+                <CardAction
+                  icon={Archive}
+                  label={isSessionTraining ? "Delete the session to remove its training" : "Archive"}
+                  onClick={onArchive}
+                  disabled={busy || isSessionTraining}
+                />
+                <CardAction icon={Trash2} label="Delete" onClick={onDelete} disabled={busy} danger />
+              </>
+            )}
           </>
         )}
       </Box>

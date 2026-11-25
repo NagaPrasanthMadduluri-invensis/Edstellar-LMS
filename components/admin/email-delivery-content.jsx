@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { usePermissions } from "@/hooks/use-permissions";
 import { fetchEmailOutbox, resendEmail } from "@/services/api/email-delivery-api";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,8 @@ function prettyType(value) {
 }
 
 export function EmailDeliveryContent() {
+  const { can } = usePermissions();
+  const canResend = can("manage_users");
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
@@ -262,7 +265,7 @@ export function EmailDeliveryContent() {
                         refuses both with 422, and a button that exists only
                         to be refused is the control that lies.
                       */}
-                      {r.status === "failed" && (
+                      {canResend && r.status === "failed" && (
                         <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs"
                                 disabled={resending === r.id}
                                 onClick={() => onResend(r)}>

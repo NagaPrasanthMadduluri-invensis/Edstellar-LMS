@@ -64,7 +64,12 @@ export function TopNav() {
    * the API answers 403 for all three, so the item is not offered rather than
    * offered and refused (TASTE §10.3.1.2).
    */
-  const showOrgSettings = user?.role === "admin" && !user?.isPlatformAdmin;
+  const showOrgSettings =
+    !user?.isPlatformAdmin &&
+    (user?.role === "admin" ||
+      // A Learner/Manager/Trainer role given "Edit organization settings" as
+      // an extra in the Permission Matrix (lib/permissions.js).
+      (user?.permissions ?? []).includes("manage_organization"));
 
   /** No shared change-password route; each portal has its own. */
   const changePassword =

@@ -26,6 +26,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { apiClient } from "@/lib/api-client";
 import { uploadScormPackage, scormSizeError } from "@/services/api/admin/admin-api";
 
@@ -59,6 +60,9 @@ function StatCard({ icon: Icon, iconBg, value, label }) {
 
 export function AdminScormContent() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canUpload = can("upload_content");
+  const canAssign = can("assign_learning");
   const fileRef = useRef(null);
 
   const [packages,    setPackages]    = useState(null);
@@ -100,8 +104,11 @@ export function AdminScormContent() {
   const loadAssignees = async (pkgId) => {
     const d = await apiClient(`/api/admin/scorm/${pkgId}`);
     setAssigned(d.assignments || []);
-    const all = await apiClient("/api/admin/users");
-    setLearners(all.users || []);
+    // The people list is gated by view_employees; without it, skip the call.
+    if (can("view_employees")) {
+      const all = await apiClient("/api/admin/users");
+      setLearners(all.users || []);
+    }
   };
 
   /* ── Upload ── */
@@ -223,9 +230,11 @@ export function AdminScormContent() {
       {/* ── Header ── */}
       <Box className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Text as="h2" className="text-base font-bold">SCORM Packages</Text>
-        <Button size="sm" className="gap-1.5 h-9" onClick={() => setUploadOpen(true)}>
-          <Upload className="h-4 w-4" />Upload SCORM Package
-        </Button>
+        {canUpload && (
+          <Button size="sm" className="gap-1.5 h-9" onClick={() => setUploadOpen(true)}>
+            <Upload className="h-4 w-4" />Upload SCORM Package
+          </Button>
+        )}
       </Box>
 
       {/* ── Empty ── */}
@@ -236,11 +245,15 @@ export function AdminScormContent() {
           </Box>
           <Box className="text-center">
             <Text as="h3" className="text-sm font-semibold">No SCORM packages yet</Text>
-            <Text as="p" className="text-xs text-muted-foreground mt-1">Upload a .zip SCORM package to get started.</Text>
+            <Text as="p" className="text-xs text-muted-foreground mt-1">
+              {canUpload ? "Upload a .zip SCORM package to get started." : "Packages uploaded by your team will appear here."}
+            </Text>
           </Box>
-          <Button size="sm" onClick={() => setUploadOpen(true)} className="gap-1.5">
-            <Upload className="h-4 w-4" />Upload your first package
-          </Button>
+          {canUpload && (
+            <Button size="sm" onClick={() => setUploadOpen(true)} className="gap-1.5">
+              <Upload className="h-4 w-4" />Upload your first package
+            </Button>
+          )}
         </Card>
       )}
 
@@ -296,18 +309,22 @@ export function AdminScormContent() {
 
                 {/* Actions */}
                 <Box className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="outline" size="sm" className="h-8 gap-1.5 text-xs"
-                    onClick={() => openAssign(pkg)}
-                  >
-                    <Users className="h-3.5 w-3.5" />Assign
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10"
-                    onClick={() => setDeletePkg(pkg)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {canAssign && (
+                    <Button
+                      variant="outline" size="sm" className="h-8 gap-1.5 text-xs"
+                      onClick={() => openAssign(pkg)}
+                    >
+                      <Users className="h-3.5 w-3.5" />Assign
+                    </Button>
+                  )}
+                  {canUpload && (
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 text-error hover:text-error hover:bg-error/10"
+                      onClick={() => setDeletePkg(pkg)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </Box>
               </Box>
             </Card>

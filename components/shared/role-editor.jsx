@@ -92,6 +92,21 @@ export function dirtyRoles(roles, draft) {
 }
 
 /**
+ * Whether ticking `permission` can do anything for a role on `portal`.
+ *
+ * Mirrors `permissionAppliesTo` in `server/src/common/permissions.ts`: an
+ * admin permission works on a role of ANY portal (for a Learner, Manager or
+ * Trainer role it is an extra admin module), while a learner or trainer
+ * permission works only on its own portal. A catalogue entry with no
+ * `portals` (an older server) is treated as applying everywhere.
+ */
+export function permissionApplies(permission, portal) {
+  const portals = permission?.portals;
+  if (!Array.isArray(portals) || portals.length === 0) return true;
+  return portals.includes("admin") || portals.includes(portal);
+}
+
+/**
  * The permission matrix: one row per catalogued permission, one column per role.
  *
  * `gridTemplateColumns` is the one inline style in here and it cannot be a
@@ -123,7 +138,8 @@ export function RoleMatrix({ roles, catalogue, draft, onToggle, title, hint }) {
             {title ?? "Permission matrix"}
           </Text>
           <Text as="p" className="text-xs text-muted-foreground">
-            {hint ?? "Tick what each role may do. The list is what this build enforces."}
+            {hint ??
+              "Tick what each role may do. Admin permissions ticked for Learner, Manager or Trainer add that admin module for them. A dash means it cannot apply to that role."}
           </Text>
         </Box>
 
@@ -160,11 +176,25 @@ export function RoleMatrix({ roles, catalogue, draft, onToggle, title, hint }) {
               </Text>
               {roles.map((role) => (
                 <Box key={role.id} className="flex items-center justify-center">
-                  <Checkbox
-                    checked={(draft[role.id] ?? new Set()).has(permission.id)}
-                    onCheckedChange={() => onToggle(role.id, permission.id)}
-                    className="h-5 w-5 rounded data-[state=checked]:border-navy/20 data-[state=checked]:bg-navy"
-                  />
+                  {permissionApplies(permission, role.portal) ? (
+                    <Checkbox
+                      aria-label={`${permission.label} for ${role.label}`}
+                      checked={(draft[role.id] ?? new Set()).has(permission.id)}
+                      onCheckedChange={() => onToggle(role.id, permission.id)}
+                      className="h-5 w-5 rounded data-[state=checked]:border-navy/20 data-[state=checked]:bg-navy"
+                    />
+                  ) : (
+                    // Not a checkbox: no route on this role's portal checks it,
+                    // so a tick would change nothing (and any stored grant is
+                    // left exactly as it is on save).
+                    <Text
+                      as="span"
+                      title={`Does not apply to ${portalLabel(role.portal).toLowerCase()} roles`}
+                      className="text-sm text-muted-foreground"
+                    >
+                      –
+                    </Text>
+                  )}
                 </Box>
               ))}
             </Box>

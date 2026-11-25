@@ -26,6 +26,7 @@ import {
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   fetchLessons, createLesson, updateLesson, deleteLesson,
   presignLessonVideo, presignNewVideo, uploadToR2, confirmLessonVideo, deleteLessonVideo,
@@ -87,6 +88,8 @@ const EMPTY_LESSON = {
 
 export function ModuleLessons({ moduleId }) {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canManage = can("manage_courses");
   const fileRef = useRef(null);
   const documentRef = useRef(null);
   const [lessons, setLessons] = useState(null);
@@ -601,31 +604,35 @@ export function ModuleLessons({ moduleId }) {
                   </Box>
                 </Box>
 
-                <Box className="flex items-center gap-0.5 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleToggleActive(lesson)}>
-                    {lesson.is_active
-                      ? <Eye className="h-3.5 w-3.5 text-navy" />
-                      : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                    }
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(lesson)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-error hover:text-error hover:bg-error/10"
-                    onClick={() => setDeleteTarget(lesson)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </Box>
+                {canManage && (
+                  <Box className="flex items-center gap-0.5 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleToggleActive(lesson)}>
+                      {lesson.is_active
+                        ? <Eye className="h-3.5 w-3.5 text-navy" />
+                        : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                      }
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(lesson)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-error hover:text-error hover:bg-error/10"
+                      onClick={() => setDeleteTarget(lesson)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </Box>
+                )}
               </Box>
             );
           })}
         </Box>
       )}
 
-      <Button variant="outline" size="sm" className="w-full text-xs h-8 border-dashed" onClick={handleCreate}>
-        <Plus className="h-3.5 w-3.5 mr-1.5" />
-        Add Lesson
-      </Button>
+      {canManage && (
+        <Button variant="outline" size="sm" className="w-full text-xs h-8 border-dashed" onClick={handleCreate}>
+          <Plus className="h-3.5 w-3.5 mr-1.5" />
+          Add Lesson
+        </Button>
+      )}
 
       {/* ── Lesson Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

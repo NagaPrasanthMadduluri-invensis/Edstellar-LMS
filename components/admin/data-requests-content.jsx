@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/hooks/use-permissions";
 import { KpiStatCard } from "@/components/shared/kpi-stat-card";
 import {
   Dialog,
@@ -42,6 +43,8 @@ import {
 const PAGE_SIZE = 50;
 
 export function DataRequestsContent() {
+  const { can } = usePermissions();
+  const canDecide = can("manage_users");
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -127,7 +130,7 @@ export function DataRequestsContent() {
       ) : (
         <Box className="space-y-3">
           {requests.map((r) => (
-            <RequestRow key={r.id} request={r} onRespond={() => setActive(r)} />
+            <RequestRow key={r.id} request={r} canDecide={canDecide} onRespond={() => setActive(r)} />
           ))}
         </Box>
       )}
@@ -146,7 +149,7 @@ export function DataRequestsContent() {
   );
 }
 
-function RequestRow({ request: r, onRespond }) {
+function RequestRow({ request: r, canDecide, onRespond }) {
   return (
     <Card className="p-4">
       <Box className="flex flex-wrap items-start justify-between gap-3">
@@ -180,9 +183,11 @@ function RequestRow({ request: r, onRespond }) {
               </Text>
             )}
           </Box>
-          <Button variant="outline" size="sm" className="cursor-pointer" onClick={onRespond}>
-            Respond
-          </Button>
+          {canDecide && (
+            <Button variant="outline" size="sm" className="cursor-pointer" onClick={onRespond}>
+              Respond
+            </Button>
+          )}
         </Box>
       </Box>
     </Card>

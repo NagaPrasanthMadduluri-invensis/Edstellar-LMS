@@ -42,6 +42,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
+import { usePermissions } from "@/hooks/use-permissions";
 import { createUser, updateUser, bulkCreateUsers, toggleUserStatus, deleteUser, fetchSeatState, fetchOrgRoles, assignUserRole, ensureTrainerRole } from "@/services/api/admin/admin-api";
 import { SeatUsagePanel } from "@/components/admin/seat-usage-panel";
 // The lists are per-tenant data now, curated by Edstellar at onboarding
@@ -740,6 +741,10 @@ function IconAction({ icon: Icon, label, onClick, disabled = false, danger = fal
 
 export function AdminEmployeesContent() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canCreate = can("manage_users");
+  const canEditUsers = can("edit_employees");
+  const canExport = can("view_reports");
   const fileRef   = useRef(null);
 
   // The TABLE rows are a single server-paginated page; `people` is the full
@@ -864,7 +869,7 @@ export function AdminEmployeesContent() {
       // Seats travel with every refetch: creating or deactivating somebody
       // moves the meter, and a stale one beside a table that just changed is
       // the two-numbers-disagreeing failure the KPI tiles already avoid.
-      fetchSeatState().catch(() => null),
+      can("view_employees") ? fetchSeatState().catch(() => null) : Promise.resolve(null),
       // The branch locations and job levels this org may offer.
       fetchMyOrgOptions().catch(() => null),
       // The org's roles, for the Add User selector and Change role. A failure
@@ -875,7 +880,7 @@ export function AdminEmployeesContent() {
     setSeatState(seats);
     setOrgOptions(options);
     setOrgRoles(roles?.roles ?? null);
-  }, [user]);
+  }, [user, can]);
 
   /** A full reload after a mutation — the table page AND the picker list. */
   const load = useCallback(async () => {
@@ -1213,6 +1218,7 @@ export function AdminEmployeesContent() {
             </Text>
           </Box>
           <Box className="flex items-center gap-2">
+            {canCreate && (
             <Button
               variant="outline"
               size="sm"
@@ -1224,6 +1230,8 @@ export function AdminEmployeesContent() {
               <Upload className="h-3.5 w-3.5" />
               Bulk Upload
             </Button>
+            )}
+            {canExport && (
             <Button
               variant="outline"
               size="sm"
@@ -1234,10 +1242,12 @@ export function AdminEmployeesContent() {
               <Download className="h-3.5 w-3.5" />
               {exporting ? "Exporting…" : "Export"}
             </Button>
+            )}
             {/* Disabled at the cap rather than enabled-and-refused: this form
                 only ever creates LEARNERS, which is exactly what a seat is, so
                 the API's 409 is certain. §10.3.1.2's rule — the title says
                 why, and the seat panel above says what to do about it. */}
+            {canCreate && (
             <Button
               size="sm"
               disabled={seatsFull}
@@ -1248,6 +1258,7 @@ export function AdminEmployeesContent() {
               <UserPlus className="h-3.5 w-3.5" />
               + Add User
             </Button>
+            )}
           </Box>
         </Box>
 
@@ -1497,6 +1508,7 @@ export function AdminEmployeesContent() {
                             label={`View ${emp.first_name} ${emp.last_name}`}
                             onClick={() => setDetailUserId(emp.id)}
                           />
+                          {canEditUsers && (
                           <IconAction
                             icon={Pencil}
                             label={emp.can_manage ? "Edit" : `${emp.role_label} accounts are not editable here`}
@@ -1507,6 +1519,8 @@ export function AdminEmployeesContent() {
                               setEditError(null);
                             }}
                           />
+                          )}
+                          {canEditUsers && (
                           <IconAction
                             icon={Power}
                             label={
@@ -1518,6 +1532,7 @@ export function AdminEmployeesContent() {
                             active={!emp.is_active}
                             onClick={() => setConfirmToggle({ id: emp.id, name: `${emp.first_name} ${emp.last_name}`, is_active: emp.is_active })}
                           />
+                          )}
                           {/* Change role is offered on EVERY row, unlike the
                               three beside it. `assertMutableLearner` refuses
                               to edit, deactivate or delete a non-learner, but
@@ -1526,7 +1541,7 @@ export function AdminEmployeesContent() {
                               admin needs and the only route out of a wrong
                               choice. Absent entirely when the roles fetch
                               failed, rather than opening an empty dialog. */}
-                          {orgRoles && orgRoles.length > 0 && (
+                          {canCreate && orgRoles && orgRoles.length > 0 && (
                             <IconAction
                               icon={ShieldCheck}
                               label={`Change role — currently ${emp.role_label}`}
@@ -1537,6 +1552,7 @@ export function AdminEmployeesContent() {
                               }}
                             />
                           )}
+                          {canCreate && (
                           <IconAction
                             icon={Trash2}
                             label={emp.can_manage ? "Delete" : `${emp.role_label} accounts cannot be deleted here`}
@@ -1544,6 +1560,7 @@ export function AdminEmployeesContent() {
                             danger
                             onClick={() => setConfirmDelete({ id: emp.id, name: `${emp.first_name} ${emp.last_name}` })}
                           />
+                          )}
                         </Box>
                       </td>
 

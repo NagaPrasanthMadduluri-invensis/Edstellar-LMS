@@ -24,6 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { DescriptionField } from "@/components/shared/description-field";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   addQuestion, createAssessment, deleteAssessment, deleteQuestion,
   fetchAssessmentDetail, fetchAssessments, updateAssessment, updateQuestion,
@@ -46,6 +47,8 @@ const LINK_LABEL = Object.fromEntries(
  * than making the admin remember ids from another screen.
  */
 export function CourseAssessmentsContent({ courseId, modules = [], lessons = [], onChanged }) {
+  const { can } = usePermissions();
+  const canBuild = can("build_assessments");
   const [assessments, setAssessments] = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -123,12 +126,14 @@ export function CourseAssessmentsContent({ courseId, modules = [], lessons = [],
         <Text as="p" className="text-[12px] text-text-3">
           {assessments.length} assessment{assessments.length === 1 ? "" : "s"}
         </Text>
-        <Button
-          onClick={() => { setEditing(null); setDialogOpen(true); }}
-          className="h-8 gap-1.5 rounded-none bg-navy px-3 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
-        >
-          <Plus className="size-3.5" />Add assessment
-        </Button>
+        {canBuild && (
+          <Button
+            onClick={() => { setEditing(null); setDialogOpen(true); }}
+            className="h-8 gap-1.5 rounded-none bg-navy px-3 text-[12.5px] font-bold text-accent-soft hover:bg-accent-blue hover:text-white"
+          >
+            <Plus className="size-3.5" />Add assessment
+          </Button>
+        )}
       </Box>
 
       {error && (
@@ -191,12 +196,14 @@ export function CourseAssessmentsContent({ courseId, modules = [], lessons = [],
                       </Text>
                     </Box>
                   </button>
-                  <Box className="flex shrink-0 items-center gap-1">
-                    <SmallBtn icon={Pencil} label="Edit assessment"
-                      onClick={() => { setEditing(a); setDialogOpen(true); }} />
-                    <SmallBtn icon={Trash2} label="Delete assessment" danger
-                      onClick={() => setConfirm(a)} />
-                  </Box>
+                  {canBuild && (
+                    <Box className="flex shrink-0 items-center gap-1">
+                      <SmallBtn icon={Pencil} label="Edit assessment"
+                        onClick={() => { setEditing(a); setDialogOpen(true); }} />
+                      <SmallBtn icon={Trash2} label="Delete assessment" danger
+                        onClick={() => setConfirm(a)} />
+                    </Box>
+                  )}
                 </Box>
 
                 {isOpen && (
@@ -222,17 +229,20 @@ export function CourseAssessmentsContent({ courseId, modules = [], lessons = [],
                         {detail.questions.map((q, i) => (
                           <QuestionRow
                             key={q.id} question={q} index={i}
+                            canBuild={canBuild}
                             onEdit={() => { setQEditing(q); setQOpen(true); }}
                             onDelete={() => setQConfirm(q)}
                           />
                         ))}
-                        <Button
-                          variant="outline"
-                          onClick={() => { setQEditing(null); setQOpen(true); }}
-                          className="h-8 w-full gap-1.5 rounded-none border-dashed text-[12.5px]"
-                        >
-                          <Plus className="size-3.5" />Add question
-                        </Button>
+                        {canBuild && (
+                          <Button
+                            variant="outline"
+                            onClick={() => { setQEditing(null); setQOpen(true); }}
+                            className="h-8 w-full gap-1.5 rounded-none border-dashed text-[12.5px]"
+                          >
+                            <Plus className="size-3.5" />Add question
+                          </Button>
+                        )}
                       </Box>
                     )}
                   </Box>
@@ -300,7 +310,7 @@ export function CourseAssessmentsContent({ courseId, modules = [], lessons = [],
 
 /* ── One question, read-only ───────────────────────────────────────────── */
 
-function QuestionRow({ question, index, onEdit, onDelete }) {
+function QuestionRow({ question, index, canBuild = false, onEdit, onDelete }) {
   const type = questionTypeOf(question.question_type);
   const optionBacked = isOptionBacked(question.question_type);
 
@@ -352,10 +362,12 @@ function QuestionRow({ question, index, onEdit, onDelete }) {
             </Box>
           )}
         </Box>
-        <Box className="flex shrink-0 items-center gap-1">
-          <SmallBtn icon={Pencil} label="Edit question" onClick={onEdit} />
-          <SmallBtn icon={Trash2} label="Delete question" danger onClick={onDelete} />
-        </Box>
+        {canBuild && (
+          <Box className="flex shrink-0 items-center gap-1">
+            <SmallBtn icon={Pencil} label="Edit question" onClick={onEdit} />
+            <SmallBtn icon={Trash2} label="Delete question" danger onClick={onDelete} />
+          </Box>
+        )}
       </Box>
     </Box>
   );

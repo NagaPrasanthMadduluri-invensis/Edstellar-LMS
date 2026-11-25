@@ -15,6 +15,7 @@ import {
 import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 import { presignDocument, uploadToR2 } from "@/services/api/admin/admin-api";
 
 /**
@@ -106,7 +107,11 @@ export function formatBytes(bytes) {
  */
 export function LessonResourcesFields({ resources, onChange, disabled = false }) {
   const fileRef = useRef(null);
-  const [mode, setMode] = useState("upload");
+  const { can } = usePermissions();
+  // File uploads need upload_content; a link needs only manage_courses.
+  const canUpload = can("upload_content");
+  const [pickedMode, setMode] = useState("upload");
+  const mode = canUpload ? pickedMode : "link";
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(null);
@@ -245,7 +250,7 @@ export function LessonResourcesFields({ resources, onChange, disabled = false })
           {[
             { key: "upload", label: "Upload file", icon: Upload },
             { key: "link", label: "External link", icon: Link2 },
-          ].map((option) => (
+          ].filter((option) => canUpload || option.key !== "upload").map((option) => (
             <Button
               key={option.key}
               type="button"

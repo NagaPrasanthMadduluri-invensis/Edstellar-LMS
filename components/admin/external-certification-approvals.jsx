@@ -1,5 +1,6 @@
 "use client";
 
+import { usePermissions } from "@/hooks/use-permissions";
 import { CertificationApprovals } from "@/components/shared/certification-approvals";
 import {
   decideAsAdmin,
@@ -19,6 +20,9 @@ import {
  * somebody's record and moves their learning hours.
  */
 export function ExternalCertificationApprovals() {
+  const { can } = usePermissions();
+  // Both the queue read and the decision need manage_certificates.
+  if (!can("manage_certificates")) return null;
   return (
     <CertificationApprovals
       title="External certifications awaiting approval"

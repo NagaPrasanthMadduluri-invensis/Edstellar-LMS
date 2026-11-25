@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { requestMoreSeats } from "@/services/api/admin/admin-api";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 
 /**
  * The Seat Licence panel, at the top of Manage Users.
@@ -36,6 +37,8 @@ import { cn } from "@/lib/utils";
  */
 export function SeatUsagePanel({ state, onChanged }) {
   const [open, setOpen] = useState(false);
+  const { can } = usePermissions();
+  const canRequest = can("manage_users");
 
   if (!state) return null;
   const { seats, requests = [] } = state;
@@ -93,7 +96,7 @@ export function SeatUsagePanel({ state, onChanged }) {
               <Clock className="size-3 shrink-0 text-warning" />
               Awaiting Edstellar — asked for {pending.requested_seats}
             </Text>
-          ) : (
+          ) : canRequest && (
             <button
               type="button"
               onClick={() => setOpen(true)}

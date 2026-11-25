@@ -29,6 +29,7 @@ import Text from "@/components/ui/text";
 import Box from "@/components/ui/box";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   fetchAdminCourses, createCourse, deleteCourse, updateCourse,
   uploadCourseThumbnail, discardCourseThumbnail,
@@ -53,6 +54,8 @@ function formatDate(iso) {
 
 export function CourseSelector() {
   const { user } = useAuth();
+  const { can } = usePermissions();
+  const canManage = can("manage_courses");
   const router = useRouter();
   const [courses, setCourses] = useState(null);
   const [search, setSearch] = useState("");
@@ -239,18 +242,20 @@ export function CourseSelector() {
             <SelectItem value="enrolled">Most Enrolled</SelectItem>
           </SelectContent>
         </Select>
-        <Button
-          className="h-11 bg-navy hover:bg-navy-soft text-paper gap-1.5 shrink-0 px-5 text-sm font-medium"
-          onClick={() => {
-            setForm({ name: "", description: "", is_active: false });
-            setThumbnailFile(null);
-            setFormError(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Add Course
-        </Button>
+        {canManage && (
+          <Button
+            className="h-11 bg-navy hover:bg-navy-soft text-paper gap-1.5 shrink-0 px-5 text-sm font-medium"
+            onClick={() => {
+              setForm({ name: "", description: "", is_active: false });
+              setThumbnailFile(null);
+              setFormError(null);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Add Course
+          </Button>
+        )}
       </Box>
 
       <Text as="p" className="text-sm text-muted-foreground -mt-1">
@@ -345,7 +350,7 @@ export function CourseSelector() {
 
                     {/* Action buttons — horizontal row at top right */}
                     <Box className="ml-auto flex flex-wrap items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                      {!isSessionTraining && (
+                      {canManage && !isSessionTraining && (
                         <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit"
                           onClick={(e) => { e.stopPropagation(); router.push(href); }}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -362,7 +367,7 @@ export function CourseSelector() {
                           onClick={(e) => { e.stopPropagation(); router.push("/admin/sessions"); }}>
                           Manage in Sessions
                         </Button>
-                      ) : (
+                      ) : canManage && (
                         <>
                           <Button
                             variant="ghost" size="icon"
