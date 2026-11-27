@@ -1,18 +1,20 @@
 /**
  * Session details (2026-11-24, BACKEND_STRUCTURE §10.63): the admin sees every
  * sitting's schedule and seats, every learner's feedback, and downloads the
- * session report as Excel and as a printable PDF. Batches can span days, and an
- * end date before the start is refused in the batch form.
+ * session report as Excel and as a printable PDF. Since 0076 a batch is one time
+ * slot on one date: each date has its own batches (BACKEND_STRUCTURE §10.67), and
+ * a batch is added on a date from the Dates and batches dialog.
  */
 import { test, expect, fx, db } from './support.mjs';
 import { api, newLearner, pageAs, uniq } from './helpers-1.mjs';
 
-test('session details: schedule with seats, learner feedback, Excel and PDF report, multi-day batch', async ({ browser }) => {
+test('session details: schedule with seats, learner feedback, Excel and PDF report, a batch added on a date', async ({ browser }) => {
   const A = fx().A;
   const admin = await api(A.admin);
   const title = uniq('Report session');
 
-  // ── Setup (not the subject): a two-day session with two same-day batches ──
+  // ── Setup (not the subject): a two-day session (Batch 1 on each date) plus
+  //    Morning and Afternoon batches on the first date ──
   const created = await admin.post('/api/admin/sessions', {
     title, session_type: 'ILT', capacity: 10, trainer: 'x', trainer_user_id: A.trainer.id,
     venue_url: 'Room 4', date: '2030-06-01', end_date: '2030-06-02', start_time: '09:00', end_time: '12:00',
@@ -39,11 +41,11 @@ test('session details: schedule with seats, learner feedback, Excel and PDF repo
   await card.getByRole('button', { name: 'Mark attendance' }).click();
 
   // Schedule: both batches, each with its own seats; the 1-seat morning is full.
-  await expect(page.getByRole('heading', { name: 'Batches (2)' })).toBeVisible();
-  const morning = page.locator('tr', { hasText: 'Batch 1 · Morning' });
+  await expect(page.getByRole('heading', { name: 'Batches (4)' })).toBeVisible();
+  const morning = page.locator('tr', { hasText: 'Batch 2 · Morning' });
   await expect(morning).toContainText('1 / 1');
   await expect(morning).toContainText('Full');
-  const afternoon = page.locator('tr', { hasText: 'Batch 2 · Afternoon' });
+  const afternoon = page.locator('tr', { hasText: 'Batch 3 · Afternoon' });
   await expect(afternoon).toContainText('14:00 to 17:00');
   await expect(afternoon).toContainText('1 / 3');
 
@@ -52,7 +54,7 @@ test('session details: schedule with seats, learner feedback, Excel and PDF repo
   await expect(fb.getByText('1 response')).toBeVisible();
   await expect(fb.getByText(comment)).toBeVisible();
   await expect(fb.getByText(`${l1.firstName} Journey`)).toBeVisible();
-  await expect(fb.getByText('Batch 1 · Morning')).toBeVisible();
+  await expect(fb.getByText('Batch 2 · Morning (1 Jun)')).toBeVisible();
   await expect(fb.getByText('4.3 / 5').first()).toBeVisible();
 
   // Excel download, named for the session.
@@ -73,17 +75,20 @@ test('session details: schedule with seats, learner feedback, Excel and PDF repo
   await expect(popup.getByText(comment)).toBeVisible();
   await popup.close();
 
-  // ── Batch form: a multi-day batch, and an end before the start is refused ──
+  // ── Dates and batches: add a batch on the second date ──
   await page.goto(`/admin/sessions?session=${sessionId}`);
-  await page.getByRole('button', { name: 'Batches' }).first().click();
+  await page.getByRole('button', { name: 'Dates and batches' }).first().click();
   const dlg = page.getByRole('dialog');
-  await dlg.getByLabel('Start date').fill('2030-06-10');
-  await dlg.getByLabel('End date').fill('2030-06-08');
-  await dlg.getByRole('button', { name: 'Add batch' }).click();
-  await expect(dlg.getByText('The end date cannot be before the start date.')).toBeVisible();
-  await dlg.getByLabel('End date').fill('2030-06-12');
-  await dlg.getByRole('button', { name: 'Add batch' }).click();
-  await expect(dlg.getByText(/10 Jun 2030 to 12 Jun 2030/)).toBeVisible();
-  const [row] = await db('SELECT date, end_date FROM session_batches WHERE session_id = $1 AND batch_no = 3', [sessionId]);
-  expect(row).toEqual({ date: '2030-06-10', end_date: '2030-06-12' });
+  const second = dlg.getByTestId('date-batches-2030-06-02');
+  await second.getByRole('button', { name: 'Add batch' }).click();
+  await second.getByLabel('Batch label').fill('Evening');
+  await second.getByLabel('Batch start').fill('18:00');
+  await second.getByLabel('Batch end').fill('20:00');
+  await second.getByLabel('Batch capacity').fill('4');
+  await second.getByRole('button', { name: 'Add batch' }).last().click();
+  await expect(second.getByText('Batch 2 · Evening')).toBeVisible();
+  const [row] = await db('SELECT b.date, b.start_time, b.capacity FROM session_batches b WHERE b.session_id = $1 AND b.label = $2', [sessionId, 'Evening']);
+  expect(row).toEqual({ date: '2030-06-02', start_time: '18:00', capacity: 4 });
+  // With a choice on that date, the admin places each learner there.
+  await expect(dlg.getByTestId('placements-2030-06-02')).toContainText(l1.firstName);
 });

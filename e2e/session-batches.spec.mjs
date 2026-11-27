@@ -1,117 +1,122 @@
 /**
- * Batched sessions across the portals (CONTEXT.md §6 Session, Batch, Self-enrolment):
- * a self-enrol session with two batches on the same day (one seat each) and a
- * three-day batch. A learner books a batch from the catalogue picker, the seat
- * counts agree everywhere, My Sessions names the learner's own batch, the learner
- * calendar marks "Your batch", and the admin calendar shows the same-day batches as
- * separate entries and the multi-day batch on each of its days.
+ * Session dates and day batches across the portals (CONTEXT.md §6 Session,
+ * Session date, Batch; BACKEND_STRUCTURE §10.67):
+ *
+ * a self-enrol session on two dates with a Morning and an Afternoon time slot
+ * (so four batches of one seat). A learner chooses one batch on EACH date in
+ * the catalogue; the next learner wanting a full batch queues for it. The
+ * admin moves the second date later in the Edit Session calendar, sees
+ * "Postponed" in the preview and on the card, and marks attendance per date.
+ * The learner and trainer see the new date labelled Postponed.
  */
 import { test, expect, fx, db } from './support.mjs';
-import { api, newLearner, pageAs, uniq } from './helpers-1.mjs';
+import { api, dbUntil, newLearner, pageAs, uniq } from './helpers-1.mjs';
 import { isoDaysAhead } from './helpers-3.mjs';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** The app's formatDayDate: "Thu 5 Nov 2026". */
+const dayLabel = ({ iso }) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const wd = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${wd} ${d} ${MONTHS[m - 1]} ${y}`;
+};
 
-/** Page the calendar from the current month to the month of `date`. */
-async function gotoMonth(page, date) {
-  await page.getByRole('button', { name: 'Today' }).click();
-  const now = new Date();
-  const steps = (date.getFullYear() - now.getFullYear()) * 12 + date.getMonth() - now.getMonth();
-  for (let i = 0; i < steps; i++) await page.getByRole('button', { name: /^Next/ }).click();
-  await expect(page.getByRole('heading', { name: `${MONTHS[date.getMonth()]} ${date.getFullYear()}` })).toBeVisible();
-}
-
-const batchRow = (page, name) => page.locator('div')
-  .filter({ has: page.getByText(name, { exact: true }) })
-  .filter({ has: page.getByRole('button', { name: /Book this batch|Join waitlist/ }) })
-  .last();
-
-test('batches: book from the picker, seats agree, calendars show each batch and each day', async ({ browser }) => {
+test('dates and day batches: a batch per date from the picker, a postponed date everywhere, attendance per date', async ({ browser }) => {
   const A = fx().A;
-  const first = await newLearner('A', 'Ba');
-  const second = await newLearner('A', 'Bb');
-  const title = uniq('Batched bootcamp');
-  const day = isoDaysAhead(40);
-  const camp = [isoDaysAhead(42), isoDaysAhead(43), isoDaysAhead(44)];
+  const first = await newLearner('A', 'Da');
+  const second = await newLearner('A', 'Db');
+  const title = uniq('Two-day workshop');
+  const d1 = isoDaysAhead(40);
+  const d2 = isoDaysAhead(47);
+  const d3 = isoDaysAhead(54);
 
-  // SETUP (not the subject): one session, two same-day batches of one seat, one three-day batch.
+  // SETUP (not the subject): created through the API with two time slots on two dates.
   const admin = await api(A.admin);
   const created = await admin.post('/api/admin/sessions', {
     title, session_type: 'ILT', capacity: 10, trainer: 'derived', trainer_user_id: A.trainer.id,
-    venue_url: 'Room 9', date: day.iso, start_time: '09:00', end_time: '12:00', enroll_mode: 'self',
+    venue_url: 'Room 9', date: d1.iso, start_time: '09:00', end_time: '12:00', enroll_mode: 'self',
+    dates: [d1.iso, d2.iso],
+    slots: [
+      { label: 'Morning', start_time: '09:00', end_time: '12:00', capacity: 1 },
+      { label: 'Afternoon', start_time: '14:00', end_time: '17:00', capacity: 1 },
+    ],
   });
   const sessionId = (created.session ?? created).id;
-  const mk = (body) => admin.post(`/api/admin/sessions/${sessionId}/batches`, body);
-  await mk({ label: 'Morning', date: day.iso, start_time: '09:00', end_time: '12:00', capacity: 1 });
-  await mk({ label: 'Afternoon', date: day.iso, start_time: '14:00', end_time: '17:00', capacity: 1 });
-  await mk({ label: 'Bootcamp', date: camp[0].iso, end_date: camp[2].iso, start_time: '10:00', end_time: '13:00', capacity: 5 });
+  const dates = await db('SELECT id, date FROM session_dates WHERE session_id = $1 ORDER BY date', [sessionId]);
+  expect(dates.map((d) => d.date)).toEqual([d1.iso, d2.iso]);
 
-  // ── First learner books the Morning batch through the picker ──
+  // ── First learner chooses Morning on both dates ──
   const p1 = await pageAs(browser, first);
   await p1.goto('/catalogue');
   await p1.getByPlaceholder('Search courses, tags…').fill(title);
-  await expect(p1.getByText('Choose a batch')).toBeVisible();
-  const morning = batchRow(p1, 'Batch 1 · Morning');
-  await expect(morning).toContainText('0 / 1 · 1 seat left');
-  await expect(batchRow(p1, 'Batch 3 · Bootcamp')).toContainText('each day');
-  await morning.getByRole('button', { name: 'Book this batch' }).click();
+  await expect(p1.getByText('Choose a batch for each date')).toBeVisible();
+  const g1 = p1.getByTestId(`batch-choice-${dates[0].id}`);
+  const g2 = p1.getByTestId(`batch-choice-${dates[1].id}`);
+  await expect(g1).toContainText(dayLabel(d1));
+  await expect(g1.getByRole('radio', { name: /Batch 1 · Morning/ })).toContainText('0 / 1 · 1 seat left');
+  await expect(p1.getByText('Choose a batch for every date to book.')).toBeVisible();
+  await g1.getByRole('radio', { name: /Batch 1 · Morning/ }).click();
+  await g2.getByRole('radio', { name: /Batch 1 · Morning/ }).click();
+  await p1.getByRole('button', { name: 'Book my place' }).click();
   await expect(p1.getByText(`Your place on "${title}" is booked`)).toBeVisible();
-  await expect(p1.getByText('Your batch')).toBeVisible();
-  await expect(p1.getByText('1 / 1 · Full').first()).toBeVisible();
-  const [rosterRow] = await db('SELECT batch_id FROM session_roster WHERE session_id = $1 AND user_id = $2', [sessionId, first.id]);
-  expect(rosterRow.batch_id).not.toBeNull();
+  const placed = await db('SELECT session_date_id FROM session_batch_members WHERE session_id = $1 AND user_id = $2 ORDER BY session_date_id', [sessionId, first.id]);
+  expect(placed).toHaveLength(2);
 
-  // ── Second learner: Morning is full (waitlist), Afternoon still has its seat ──
+  // ── Second learner wants the full first Morning: the booking queues for it ──
   const p2 = await pageAs(browser, second);
   await p2.goto('/catalogue');
   await p2.getByPlaceholder('Search courses, tags…').fill(title);
-  await expect(batchRow(p2, 'Batch 1 · Morning')).toContainText('Full');
-  await expect(batchRow(p2, 'Batch 2 · Afternoon')).toContainText('1 seat left');
-  await expect(batchRow(p2, 'Batch 1 · Morning').getByRole('button', { name: 'Join waitlist' })).toBeVisible();
-  await expect(batchRow(p2, 'Batch 2 · Afternoon').getByRole('button', { name: 'Book this batch' })).toBeVisible();
-  await batchRow(p2, 'Batch 1 · Morning').getByRole('button', { name: 'Join waitlist' }).click();
-  await expect(p2.getByText('On the waitlist (#1)')).toBeVisible();
+  await expect(p2.getByTestId(`batch-choice-${dates[0].id}`).getByRole('radio', { name: /Batch 1 · Morning/ })).toContainText('Full');
+  await p2.getByTestId(`batch-choice-${dates[0].id}`).getByRole('radio', { name: /Batch 1 · Morning/ }).click();
+  await p2.getByTestId(`batch-choice-${dates[1].id}`).getByRole('radio', { name: /Batch 2 · Afternoon/ }).click();
+  await p2.getByRole('button', { name: 'Join the waitlist' }).click();
+  await dbUntil('SELECT 1 FROM session_waitlist WHERE session_id = $1 AND user_id = $2', [sessionId, second.id], (r) => r.length === 1, 'queued');
   await p2.context().close();
 
-  // ── My Sessions names the learner's own batch and its date ──
-  await p1.goto('/my-sessions');
-  const card = p1.locator('div').filter({ has: p1.getByRole('heading', { name: title }) }).last();
-  await expect(card).toContainText('Batch 1 · Morning');
-  await expect(card).toContainText(`${day.date.getDate()} `);
-  await expect(card).toContainText('9:00 AM');
+  // ── Admin moves the second date a week later in the Edit Session calendar ──
+  const ap = await pageAs(browser, A.admin);
+  await ap.goto('/admin/sessions');
+  await ap.getByPlaceholder('Search title, trainer, type, venue…').fill(title);
+  await expect(ap.getByTestId(`session-dates-${sessionId}`)).toContainText(`${d1.date.getDate()}`);
+  await ap.getByRole('button', { name: 'Edit session' }).click();
+  const editor = ap.getByTestId('schedule-editor');
+  await expect(editor.getByTestId(`schedule-date-${d1.iso}`)).toBeVisible();
+  await editor.getByLabel(`Change ${dayLabel(d2)}`).fill(d3.iso);
+  await expect(ap.getByTestId('schedule-preview')).toContainText(`Postponed: ${dayLabel(d2)} moves to ${dayLabel(d3)}`);
+  await ap.getByRole('button', { name: 'Save Changes' }).click();
+  await expect(ap.getByRole('dialog')).toBeHidden();
+  const [moved] = await dbUntil('SELECT date, previous_date, change FROM session_dates WHERE id = $1', [dates[1].id], (r) => r[0]?.date === d3.iso, 'date moved');
+  expect(moved).toEqual({ date: d3.iso, previous_date: d2.iso, change: 'postponed' });
+  // The batches and the learner's place moved with the date.
+  expect(await db('SELECT 1 FROM session_batch_members WHERE session_date_id = $1 AND user_id = $2', [dates[1].id, first.id])).toHaveLength(1);
+  await expect(ap.getByText('Postponed').first()).toBeVisible();
 
-  // ── Learner calendar: own batch marked, the other batches visible but not marked ──
-  await p1.goto('/training-calendar');
-  await gotoMonth(p1, day.date);
-  const mine = p1.getByRole('button', { name: new RegExp(`${title}.*Morning`) });
-  await expect(mine).toContainText('Your batch');
-  const other = p1.getByRole('button', { name: new RegExp(`${title}.*Afternoon`) });
-  await expect(other).toBeVisible();
-  await expect(other).not.toContainText('Your batch');
-  await expect(other).toContainText('0 / 1 · 1 seat left');
-  await mine.click();
-  const dlg = p1.getByRole('dialog');
-  await expect(dlg).toContainText('Your batch');
-  await expect(dlg).toContainText('Room 9');
+  // ── Attendance per date: present on the first date only rolls up to Partial ──
+  await ap.getByRole('button', { name: 'Mark attendance' }).click();
+  await ap.getByTestId(`attendance-date-${dates[0].id}`).click();
+  await expect(ap.getByTestId(`attendance-date-${dates[1].id}`)).toContainText('Postponed');
+  await ap.getByRole('button', { name: 'Present', exact: true }).first().click(); // quick mark all
+  await ap.getByRole('button', { name: 'Save Draft' }).click();
+  const [att] = await dbUntil('SELECT status FROM session_attendance WHERE session_id = $1 AND user_id = $2', [sessionId, first.id], (r) => !!r[0]?.status, 'rolled up');
+  expect(att.status).toBe('partial');
+  await expect(ap.getByText('Overall: Partial').first()).toBeVisible();
+  await ap.context().close();
+
+  // ── The learner sees the new date, labelled ──
+  await p1.goto('/my-sessions');
+  const mine = p1.getByTestId(`my-dates-${sessionId}`);
+  await expect(mine).toContainText('The dates for this session have changed');
+  await expect(mine).toContainText(dayLabel(d3));
+  await expect(mine).toContainText('Postponed');
+  await expect(mine).toContainText('Batch 1 · Morning');
   await p1.context().close();
 
-  // ── Admin calendar: same-day batches are separate entries, the camp is on each day ──
-  const ap = await pageAs(browser, A.admin);
-  await ap.goto('/admin/calendar');
-  await gotoMonth(ap, day.date);
-  const am = ap.getByRole('button', { name: new RegExp(`${title}.*Morning`) });
-  const pm = ap.getByRole('button', { name: new RegExp(`${title}.*Afternoon`) });
-  await expect(am).toContainText('1 / 1 · Full');
-  await expect(pm).toContainText('0 / 1 · 1 seat left');
-  await expect(am.locator('xpath=..').getByRole('button', { name: new RegExp('Afternoon') })).toBeVisible();
-  await am.click();
-  await expect(ap.getByRole('dialog')).toContainText('1 / 1 enrolled');
-  await ap.keyboard.press('Escape');
-  for (const [i, d] of camp.entries()) {
-    await gotoMonth(ap, d.date);
-    const entry = ap.getByRole('button', { name: new RegExp(`${title}.*Bootcamp.*Day ${i + 1} of 3`) });
-    await expect(entry).toBeVisible();
-    await expect(entry.locator('xpath=../..')).toHaveText(new RegExp(`^${d.date.getDate()}(?!\\d)`));
-  }
-  await ap.context().close();
+  // ── So does the trainer ──
+  const tp = await pageAs(browser, A.trainer);
+  await tp.goto('/trainer/sessions');
+  const card = tp.locator('div').filter({ has: tp.getByRole('link', { name: new RegExp(title) }) }).last();
+  await expect(card).toContainText('Postponed');
+  await expect(card).toContainText(dayLabel(d3).split(' ').slice(1, 3).join(' '));
+  await tp.context().close();
 });

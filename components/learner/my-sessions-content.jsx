@@ -19,7 +19,10 @@ import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
 import { SESSION_TYPE_LABEL } from "@/lib/session-types";
 import { cn } from "@/lib/utils";
-import { formatDateRange, formatTimeRange, isMyBatch, sittingsOf } from "@/lib/sittings";
+import {
+  formatDateRange, formatDayDate, formatTimeRange, isMyBatch, scheduleOf, sittingsOf,
+} from "@/lib/sittings";
+import { SessionDateList } from "@/components/shared/session-dates";
 
 /**
  * My Sessions — every live and in-person session this learner is booked on,
@@ -98,6 +101,15 @@ function SessionCard({ session: s, mode, eligible, onGiveFeedback }) {
   const mine = batched ? sittings.find((x) => isMyBatch(s, x)) ?? null : sittings[0] ?? null;
   const dur = mine ? duration(mine.start_time, mine.end_time) : "";
   const multiDay = mine && mine.end_date && mine.end_date !== mine.start_date;
+  /* Since 0076 a session runs on a set of dates and the learner sits one batch
+     on each. Their batch per date, in date order. */
+  const schedule = scheduleOf(s);
+  const multiDate = schedule.length > 1 || s.rescheduled;
+  const myByDate = schedule.map((d) => ({
+    d,
+    sitting: sittings.find((x) => isMyBatch(s, x) && (x.session_date_id != null && d.id != null
+      ? x.session_date_id === d.id : (x.dates || []).includes(d.date))) ?? null,
+  }));
 
   return (
     <Card className="flex flex-col gap-0 overflow-hidden p-0">
@@ -139,14 +151,48 @@ function SessionCard({ session: s, mode, eligible, onGiveFeedback }) {
 
         <Box className="flex-1 space-y-1">
           {s.trainer && <Row icon={UserCircle} text={s.trainer} />}
-          {batched && mine && <Row icon={Layers} text={mine.name} />}
-          {batched && !mine ? (
-            <Row icon={CalendarDays} text="Batch to be confirmed" />
+          {multiDate ? (
+            <Box data-testid={`my-dates-${s.id}`} className="space-y-1.5">
+              {s.rescheduled && (
+                <Box className="rounded-md border border-warning/40 bg-warning/12 px-2 py-1.5">
+                  <Text as="p" className="text-[11.5px] font-semibold text-warning">
+                    The dates for this session have changed
+                  </Text>
+                </Box>
+              )}
+              <SessionDateList session={s} />
+              {batched && (
+                <Box className="space-y-0.5 border-t border-line pt-1.5">
+                  <Text as="p" className="font-mono text-[10px] font-semibold uppercase tracking-wide text-text-3">
+                    Your batch on each date
+                  </Text>
+                  {myByDate.map(({ d, sitting }) => (
+                    <Text as="p" key={d.id ?? d.date} className="text-[11.5px] text-text-2">
+                      {formatDayDate(d.date)}
+                      {" · "}
+                      {sitting
+                        ? `${sitting.name}${sitting.start_time ? `, ${formatTimeRange(sitting.start_time, sitting.end_time)}` : ""}`
+                        : "Batch to be confirmed"}
+                    </Text>
+                  ))}
+                </Box>
+              )}
+              {!batched && mine?.start_time && (
+                <Row icon={Clock} text={`${formatTimeRange(mine.start_time, mine.end_time)} each day`} />
+              )}
+            </Box>
           ) : (
-            <Row
-              icon={CalendarDays}
-              text={`${formatDateRange(mine?.start_date, mine?.end_date)}${mine?.start_time ? ` · ${formatTimeRange(mine.start_time, mine.end_time)}${multiDay ? " each day" : ""}` : ""}${dur && !multiDay ? ` · ${dur}` : ""}`}
-            />
+            <>
+              {batched && mine && <Row icon={Layers} text={mine.name} />}
+              {batched && !mine ? (
+                <Row icon={CalendarDays} text="Batch to be confirmed" />
+              ) : (
+                <Row
+                  icon={CalendarDays}
+                  text={`${formatDateRange(mine?.start_date, mine?.end_date)}${mine?.start_time ? ` · ${formatTimeRange(mine.start_time, mine.end_time)}${multiDay ? " each day" : ""}` : ""}${dur && !multiDay ? ` · ${dur}` : ""}`}
+                />
+              )}
+            </>
           )}
           <Row
             icon={isVirtual ? Video : MapPin}

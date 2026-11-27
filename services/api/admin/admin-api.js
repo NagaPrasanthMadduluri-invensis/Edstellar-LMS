@@ -824,12 +824,42 @@ export async function deleteSessionBatch({ batchId }) {
   return apiClient(`/api/admin/sessions/batches/${batchId}`, { method: "DELETE" });
 }
 
-/** Move a rostered learner between sittings. `batchId: null` unassigns them. */
-export async function setRosterBatch({ sessionId, userId, batchId }) {
+/**
+ * Place a rostered learner in a batch on that batch's date (0076).
+ * `batchId: null` with `sessionDateId` takes them off that one date.
+ */
+export async function setRosterBatch({ sessionId, userId, batchId, sessionDateId }) {
   return apiClient(`/api/admin/sessions/${sessionId}/roster/batch`, {
     method: "PUT",
-    body: { user_id: userId, batch_id: batchId },
+    body: { user_id: userId, batch_id: batchId, ...(sessionDateId ? { session_date_id: sessionDateId } : {}) },
   });
+}
+
+/* ── Session schedule: dates (0076) ──
+ * A session runs on a set of dates; each date has its own batches. Moving a
+ * date keeps its batches, people and attendance, and the server labels it
+ * postponed or preponed and tells the roster and trainer. */
+
+/** Every date in order, each with its batches and seats. */
+export async function fetchSessionSchedule({ sessionId }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/schedule`);
+}
+
+/** Replace the whole set of dates; removed+added pairs become moves. */
+export async function saveSessionSchedule({ sessionId, dates }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/schedule`, { method: "PUT", body: { dates } });
+}
+
+export async function addSessionDate({ sessionId, date }) {
+  return apiClient(`/api/admin/sessions/${sessionId}/dates`, { method: "POST", body: { date } });
+}
+
+export async function moveSessionDate({ dateId, date }) {
+  return apiClient(`/api/admin/sessions/dates/${dateId}`, { method: "PUT", body: { date } });
+}
+
+export async function deleteSessionDate({ dateId }) {
+  return apiClient(`/api/admin/sessions/dates/${dateId}`, { method: "DELETE" });
 }
 
 export async function fetchSessionWaitlist({ sessionId }) {

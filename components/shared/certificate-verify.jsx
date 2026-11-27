@@ -173,7 +173,11 @@ function Result({ code, data }) {
             {data.kind === "session" && (
               <>
                 <DetailRow icon={Users} label="Format" value={data.session?.format} />
-                <DetailRow icon={Calendar} label="Session date" value={longDate(data.session?.date)} />
+                <DetailRow
+                  icon={Calendar}
+                  label={data.session?.dates_text && (data.session?.dates?.length ?? 2) > 1 ? "Session dates" : "Session date"}
+                  value={data.session?.dates_text || longDate(data.session?.date)}
+                />
                 <DetailRow icon={BadgeCheck} label="Trainer" value={data.session?.trainer} />
               </>
             )}

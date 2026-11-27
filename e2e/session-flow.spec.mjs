@@ -2,11 +2,13 @@
  * Running a session (CONTEXT.md §18.5): an admin creates a Virtual,
  * self-enrolment session taught by trainer A; a learner books it from the
  * Course Catalogue; the trainer marks them present from their own portal; the
- * admin marks the session completed; the learner's session reads Completed in
+ * admin marks the session completed, which issues the learner's session
+ * certificate (bell, email, Certificates page, admin log); the learner's session reads Completed in
  * My Sessions and they give session feedback; the trainer reads it without names.
  */
 import { test, expect, fx, db } from './support.mjs';
 import { choose, dbUntil, newLearner, pageAs, setSwitch, uniq } from './helpers-1.mjs';
+import { expectInBell } from './helpers-2.mjs';
 
 const tomorrow = () => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
@@ -45,7 +47,7 @@ test('a self-enrol virtual session runs from booking to attendance, completion a
   await page.getByPlaceholder('Search courses, tags…').fill(title);
   await page.getByRole('button', { name: 'Book my place' }).click();
   await expect(page.getByText(`Your place on "${title}" is booked`)).toBeVisible();
-  await expect(page.getByRole('button', { name: /Booked — see My Sessions/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Booked, see My Sessions/ })).toBeVisible();
   await dbUntil('SELECT 1 FROM session_roster WHERE session_id = $1 AND user_id = $2', [session.id, learner.id], (r) => r.length === 1, 'roster row');
 
   await page.goto('/my-sessions');
@@ -73,12 +75,27 @@ test('a self-enrol virtual session runs from booking to attendance, completion a
   await dbUntil('SELECT status FROM sessions WHERE id = $1', [session.id], (r) => r[0]?.status === 'completed', 'session completed');
   const credited = await db('SELECT 1 FROM user_lesson_completions WHERE user_id = $1 AND lesson_id = $2', [learner.id, training.lesson_id]);
   expect(credited).toHaveLength(1);
+
+  // Completing also issued the attendee's session certificate, once (§10.66),
+  // and the admin is told so, then can read it in the session's certificate log.
+  await expect(admin.getByRole('status')).toContainText('1 certificate issued and emailed');
+  const [cert] = await dbUntil('SELECT id, certificate_code FROM certificates WHERE user_id = $1 AND course_id = $2', [learner.id, training.id], (r) => r.length === 1, 'session certificate');
+  await admin.getByRole('button', { name: 'View attendance' }).click();
+  const log = admin.getByTestId('session-certificates');
+  await expect(log).toContainText(learner.name);
+  await expect(log).toContainText(cert.certificate_code);
+  await expect(log).toContainText('1 issued');
   await admin.context().close();
 
   // ── Learner: the session training's Course page reads Completed ──
   await page.goto(`/my-courses/${training.public_id}`);
   await expect(page.getByRole('heading', { name: training.name })).toBeVisible();
   await expect(page.getByText('You have completed this course')).toBeVisible();
+
+  // ── Learner: told in the bell, and the certificate is in Certificates ──
+  await expectInBell(page, `Session completed: ${title}`);
+  await page.goto('/certifications');
+  await expect(page.getByText(training.name).first()).toBeVisible();
 
   // ── Learner: My Sessions files it under Completed, attended, with feedback open ──
   // (a session training lives in My Sessions, not My Courses: learner.service.ts courses()).

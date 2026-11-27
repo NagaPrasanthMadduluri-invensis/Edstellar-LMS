@@ -15,8 +15,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { SittingEntry } from "@/components/shared/sitting-entry";
+import { DateChangeChip, SessionDateList } from "@/components/shared/session-dates";
 import {
-  calendarEntries, formatDateRange, formatTimeRange, pendingEntries, seatsText, sittingsOf,
+  calendarEntries, formatDayDate, formatTimeRange, pendingEntries, seatsText, sittingsOf,
 } from "@/lib/sittings";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
@@ -268,10 +269,9 @@ export function TrainerTrainingCalendar() {
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="max-w-md">
           {selected && (() => {
-            const { session, sitting } = selected;
+            const { session, sitting, date, change, dayNo, dayCount } = selected;
             const range = formatTimeRange(sitting.start_time, sitting.end_time);
             const multi = sittingsOf(session).length > 1;
-            const multiDay = sitting.end_date && sitting.end_date !== sitting.start_date;
             return (
               <>
                 <DialogHeader>
@@ -296,8 +296,15 @@ export function TrainerTrainingCalendar() {
                   </Box>
 
                   <Box className="space-y-1.5 border border-line bg-surface-2 p-3">
-                    <Detail icon={CalendarDays} label={formatDateRange(sitting.start_date, sitting.end_date)} />
-                    {range && <Detail icon={Clock} label={`${range} IST${multiDay ? ", each day" : ""}`} />}
+                    <Box className="flex items-start gap-2">
+                      <CalendarDays className="mt-0.5 size-3.5 shrink-0 text-text-3" />
+                      <Text as="span" className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink">
+                        {formatDayDate(date)}
+                        {dayCount > 1 ? ` (day ${dayNo} of ${dayCount})` : ""}
+                        <DateChangeChip change={change} />
+                      </Text>
+                    </Box>
+                    {range && <Detail icon={Clock} label={`${range} IST`} />}
                     <Detail
                       icon={session.session_type === "Virtual" ? Video : MapPin}
                       label={session.venue_url || "No venue recorded"}
@@ -311,9 +318,15 @@ export function TrainerTrainingCalendar() {
                       label={`Capacity ${sitting.capacity} · ${sitting.registered ?? session.roster_count ?? 0} registered · ${sitting.available ?? 0} available · ${sitting.waitlist ?? 0} waiting`}
                     />
                   </Box>
+                  {dayCount > 1 && (
+                    <Box className="space-y-1">
+                      <Text as="p" className="text-[11px] text-text-2">All dates of this session</Text>
+                      <SessionDateList session={session} compact />
+                    </Box>
+                  )}
                   {multi && (
                     <Text as="p" className="text-[11px] text-text-2">
-                      This session runs in several batches, each with its own dates and seats.
+                      This session runs in several day batches; every learner attends every date.
                     </Text>
                   )}
 

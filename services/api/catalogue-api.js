@@ -26,12 +26,12 @@ export async function enrolInCourse(courseId) {
  * (`state`) and where they landed (`position`). For a batched session, a
  * full batch waitlists the learner on THAT batch.
  */
-export async function enrolInSession(sessionId, batchId = null) {
+export async function enrolInSession(sessionId, batchIds = null) {
   return apiClient(`/api/learner/catalogue/sessions/${sessionId}/enrol`, {
     method: "POST",
-    // A session with batches needs the batch named; the API answers 422
-    // without it. A session with none keeps the old body-less call.
-    ...(batchId != null ? { body: { batch_id: batchId } } : {}),
+    // One chosen batch per date that offers a choice (0076). Omitted when no
+    // date does: the server places the learner on the only open batch itself.
+    ...(Array.isArray(batchIds) && batchIds.length ? { body: { batch_ids: batchIds } } : {}),
   });
 }
 

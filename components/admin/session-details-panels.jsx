@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarRange, Download, FileSpreadsheet, FileText, Loader2, MessageSquareText, Star, Users } from "lucide-react";
+import { Award, CalendarRange, Download, FileSpreadsheet, FileText, Loader2, MessageSquareText, Star, Users } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import Box from "@/components/ui/box";
 import { apiClient } from "@/lib/api-client";
 import { downloadFile } from "@/lib/download";
 import { cn } from "@/lib/utils";
+import { DateChangeChip } from "@/components/shared/session-dates";
 
 /**
  * The admin session details additions (2026-11-24): the schedule of every
@@ -72,6 +73,8 @@ export function SessionSchedulePanel({ session }) {
                 <Box as="td" className="px-3 py-2">
                   {formatSpan(s.start_date, s.end_date)}
                   {s.dates.length > 1 && <Text as="span" className="ml-1 text-text-3">({s.dates.length} days)</Text>}
+                  {/* Postponed / Preponed on a moved date (0076). */}
+                  <DateChangeChip className="ml-1.5" change={(session.schedule || []).find((d) => d.id === s.session_date_id)?.change} />
                 </Box>
                 <Box as="td" className="px-3 py-2">{s.start_time && s.end_time ? `${s.start_time} to ${s.end_time}` : ""}</Box>
                 <Box as="td" className="px-3 py-2">{formatMinutes(s.total_minutes)}</Box>
@@ -169,6 +172,121 @@ export function SessionFeedbackPanel({ sessionId }) {
                 </Box>
               </Box>
             ))}
+          </Box>
+        )}
+      </Box>
+    </Card>
+  );
+}
+
+/** How an email row reads. "Handed to Gmail", never "Delivered" (screens-admin-lists §10.3.1.27). */
+const EMAIL_STATUS = {
+  sent: { label: "Handed to Gmail", tone: "text-success" },
+  pending: { label: "Queued", tone: "text-text-2" },
+  sending: { label: "Sending", tone: "text-text-2" },
+  failed: { label: "Failed", tone: "text-danger" },
+  suppressed: { label: "Not sent", tone: "text-warning" },
+};
+
+/**
+ * The certificate log for one session (BACKEND_STRUCTURE §10.66): who attended,
+ * the certificate completing the session issued them, and whether the bell
+ * notification and its email went out. Everything comes from one read; the
+ * eligibility rule (present, late, partial) is the server's, sent as `eligible`.
+ */
+export function SessionCertificatesPanel({ sessionId }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    setData(null);
+    setError(null);
+    apiClient(`/api/admin/sessions/${sessionId}/certificates`)
+      .then(setData)
+      .catch((e) => setError(e.message));
+  }, [sessionId]);
+
+  const rows = data?.learners ?? [];
+  const issued = rows.filter((r) => r.certificate && !r.certificate.revoked).length;
+  return (
+    <Card className="gap-0 overflow-hidden p-0" data-testid="session-certificates">
+      <Box className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+        <Box className="flex items-center gap-2">
+          <Award className="h-4 w-4 text-accent-blue" />
+          <Text as="h3" className="text-sm font-semibold">Certificates</Text>
+          {data && (
+            <Text as="span" className="text-[11px] text-text-3">
+              {issued} issued
+            </Text>
+          )}
+        </Box>
+        <Text as="p" className="text-[11px] text-text-3">
+          Issued when the session is marked completed, once per learner present, late or partial.
+        </Text>
+      </Box>
+      <Box className="p-4">
+        {error ? (
+          <Text as="p" className="text-sm text-error">{error}</Text>
+        ) : data === null ? (
+          <Box className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></Box>
+        ) : rows.length === 0 ? (
+          <Text as="p" className="text-sm text-text-3">
+            No attendance marked yet. Certificates are issued to attendees when the session is completed.
+          </Text>
+        ) : (
+          <Box className="overflow-x-auto">
+            <Box as="table" className="w-full min-w-[640px] text-left text-[12.5px]">
+              <Box as="thead" className="text-[11px] uppercase tracking-wide text-text-3">
+                <Box as="tr">
+                  <Box as="th" className="py-2 pr-3 font-semibold">Learner</Box>
+                  <Box as="th" className="py-2 pr-3 font-semibold">Attendance</Box>
+                  <Box as="th" className="py-2 pr-3 font-semibold">Certificate</Box>
+                  <Box as="th" className="py-2 pr-3 font-semibold">Notified</Box>
+                  <Box as="th" className="py-2 font-semibold">Email</Box>
+                </Box>
+              </Box>
+              <Box as="tbody" className="divide-y divide-border">
+                {rows.map((r) => {
+                  const mail = EMAIL_STATUS[r.emailStatus];
+                  return (
+                    <Box as="tr" key={r.userId} className="align-top">
+                      <Box as="td" className="py-2 pr-3">
+                        <Text as="p" className="text-[13px] font-semibold text-ink">{r.name}</Text>
+                        <Text as="p" className="text-[11px] text-text-3">{r.email}</Text>
+                      </Box>
+                      <Box as="td" className="py-2 pr-3 capitalize text-text-2">{r.attendance ?? "Not marked"}</Box>
+                      <Box as="td" className="py-2 pr-3">
+                        {r.certificate ? (
+                          <>
+                            <Text as="p" className="font-mono text-[12px] text-ink">{r.certificate.code}</Text>
+                            <Text as="p" className={cn("text-[11px]", r.certificate.revoked ? "text-danger" : "text-text-3")}>
+                              {r.certificate.revoked ? "Revoked" : `Issued ${formatDay(r.certificate.issuedAt)}`}
+                            </Text>
+                          </>
+                        ) : (
+                          <Text as="p" className="text-[11px] text-text-3">
+                            {r.eligible ? "Not issued yet (issued on completion)" : "Not eligible"}
+                          </Text>
+                        )}
+                      </Box>
+                      <Box as="td" className="py-2 pr-3 text-text-2">
+                        {r.notifiedAt ? formatDay(r.notifiedAt) : "—"}
+                      </Box>
+                      <Box as="td" className="py-2">
+                        {mail ? (
+                          <Text as="p" className={cn("text-[12px] font-medium", mail.tone)} title={r.emailError || undefined}>
+                            {mail.label}
+                          </Text>
+                        ) : (
+                          <Text as="p" className="text-[12px] text-text-3">—</Text>
+                        )}
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
           </Box>
         )}
       </Box>

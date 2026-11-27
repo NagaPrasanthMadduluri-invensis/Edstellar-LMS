@@ -20,6 +20,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { formatDayDate } from "@/lib/sittings";
+import { DateChangeChip, SessionDateList } from "@/components/shared/session-dates";
 import { usePermissions } from "@/hooks/use-permissions";
 
 /**
@@ -50,14 +52,34 @@ const SESSION_STATUS_CFG = {
   cancelled: { label: "Cancelled", cls: "bg-error/10 text-error border-0" },
 };
 
-function formatDate(iso) {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+function todayIso() {
+  const n = new Date();
+  const mm = String(n.getMonth() + 1).padStart(2, "0");
+  const dd = String(n.getDate()).padStart(2, "0");
+  return `${n.getFullYear()}-${mm}-${dd}`;
+}
+
+/** The status a participant holds on one date (the overall one if days are absent). */
+function dayOf(p, dateId) {
+  return (p.days || []).find((d) => d.session_date_id === dateId) || null;
+}
+
+function statusOnDate(p, dateId) {
+  if (dateId == null) return p.status || "";
+  return dayOf(p, dateId)?.status || "";
+}
+
+/** Today if it is one of the dates, else the first unmarked, else the first. */
+function defaultDate(dates, rows) {
+  if (dates.length === 0) return null;
+  const today = dates.find((d) => String(d.date).slice(0, 10) === todayIso());
+  if (today) return today.id;
+  const open = dates.find((d) => rows.some((p) => !statusOnDate(p, d.id)));
+  return (open || dates[0]).id;
+}
+
+function draftFor(rows, dateId) {
+  return Object.fromEntries(rows.map((row) => [row.user_id, statusOnDate(row, dateId)]));
 }
 
 export function TrainerSessionDetail({ sessionId }) {
@@ -66,6 +88,8 @@ export function TrainerSessionDetail({ sessionId }) {
   const canMark = can("mark_attendance");
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState(null);
+  const [dates, setDates] = useState([]);
+  const [dateId, setDateId] = useState(null);
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -83,11 +107,11 @@ export function TrainerSessionDetail({ sessionId }) {
       ]);
       setSession(s.session);
       setParticipants(p.participants || []);
-      setDraft(
-        Object.fromEntries(
-          (p.participants || []).map((row) => [row.user_id, row.status || ""]),
-        ),
-      );
+      const ds = p.dates || [];
+      const first = defaultDate(ds, p.participants || []);
+      setDates(ds);
+      setDateId(first);
+      setDraft(draftFor(p.participants || [], first));
     } catch (e) {
       setError(e.message);
     }
@@ -96,6 +120,12 @@ export function TrainerSessionDetail({ sessionId }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const pickDate = (id) => {
+    setDateId(id);
+    setDraft(draftFor(participants || [], id));
+    setSaved(false);
+  };
 
   const save = async () => {
     setSaving(true);
@@ -106,9 +136,11 @@ export function TrainerSessionDetail({ sessionId }) {
         .map(([userId, status]) => ({ user_id: Number(userId), status }));
       const d = await apiClient(`/api/trainer/sessions/${sessionId}/attendance`, {
         method: "PUT",
-        body: { records },
+        body: dateId != null ? { records, session_date_id: dateId } : { records },
       });
       setParticipants(d.participants || []);
+      if (d.dates) setDates(d.dates);
+      setDraft(draftFor(d.participants || [], dateId));
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
@@ -143,8 +175,12 @@ export function TrainerSessionDetail({ sessionId }) {
 
   const cfg = SESSION_STATUS_CFG[session.display_status] || SESSION_STATUS_CFG.upcoming;
   const isVirtual = session.session_type === "Virtual";
-  const marked = participants.filter((p) => p.status).length;
-  const dirty = participants.some((p) => (draft[p.user_id] || "") !== (p.status || ""));
+  const marked = participants.filter((p) => statusOnDate(p, dateId)).length;
+  const dirty = participants.some(
+    (p) => (draft[p.user_id] || "") !== statusOnDate(p, dateId),
+  );
+  const multiDate = dates.length > 1;
+  const selectedDate = dates.find((d) => d.id === dateId) || null;
 
   return (
     <Box className="space-y-5">
@@ -181,10 +217,6 @@ export function TrainerSessionDetail({ sessionId }) {
             )}
             <Box className="flex flex-wrap items-center gap-4 pt-1 text-sm text-muted-foreground">
               <Box className="flex items-center gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                <Text as="span">{formatDate(session.date)}</Text>
-              </Box>
-              <Box className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 shrink-0" />
                 <Text as="span">
                   {session.start_time}–{session.end_time} IST
@@ -201,6 +233,15 @@ export function TrainerSessionDetail({ sessionId }) {
                 </Text>
               </Box>
             </Box>
+            <Box className="flex items-start gap-1.5 pt-1">
+              <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <SessionDateList session={session} />
+            </Box>
+            {session.rescheduled && (
+              <Text as="p" className="text-xs font-medium text-warning">
+                One or more dates of this session have moved. Check the dates above.
+              </Text>
+            )}
           </Box>
 
           {canSeeRoster && (
@@ -213,6 +254,7 @@ export function TrainerSessionDetail({ sessionId }) {
             </Text>
             <Text as="p" className="text-xs text-muted-foreground">
               Attendance marked for {marked} of {participants.length}
+              {selectedDate && multiDate ? ` on ${formatDayDate(selectedDate.date)}` : ""}
             </Text>
           </Box>
           )}
@@ -228,8 +270,9 @@ export function TrainerSessionDetail({ sessionId }) {
               Participants
             </Text>
             <Text as="p" className="text-xs text-muted-foreground">
-              Record who attended. Present, late and partial credit the learner with
-              the training.
+              {multiDate
+                ? "Every learner attends every date. Mark each date; the overall status is worked out from them. Present, late and partial credit the learner with the training."
+                : "Record who attended. Present, late and partial credit the learner with the training."}
             </Text>
           </Box>
           <Box className="flex shrink-0 items-center gap-2">
@@ -260,6 +303,33 @@ export function TrainerSessionDetail({ sessionId }) {
           </Box>
         )}
 
+        {multiDate && (
+          <Box
+            className="flex flex-wrap gap-2 border-b bg-surface-2 px-4 py-3 sm:px-5"
+            role="group"
+            aria-label="Attendance date"
+          >
+            {dates.map((d) => (
+              <Button
+                key={d.id}
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid={`attendance-date-${d.id}`}
+                aria-pressed={d.id === dateId}
+                onClick={() => pickDate(d.id)}
+                className={cn(
+                  "h-8 gap-1.5 px-2.5 text-xs",
+                  d.id === dateId && "border-navy bg-navy text-paper hover:bg-navy-soft hover:text-paper",
+                )}
+              >
+                {formatDayDate(d.date)}
+                <DateChangeChip change={d.change} />
+              </Button>
+            ))}
+          </Box>
+        )}
+
         {participants.length === 0 ? (
           <Box className="flex flex-col items-center justify-center gap-3 py-14 text-center">
             <Users className="h-9 w-9 text-muted-foreground/25" />
@@ -284,6 +354,17 @@ export function TrainerSessionDetail({ sessionId }) {
                 {p.department && (
                   <Text as="p" className="mt-0.5 text-[11px] text-muted-foreground">
                     {p.department}
+                  </Text>
+                )}
+                {dayOf(p, dateId)?.batch_name && (
+                  <Text as="p" className="mt-0.5 text-[11px] text-muted-foreground">
+                    {dayOf(p, dateId).batch_name}
+                  </Text>
+                )}
+                {multiDate && (
+                  <Text as="p" className="mt-0.5 text-[11px] text-muted-foreground">
+                    Overall:{" "}
+                    {STATUS_OPTIONS.find((o) => o.value === p.status)?.label ?? "Not marked"}
                   </Text>
                 )}
               </Box>
@@ -318,7 +399,7 @@ export function TrainerSessionDetail({ sessionId }) {
               </Box>
               ) : (
                 <Text as="span" className="ml-auto text-xs text-muted-foreground">
-                  {STATUS_OPTIONS.find((o) => o.value === p.status)?.label ?? "Not marked"}
+                  {STATUS_OPTIONS.find((o) => o.value === statusOnDate(p, dateId))?.label ?? "Not marked"}
                 </Text>
               )}
             </Box>

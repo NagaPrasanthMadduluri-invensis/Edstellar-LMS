@@ -197,7 +197,11 @@ function documentContent(cert) {
       meta: [
         ["Delivery Mode", virtual ? "Virtual (Live Online)" : "Instructor-Led (Classroom)"],
         ["Trainer", cert.session?.trainer],
-        ["Date", shortDate(cert.session?.date || cert.issuedAt)],
+        /* The actual dates, across months when need be ("5th, 6th November and
+           2nd December 2026"); a single-date payload keeps the old rendering. */
+        cert.session?.dates_text
+          ? [(cert.session.dates?.length ?? 2) > 1 ? "Dates" : "Date", cert.session.dates_text]
+          : ["Date", shortDate(cert.session?.date || cert.issuedAt)],
         ["Duration", formatDuration(cert.durationMinutes)],
         ["Venue", cert.session?.venue],
       ].filter(([, value]) => value),

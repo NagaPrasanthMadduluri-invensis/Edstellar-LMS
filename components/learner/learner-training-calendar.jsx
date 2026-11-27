@@ -18,6 +18,7 @@ import Box from "@/components/ui/box";
 import { cn } from "@/lib/utils";
 import { SESSION_TYPE_LABEL } from "@/lib/session-types";
 import { SittingEntry } from "@/components/shared/sitting-entry";
+import { DateChangeChip, SessionDateList } from "@/components/shared/session-dates";
 import {
   calendarEntries, formatDateRange, formatTimeRange, isMyBatch, pendingEntries, seatsText, sittingsOf,
 } from "@/lib/sittings";
@@ -350,6 +351,7 @@ export function LearnerTrainingCalendar() {
                       <Box className="flex items-center gap-1">
                         <CalendarDays className="h-3.5 w-3.5" />
                         {formatDateRange(e.date, e.date)}{e.dayCount > 1 ? ` · Day ${e.dayNo} of ${e.dayCount}` : ""}
+                        <DateChangeChip change={e.change} />
                       </Box>
                       <Box className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{formatTimeRange(sit.start_time, sit.end_time)}</Box>
                       <Box className="flex items-center gap-1"><UserCircle className="h-3.5 w-3.5" />{sit.trainer_name || s.trainer}</Box>
@@ -410,15 +412,29 @@ export function LearnerTrainingCalendar() {
 
                 {sittingsOf(sess).length > 1 && !mine && (
                   <Text as="p" className="text-xs text-muted-foreground">
-                    {sess.my_batch_id != null
+                    {sess.my_batch_id != null || sess.my_batch_ids?.length
                       ? "This is another batch of your session. It is shown so you can see its availability."
                       : "Your batch for this session is still to be confirmed."}
                   </Text>
                 )}
 
+                {sess.rescheduled && (
+                  <Text as="p" className="text-xs font-semibold text-warning">
+                    The dates for this session have changed
+                  </Text>
+                )}
+                {(sess.schedule?.length ?? 0) > 1 || sess.rescheduled ? (
+                  <Box className="space-y-1" data-testid="calendar-session-dates">
+                    <Text as="p" className="font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Session dates
+                    </Text>
+                    <SessionDateList session={sess} />
+                  </Box>
+                ) : null}
+
                 {[
-                  { icon: CalendarDays, label: formatDateRange(sitting.start_date, sitting.end_date) },
-                  { icon: Clock,        label: `${formatTimeRange(sitting.start_time, sitting.end_time)}${multiDay ? " each day" : ""}` },
+                  { icon: CalendarDays, label: (sess.schedule?.length ?? 0) > 1 ? formatDateRange(selected.date, selected.date) : formatDateRange(sitting.start_date, sitting.end_date) },
+                  { icon: Clock,        label: `${formatTimeRange(sitting.start_time, sitting.end_time)}${multiDay && !(sess.schedule?.length > 1) ? " each day" : ""}` },
                   { icon: UserCircle,   label: `Trainer: ${sitting.trainer_name || sess.trainer}` },
                   { icon: Users,        label: seatsText(sitting) ? `Seats: ${seatsText(sitting)}` : "" },
                   { icon: Users,        label: sitting.registered != null ? `Capacity ${sitting.capacity} · ${sitting.registered} registered · ${sitting.available ?? 0} available · ${sitting.waitlist ?? 0} waiting` : "" },

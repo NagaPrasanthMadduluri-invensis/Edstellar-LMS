@@ -23,7 +23,7 @@ import { ApiError } from "@/lib/api-client";
 import { categoryColor, categoryTint } from "@/lib/course-taxonomy";
 import { sessionTypeLabel } from "@/lib/session-types";
 import {
-  formatDateRange, formatTimeRange, isBookable, seatsText, sittingsOf,
+  formatDayDate, formatTimeRange, isBookable, isMyBatch, scheduleOf, seatsText, sittingsOf,
 } from "@/lib/sittings";
 import {
   enrolInCourse,
@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { CourseArt } from "@/components/shared/course-art";
 import { KpiStatCard } from "@/components/shared/kpi-stat-card";
+import { DateChangeChip, SessionDateList, sessionDatesText } from "@/components/shared/session-dates";
 
 /**
  * The Course Catalogue — what this learner may add to their own learning,
@@ -258,8 +259,8 @@ export function CourseCatalogueContent() {
               key={`s${s.id}`}
               session={s}
               busy={busyId === `s${s.id}`}
-              onEnrol={(batchId = null) =>
-                act(`s${s.id}`, () => enrolInSession(s.id, batchId), (r) =>
+              onEnrol={(batchIds = null) =>
+                act(`s${s.id}`, () => enrolInSession(s.id, batchIds), (r) =>
                   r.state === "waitlisted"
                     ? `You are number ${r.position} on the waitlist for "${s.title}". You will be enrolled if a place frees up.`
                     : `Your place on "${s.title}" is booked, it is in My Sessions.`,
@@ -375,7 +376,7 @@ function CourseCard({ course, busy, onEnrol }) {
           <Link href={`/my-courses/${course.public_id ?? course.id}`} className="block">
             <Button variant="outline" size="sm" className="w-full cursor-pointer text-xs">
               <CheckCircle2 className="mr-1.5 size-3.5 text-success" />
-              Already yours — open it
+              Already yours, open it
               <ArrowRight className="ml-1.5 size-3.5" />
             </Button>
           </Link>
@@ -396,7 +397,15 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
   const tone = SESSION_TONE[session.session_type] ?? SESSION_TONE.ILT;
   const ToneIcon = tone.icon;
   const sittings = sittingsOf(session);
-  const batched = sittings.some((x) => x.batch_id !== null);
+  // Since 0076 every date has a batch; the picker is only for a session where
+  // some date offers a CHOICE. One batch per date books like a single sitting.
+  const perDate = new Map();
+  for (const x of sittings) {
+    if (x.batch_id === null || x.status === "cancelled") continue;
+    const k = x.session_date_id ?? x.dates?.[0];
+    perDate.set(k, (perDate.get(k) ?? 0) + 1);
+  }
+  const batched = [...perDate.values()].some((n) => n > 1);
   const openSittings = sittings.filter(isBookable);
 
   return (
@@ -419,12 +428,22 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
         <Text as="h3" className="mt-1 line-clamp-2 text-[13.5px] font-bold text-ink">{session.title}</Text>
 
         <Box className="mt-2 space-y-1 text-[11px] text-text-2">
-          <Text as="p" className="flex items-center gap-1.5">
-            <CalendarDays className="size-3.5 shrink-0 text-text-3" />
-            {batched
-              ? `${openSittings.length} batch${openSittings.length === 1 ? "" : "es"} open`
-              : `${formatDate(session.date)} · ${session.start_time}–${session.end_time}`}
-          </Text>
+          {session.dates_text || (session.schedule?.length ?? 0) > 0 ? (
+            <Box data-testid={`session-dates-${session.id}`} className="space-y-1">
+              <Text as="p" className="flex items-start gap-1.5">
+                <CalendarDays className="mt-0.5 size-3.5 shrink-0 text-text-3" />
+                <Text as="span">{sessionDatesText(session)}</Text>
+              </Text>
+              {session.rescheduled && <SessionDateList session={session} compact className="pl-5" />}
+            </Box>
+          ) : (
+            <Text as="p" className="flex items-center gap-1.5">
+              <CalendarDays className="size-3.5 shrink-0 text-text-3" />
+              {batched
+                ? `${openSittings.length} batch${openSittings.length === 1 ? "" : "es"} open`
+                : `${formatDate(session.date)} · ${session.start_time}–${session.end_time}`}
+            </Text>
+          )}
           <Text as="p" className="flex items-center gap-1.5">
             <ToneIcon className="size-3.5 shrink-0 text-text-3" />
             <Text as="span" className="truncate">{session.venue_url}</Text>
@@ -448,7 +467,7 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
             <Link href="/my-sessions" className="block">
               <Button variant="outline" size="sm" className="w-full cursor-pointer text-xs">
                 <CheckCircle2 className="mr-1.5 size-3.5 text-success" />
-                Booked — see My Sessions
+                Booked, see My Sessions
                 <ArrowRight className="ml-1.5 size-3.5" />
               </Button>
             </Link>
@@ -493,20 +512,31 @@ function SessionCard({ session, busy, onEnrol, onLeave }) {
 }
 
 /**
- * The batch picker for a session that runs in batches. Every row is one
- * sitting the server derived, and `is_full` / seats come from it, so the row
- * cannot disagree with what Book will do. A full batch offers ITS waitlist.
+ * The per-date batch picker (0076). A learner attends EVERY date and sits in one
+ * batch on each, so each date with more than one open batch asks for a choice;
+ * a date with a single open batch is placed automatically and only listed.
+ * Every row is a sitting the server derived, so seats and "full" cannot
+ * disagree with what Book will do. Booking sends `batch_ids`, one per choice.
  */
 function BatchPicker({ session, sittings, busy, onEnrol, onLeave }) {
-  const myBatch = session.my_batch_id ?? null;
+  const [picked, setPicked] = useState({});
   const waitBatch = session.waitlist_batch_id ?? null;
-  const placed = session.is_enrolled || session.is_waitlisted || myBatch != null || waitBatch != null;
-  const rows = sittings.filter(
-    (x) => x.batch_id !== null
-      && (isBookable(x) || x.batch_id === myBatch || x.batch_id === waitBatch),
-  );
+  const myIds = session.my_batch_ids?.length
+    ? session.my_batch_ids
+    : session.my_batch_id != null ? [session.my_batch_id] : [];
+  const placed = session.is_enrolled || session.is_waitlisted || myIds.length > 0 || waitBatch != null;
 
-  if (rows.length === 0) {
+  /* One group per date: the schedule gives the order and the change chips, the
+     sittings (grouped by session_date_id) give the batches on it. */
+  const groups = scheduleOf(session).map((d) => {
+    const key = d.id ?? d.date;
+    const batches = sittings.filter(
+      (x) => x.batch_id !== null && (x.session_date_id ?? x.dates?.[0]) === key,
+    );
+    return { d, key, batches, open: batches.filter(isBookable) };
+  }).filter((g) => g.batches.length > 0);
+
+  if (groups.length === 0 || groups.every((g) => g.open.length === 0 && !placed)) {
     return (
       <Text as="p" className="text-center text-[11px] text-text-3">
         No batch is open for booking yet.
@@ -514,63 +544,115 @@ function BatchPicker({ session, sittings, busy, onEnrol, onLeave }) {
     );
   }
 
+  const choiceGroups = groups.filter((g) => g.open.length > 1);
+  const ready = choiceGroups.every((g) => picked[g.key] != null);
+  const chosenSittings = groups.flatMap((g) =>
+    g.open.length === 1 ? g.open : g.open.filter((x) => x.batch_id === picked[g.key]));
+  const willWaitlist = chosenSittings.some((x) => x.is_full);
+
   return (
     <Box className="space-y-2">
       <Text as="p" className="font-mono text-[10px] font-semibold uppercase tracking-wide text-text-3">
-        Choose a batch
+        {placed ? "Your batches" : choiceGroups.length ? "Choose a batch for each date" : "Your batches"}
       </Text>
-      {rows.map((x) => {
-        const mine = myBatch != null && x.batch_id === myBatch;
-        const waiting = waitBatch != null && x.batch_id === waitBatch;
-        const range = formatTimeRange(x.start_time, x.end_time);
+      {groups.map((g) => {
+        const mine = g.batches.filter((x) => isMyBatch(session, x));
+        const choosing = !placed && g.open.length > 1;
+        const shown = placed ? g.batches.filter((x) => mine.includes(x) || x.batch_id === waitBatch) : g.open;
         return (
           <Box
-            key={x.batch_id}
-            className={cn(
-              "space-y-1.5 rounded-lg border p-2.5",
-              mine ? "border-accent-blue bg-accent-tint" : "border-line bg-surface-2",
-            )}
+            key={g.key}
+            data-testid={`batch-choice-${g.d.id ?? g.key}`}
+            role={choosing ? "radiogroup" : undefined}
+            aria-label={`${formatDayDate(g.d.date)} batches`}
+            className="space-y-1.5 rounded-lg border border-line bg-surface-2 p-2.5"
           >
-            <Box className="flex items-start justify-between gap-2">
-              <Text as="span" className="text-[12.5px] font-bold text-ink">{x.name}</Text>
-              {mine && (
-                <Text as="span" className="shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-wide text-accent-blue">
-                  Your batch
-                </Text>
-              )}
+            <Box className="flex flex-wrap items-center gap-2">
+              <Text as="span" className="text-[12.5px] font-bold text-ink">{formatDayDate(g.d.date)}</Text>
+              <DateChangeChip change={g.d.change} />
             </Box>
-            <Text as="p" className="text-[11px] text-text-2">
-              {formatDateRange(x.start_date, x.end_date)}{range ? ` · ${range}${x.end_date && x.end_date !== x.start_date ? " each day" : ""}` : ""}
-            </Text>
-            <Text as="p" className={cn("text-[11px] font-semibold", x.is_full ? "text-warning" : "text-text-2")}>
-              {seatsText(x)}
-            </Text>
-            {waiting && (
-              <Box className="flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/12 px-2 py-1.5">
-                <Hourglass className="size-3.5 text-warning" />
-                <Text as="span" className="text-[11.5px] font-semibold text-warning">
-                  On the waitlist{session.waitlist_position ? ` (#${session.waitlist_position})` : ""}
-                </Text>
-              </Box>
-            )}
-            {!placed && isBookable(x) && (
-              x.is_full ? (
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => onEnrol(x.batch_id)}
-                  className="w-full cursor-pointer border-warning/50 text-xs text-warning hover:bg-warning hover:text-white">
-                  <Hourglass className="mr-1.5 size-3.5" />
-                  {busy ? "Joining…" : "Join waitlist"}
-                </Button>
+            {shown.map((x) => {
+              const range = formatTimeRange(x.start_time, x.end_time);
+              const isMine = mine.includes(x);
+              const waiting = waitBatch != null && x.batch_id === waitBatch;
+              const on = picked[g.key] === x.batch_id;
+              const body = (
+                <>
+                  <Box className="flex items-start justify-between gap-2">
+                    <Text as="span" className="text-[12px] font-semibold text-ink">{x.name}</Text>
+                    {isMine && (
+                      <Text as="span" className="shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-wide text-accent-blue">
+                        Your batch
+                      </Text>
+                    )}
+                    {waiting && !isMine && (
+                      <Text as="span" className="shrink-0 font-mono text-[9.5px] font-bold uppercase tracking-wide text-warning">
+                        Waitlisted{session.waitlist_position ? ` (#${session.waitlist_position})` : ""}
+                      </Text>
+                    )}
+                  </Box>
+                  <Text as="span" className="block text-[11px] text-text-2">{range}</Text>
+                  <Text as="span" className={cn("block text-[11px] font-semibold", x.is_full ? "text-warning" : "text-text-2")}>
+                    {seatsText(x)}
+                  </Text>
+                </>
+              );
+              return choosing ? (
+                <button
+                  key={x.batch_id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={busy}
+                  onClick={() => setPicked((p) => ({ ...p, [g.key]: x.batch_id }))}
+                  className={cn(
+                    "block w-full cursor-pointer rounded-md border p-2 text-left transition-colors disabled:cursor-not-allowed",
+                    on ? "border-accent-blue bg-accent-tint" : "border-line bg-surface hover:border-line-strong",
+                  )}
+                >
+                  {body}
+                </button>
               ) : (
-                <Button size="sm" disabled={busy} onClick={() => onEnrol(x.batch_id)} className="w-full cursor-pointer text-xs">
-                  <CalendarDays className="mr-1.5 size-3.5" />
-                  {busy ? "Booking…" : "Book this batch"}
-                </Button>
-              )
+                <Box
+                  key={x.batch_id}
+                  className={cn("rounded-md border p-2", isMine ? "border-accent-blue bg-accent-tint" : "border-line bg-surface")}
+                >
+                  {body}
+                </Box>
+              );
+            })}
+            {!placed && g.open.length === 1 && (
+              <Text as="p" className="text-[10.5px] text-text-3">Only one batch is open, so you are placed on it.</Text>
             )}
           </Box>
         );
       })}
-      {(session.is_enrolled || myBatch != null) && (
+
+      {!placed && (
+        <>
+          <Button
+            size="sm"
+            variant={willWaitlist ? "outline" : "default"}
+            disabled={busy || !ready}
+            onClick={() => onEnrol(choiceGroups.length ? choiceGroups.map((g) => picked[g.key]) : null)}
+            className={cn(
+              "w-full cursor-pointer text-xs",
+              willWaitlist && "border-warning/50 text-warning hover:bg-warning hover:text-white",
+            )}
+          >
+            {willWaitlist
+              ? <Hourglass className="mr-1.5 size-3.5" />
+              : <CalendarDays className="mr-1.5 size-3.5" />}
+            {busy ? "Booking…" : willWaitlist ? "Join the waitlist" : "Book my place"}
+          </Button>
+          {!ready && (
+            <Text as="p" className="text-center text-[11px] text-text-3">
+              Choose a batch for every date to book.
+            </Text>
+          )}
+        </>
+      )}
+      {(session.is_enrolled || myIds.length > 0) && (
         <Link href="/my-sessions" className="block">
           <Button variant="outline" size="sm" className="w-full cursor-pointer text-xs">
             <CheckCircle2 className="mr-1.5 size-3.5 text-success" />
@@ -582,7 +664,7 @@ function BatchPicker({ session, sittings, busy, onEnrol, onLeave }) {
       {placed && (
         <button type="button" onClick={onLeave} disabled={busy}
           className="w-full cursor-pointer text-[11px] text-text-3 underline-offset-2 hover:text-danger hover:underline disabled:cursor-not-allowed">
-          {busy ? "Working…" : session.is_enrolled || myBatch != null ? "Give up my place" : "Leave the waitlist"}
+          {busy ? "Working…" : session.is_enrolled || myIds.length > 0 ? "Give up my place" : "Leave the waitlist"}
         </button>
       )}
     </Box>

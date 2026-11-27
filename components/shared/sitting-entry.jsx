@@ -3,6 +3,7 @@
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import { formatTimeRange, seatsText } from "@/lib/sittings";
+import { DateChangeChip } from "@/components/shared/session-dates";
 
 /**
  * One calendar entry: a single DAY of one sitting. Shared by the admin,
@@ -56,6 +57,7 @@ export function SittingEntry({ entry, onSelect, tone = "default", showSeats = tr
           Day {dayNo} of {dayCount}
         </Text>
       )}
+      {entry.change && <DateChangeChip change={entry.change} className="mt-0.5" />}
       {seats && (
         <Text as="span" className="block text-[10px] leading-tight text-inherit">
           {seats}

@@ -40,11 +40,16 @@ import {
   bulkSessionAction, createSessionBatch, updateSessionBatch, deleteSessionBatch,
   fetchSessionWaitlist, promoteFromWaitlist, dropFromWaitlist,
   uploadCourseThumbnail, discardCourseThumbnail,
+  fetchSessionSchedule, saveSessionSchedule, setRosterBatch,
 } from "@/services/api/admin/admin-api";
+import { SessionScheduleEditor } from "@/components/admin/session-schedule-editor";
+import { DateChangeChip, SessionDateList, sessionDatesText } from "@/components/shared/session-dates";
+import { datesInRange, formatDayDate, seatsText } from "@/lib/sittings";
 import { ThumbnailField } from "@/components/admin/thumbnail-field";
 import { DescriptionField } from "@/components/shared/description-field";
 import { CourseArt } from "@/components/shared/course-art";
 import {
+  SessionCertificatesPanel,
   SessionFeedbackPanel,
   SessionReportButtons,
   SessionSchedulePanel,
@@ -60,6 +65,10 @@ const EMPTY_FORM = {
   // from the Course Catalogue, and queue when it is full). The column has
   // existed since 0025; until 0035 nothing in the product set it.
   enroll_mode: "assigned",
+  // Create: extra time slots after the first (the Start/End time fields); each
+  // slot becomes a batch on every date (0076). Edit: the session's dates.
+  slots: [],
+  dates: [],
 };
 
 /* Four states, in the fill weights the design system defines: not started is
@@ -400,6 +409,8 @@ function SessionsTab({
   const [selected,       setSelected]       = useState(new Set());
   const [bulkBusy,       setBulkBusy]       = useState(false);
   const [bulkError,      setBulkError]      = useState(null);
+  // What completing a session did: credited N, issued and emailed M certificates.
+  const [completeNotice, setCompleteNotice] = useState(null);
   const [bulkConfirm,    setBulkConfirm]    = useState(null);
   const [rosterTarget,   setRosterTarget]   = useState(null);
   const [cancelTarget,   setCancelTarget]   = useState(null);
@@ -523,9 +534,10 @@ function SessionsTab({
     setCompleting(true);
     setCompleteError(null);
     try {
-      await apiClient(`/api/admin/sessions/${completeTarget.id}/complete`, {
+      const res = await apiClient(`/api/admin/sessions/${completeTarget.id}/complete`, {
         method: "POST",
       });
+      setCompleteNotice(res?.message ? `${completeTarget.title}: ${res.message}` : null);
       load();
       setCompleteTarget(null);
     } catch (e) {
@@ -652,6 +664,15 @@ function SessionsTab({
       {bulkError && (
         <Box className="border border-danger/30 bg-danger/10 px-3 py-2">
           <Text as="p" className="text-[12.5px] text-danger">{bulkError}</Text>
+        </Box>
+      )}
+
+      {completeNotice && (
+        <Box role="status" className="flex items-start justify-between gap-3 border border-success/30 bg-success/10 px-3 py-2">
+          <Text as="p" className="text-[12.5px] text-success">{completeNotice}</Text>
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={() => setCompleteNotice(null)}>
+            Dismiss
+          </Button>
         </Box>
       )}
 
@@ -782,7 +803,9 @@ function SessionsTab({
               <strong>{completeTarget?.title}</strong> will be credited to the
               learners recorded as present, late or partial. Their training is
               marked complete and the session&apos;s duration counts toward their
-              learning hours. Learners marked absent or excused are not credited.
+              learning hours. Each of them is also issued a session certificate
+              (once; anyone who already has one keeps it) and is told in the app
+              and by email. Learners marked absent or excused are not credited.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {completeError && (
@@ -855,7 +878,12 @@ function SessionCard({
   const attendancePct = roster > 0 ? Math.round((credited / roster) * 100) : 0;
 
   const batches = (s.batches ?? []).filter((b) => b.display_status !== "cancelled");
-  const isMultiBatch = batches.length > 1;
+  // A batch is one time slot on one date (0076); "multi-batch" means a date
+  // offers a choice of slots, not merely that the session runs on several days.
+  const perDate = new Map();
+  for (const b of batches) perDate.set(b.session_date_id ?? b.date, (perDate.get(b.session_date_id ?? b.date) ?? 0) + 1);
+  const isMultiBatch = [...perDate.values()].some((n) => n > 1);
+  const dateCount = (s.schedule || []).length || perDate.size;
   const pending = batches.filter((b) => b.display_status === "pending");
   const waiting = Number(s.waitlist_count || 0);
   const isSelf = s.enroll_mode === "self";
@@ -872,7 +900,7 @@ function SessionCard({
   const sameCap = batchCaps.length > 0 && batchCaps.every((c) => c === batchCaps[0]);
   const batchCapacityLabel = sameCap
     ? `${batchCaps[0]} per batch`
-    : `${batchCaps.reduce((a, c) => a + c, 0)} across ${batches.length} batches`;
+    : `${batchCaps.reduce((a, c) => a + c, 0)} seats across ${batches.length} batches`;
 
   /** How the enrolment mode reads. Only ever one of three, so it is a map. */
   const modeChip = isSelf
@@ -949,7 +977,9 @@ function SessionCard({
               {modeChip.label}
             </Text>
             {isMultiBatch && (
-              <Text as="span" className="chip chip-idle text-[10px]">{batches.length} sittings</Text>
+              <Text as="span" className="chip chip-idle text-[10px]">
+                {dateCount} date{dateCount === 1 ? "" : "s"} · {batches.length} batches
+              </Text>
             )}
           </Box>
 
@@ -974,12 +1004,20 @@ function SessionCard({
               {/* A multi-batch session has no single date of its own —
                   naming one would name whichever sitting happened to be
                   first. */}
-              <Text as="span" className="truncate">
-                {isMultiBatch
-                  ? `${batches.length} sittings`
-                  : `${formatRange(s.date, s.end_date)} · ${s.start_time}–${s.end_time} IST`}
+              {/* Every date in words (0076): "5th, 6th November and 2nd December 2026". */}
+              <Text as="span" className="truncate" data-testid={`session-dates-${s.id}`} title={sessionDatesText(s)}>
+                {sessionDatesText(s)} · {s.start_time}–{s.end_time} IST
               </Text>
             </Box>
+            {s.rescheduled && (
+              <Box className="flex flex-wrap items-center gap-1.5">
+                {(s.schedule || []).filter((d) => d.change).map((d) => (
+                  <Text as="span" key={d.id} className="inline-flex items-center gap-1 text-[10.5px] text-text-3">
+                    <DateChangeChip change={d.change} /> {formatDayDate(d.date)}
+                  </Text>
+                ))}
+              </Box>
+            )}
             <Box className="flex items-start gap-1.5">
               {isVirtual
                 ? <Video className="mt-0.5 size-3.5 shrink-0 text-text-3" />
@@ -1021,7 +1059,7 @@ function SessionCard({
                 )}
               </Text>
             </Box>
-            <BatchMeter batches={batches} roster={roster} capacity={capacity} />
+            <BatchMeter batches={isMultiBatch ? batches : []} roster={roster} capacity={capacity} />
             {pending.length > 0 && (
               <Text as="p" className="mt-1 text-[10.5px] text-warning">
                 {pending.length} batch{pending.length === 1 ? "" : "es"} awaiting a date
@@ -1054,7 +1092,7 @@ function SessionCard({
           {canManage && !isCancelled && (
             <CardAction
               icon={Layers}
-              label={pending.length ? `Batches — ${pending.length} need a date` : "Batches"}
+              label={pending.length ? `Dates and batches: ${pending.length} need a date` : "Dates and batches"}
               badge={pending.length || null}
               onClick={onBatches}
             />
@@ -1100,7 +1138,7 @@ function BatchMeter({ batches, roster, capacity }) {
       {batches.map((b) => {
         const cap = Number(b.capacity || capacity || 0);
         const pct = cap ? Math.min(100, Math.round((Number(b.roster_count) / cap) * 100)) : 0;
-        const label = `Batch ${b.batch_no} · ${b.roster_count}/${cap}${
+        const label = `${b.date ? `${formatDayDate(b.date)} · ` : ""}Batch ${b.batch_no} · ${b.roster_count}/${cap}${
           b.display_status === "pending" ? " · awaiting date" : ""
         }`;
         return (
@@ -1181,214 +1219,229 @@ function CardBtn({ children, onClick, icon: Icon, primary = false, danger = fals
 }
 
 
-/* ── Batch manager ─────────────────────────────────────────────────────────
-   A batch is one sitting. Adding the first one turns a single-sitting session
-   into a multi-batch one; deleting the last one turns it back, and nobody is
-   unenrolled either way — roster rows fall back to "no sitting assigned".
+/* ── Schedule and batches (0076, BACKEND_STRUCTURE 10.67) ────────────────
+   A session runs on a set of dates; each date has one or more batches, each
+   with its own times and capacity. Every learner attends every date and is
+   in one batch on each. This dialog edits all three: the dates (moving one
+   keeps its batches and people and is labelled postponed or preponed), the
+   batches on each date, and who is in which batch where a date offers a
+   choice. A date with one batch places everyone in it automatically.
 ────────────────────────────────────────────────────────────────────────────*/
 
-const EMPTY_BATCH = { label: "", date: "", end_date: "", start_time: "", end_time: "", capacity: "" };
-
-/** "1 Dec 2030", or "1 Dec 2030 to 3 Dec 2030" for a multi-day sitting. */
-function formatRange(start, end) {
-  if (!start) return "";
-  return end && end !== start ? `${formatDate(start)} to ${formatDate(end)}` : formatDate(start);
-}
+const EMPTY_BATCH = { label: "", start_time: "", end_time: "", capacity: "" };
 
 function BatchesDialog({ session, onClose, onChanged }) {
+  const { can } = usePermissions();
+  const canRoster = can("manage_session_roster");
+  const [schedule, setSchedule] = useState(null);
+  const [people, setPeople] = useState([]);
+  const [wanted, setWanted] = useState([]);
   const [form, setForm] = useState(EMPTY_BATCH);
-  const [editing, setEditing] = useState(null);
+  const [target, setTarget] = useState(null); // { dateId, batch? } being added to / edited
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
 
-  const batches = session.batches ?? [];
-
-  async function save() {
-    if (form.end_date && form.date && form.end_date < form.date) {
-      setError("The end date cannot be before the start date.");
-      return;
-    }
-    if (form.end_date && !form.date) {
-      setError("Set a start date before an end date.");
-      return;
-    }
-    setBusy(true); setError(null);
+  const load = useCallback(async () => {
     try {
-      const data = {
-        label: form.label.trim() || null,
-        date: form.date || null,
-        end_date: form.end_date && form.end_date !== form.date ? form.end_date : null,
-        start_time: form.start_time || null,
-        end_time: form.end_time || null,
-        capacity: form.capacity ? Number(form.capacity) : null,
-      };
-      if (editing) await updateSessionBatch({ batchId: editing.id, data: { ...data, status: editing.status } });
-      else await createSessionBatch({ sessionId: session.id, data });
-      setForm(EMPTY_BATCH); setEditing(null);
+      const [sch, att] = await Promise.all([
+        fetchSessionSchedule({ sessionId: session.id }),
+        apiClient(`/api/admin/sessions/${session.id}/attendance`),
+      ]);
+      setSchedule(sch);
+      setWanted((sch.dates || []).map((d) => d.date));
+      setPeople(att.records || []);
+      setError(null);
+    } catch (e) { setError(e.message); }
+  }, [session.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function run(fn, success) {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await fn();
+      await load();
       await onChanged();
+      if (success) setNotice(success);
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
 
-  async function remove(batch) {
-    setBusy(true); setError(null);
-    try {
-      await deleteSessionBatch({ batchId: batch.id });
-      await onChanged();
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
-  }
+  const locked = session.status === "completed" || session.status === "cancelled";
+  const dates = schedule?.dates || [];
+
+  const saveDates = () => run(() => saveSessionSchedule({ sessionId: session.id, dates: wanted }), "Dates saved. Enrolled learners and the trainer have been told.");
+
+  const saveBatch = () => {
+    if (!target) return;
+    const data = {
+      label: form.label.trim() || null,
+      start_time: form.start_time || null,
+      end_time: form.end_time || null,
+      capacity: form.capacity ? Number(form.capacity) : null,
+    };
+    return run(async () => {
+      if (target.batch) await updateSessionBatch({ batchId: target.batch.batch_id, data: { ...data, status: target.batch.status === "cancelled" ? "cancelled" : "scheduled" } });
+      else await createSessionBatch({ sessionId: session.id, data: { ...data, session_date_id: target.dateId } });
+      setTarget(null); setForm(EMPTY_BATCH);
+    });
+  };
+
+  const placeIn = (userId, dateId, batchId) =>
+    run(() => setRosterBatch({ sessionId: session.id, userId, batchId: batchId || null, sessionDateId: dateId }));
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Batches — {session.title}</DialogTitle>
+          <DialogTitle>Dates and batches: {session.title}</DialogTitle>
         </DialogHeader>
 
-        <Box className="space-y-4">
-          <Box className="border-l-2 border-accent-blue bg-accent-tint px-3 py-2">
-            <Text as="p" className="text-[11.5px] leading-relaxed text-text-2">
-              A batch is one sitting of this session. Everyone still earns the
-              same training — batches only say <em>when</em> each person attends.
-              With no batches, the session runs once on its own date.
-            </Text>
-          </Box>
+        {schedule === null ? (
+          <Text as="p" className="py-6 text-center text-[12.5px] text-text-3">Loading…</Text>
+        ) : (
+          <Box className="space-y-5">
+            <Box className="border-l-2 border-accent-blue bg-accent-tint px-3 py-2">
+              <Text as="p" className="text-[11.5px] leading-relaxed text-text-2">
+                Every learner attends every date and is in one batch on each date. A batch is
+                one time slot on one date, with its own seats. Everyone earns the same training.
+              </Text>
+            </Box>
 
-          {batches.length > 0 && (
-            <Box className="divide-y divide-line border border-line">
-              {batches.map((b) => (
-                <Box key={b.id} className="flex flex-wrap items-center gap-3 bg-surface px-3.5 py-2.5">
-                  <Text as="span" className="flex size-6 shrink-0 items-center justify-center bg-navy font-mono text-[11px] font-bold text-accent-soft">
-                    {b.batch_no}
-                  </Text>
-                  <Box className="min-w-0 flex-1">
-                    <Text as="p" className="truncate text-[12.5px] font-semibold text-ink">
-                      {b.label || `Batch ${b.batch_no}`}
-                    </Text>
-                    <Text as="p" className="text-[11px] text-text-3">
-                      {b.date ? `${formatRange(b.date, b.end_date)} · ${b.start_time ?? session.start_time}–${b.end_time ?? session.end_time}` : "Date not set"}
-                      {" · "}{b.roster_count}/{b.capacity} registered
-                      {" · "}{Math.max(0, b.capacity - b.roster_count)} seats left
-                      {b.waitlist_count > 0 ? ` · ${b.waitlist_count} waiting` : ""}
-                    </Text>
-                  </Box>
-                  <Text
-                    as="span"
-                    className={cn(
-                      "chip shrink-0",
-                      b.display_status === "completed" ? "chip-complete"
-                        : b.display_status === "pending" ? "chip-warning" : "chip-progress",
-                    )}
-                  >
-                    {b.display_status}
-                  </Text>
-                  <Box className="flex shrink-0 gap-1">
-                    <CardBtn
-                      icon={Pencil}
-                      onClick={() => {
-                        setEditing(b);
-                        setForm({
-                          label: b.label ?? "", date: b.date ?? "", end_date: b.end_date ?? "",
-                          start_time: b.start_time ?? "", end_time: b.end_time ?? "",
-                          capacity: b.capacity ? String(b.capacity) : "",
-                        });
-                      }}
-                    >
-                      Edit
-                    </CardBtn>
-                    <CardBtn danger icon={Trash2} onClick={() => remove(b)}>Delete</CardBtn>
-                  </Box>
-                </Box>
-              ))}
-            </Box>
-          )}
-
-          <Box className="space-y-3 border border-line bg-surface-2 p-3.5">
-            <Text as="p" className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
-              {editing ? `Edit batch ${editing.batch_no}` : "Add a batch"}
-            </Text>
-            <Box className="grid gap-3 sm:grid-cols-2">
-              <Box className="space-y-1.5">
-                <Label>Label</Label>
-                <Input
-                  value={form.label} maxLength={80}
-                  onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))}
-                  placeholder="e.g. Morning cohort"
-                />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label>Capacity</Label>
-                <Input
-                  type="number" min="1" value={form.capacity}
-                  onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))}
-                  placeholder={`Defaults to ${session.capacity}`}
-                />
-              </Box>
-            </Box>
-            <Box className="grid gap-3 sm:grid-cols-4">
-              <Box className="space-y-1.5">
-                <Label htmlFor="batch-start-date">Start date</Label>
-                <Input
-                  id="batch-start-date"
-                  type="date" value={form.date}
-                  onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-                />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label htmlFor="batch-end-date">End date</Label>
-                <Input
-                  id="batch-end-date"
-                  type="date" value={form.end_date} min={form.date || undefined}
-                  onChange={(e) => setForm((p) => ({ ...p, end_date: e.target.value }))}
-                />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label>Start</Label>
-                <Input
-                  type="time" value={form.start_time}
-                  onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))}
-                />
-              </Box>
-              <Box className="space-y-1.5">
-                <Label>End</Label>
-                <Input
-                  type="time" value={form.end_time}
-                  onChange={(e) => setForm((p) => ({ ...p, end_time: e.target.value }))}
-                />
-              </Box>
-            </Box>
-            <Text as="p" className="text-[10.5px] text-text-3">
-              The batch runs from the start time to the end time on every day from the start
-              date to the end date. Leave the end date blank for a one-day batch, and the start
-              date blank to create it now and fix the date later (it shows as{" "}
-              <strong>pending</strong> until you do). Each batch has its own capacity: nobody can
-              be booked or moved into a full batch.
-            </Text>
-            <Box className="flex gap-2">
-              <Button
-                onClick={save}
-                disabled={busy}
-                className="h-8 cursor-pointer rounded-none bg-navy text-[12.5px] text-accent-soft hover:bg-accent-blue hover:text-white"
-              >
-                {busy ? "Saving…" : editing ? "Save batch" : "Add batch"}
-              </Button>
-              {editing && (
-                <Button
-                  variant="outline"
-                  onClick={() => { setEditing(null); setForm(EMPTY_BATCH); }}
-                  className="h-8 cursor-pointer rounded-none text-[12.5px]"
-                >
-                  Cancel edit
-                </Button>
+            <Box className="space-y-2 rounded-md border border-line p-3.5">
+              <SessionScheduleEditor saved={dates} value={wanted} onChange={setWanted} disabled={busy || locked} />
+              {locked && (
+                <Text as="p" className="text-[11px] text-text-3">This session is {session.status}, so its dates no longer change.</Text>
               )}
+              <Button
+                onClick={saveDates}
+                disabled={busy || locked || [...wanted].sort().join() === dates.map((d) => d.date).join()}
+                className="h-8 cursor-pointer bg-navy text-[12.5px] text-accent-soft hover:bg-accent-blue hover:text-white"
+              >
+                {busy ? "Saving…" : "Save dates"}
+              </Button>
             </Box>
-          </Box>
 
-          {error && (
-            <Box className="border border-danger/30 bg-danger/10 px-3 py-2">
-              <Text as="p" className="text-[12.5px] text-danger">{error}</Text>
-            </Box>
-          )}
-        </Box>
+            {dates.map((d) => {
+              const choice = d.batches.filter((b) => b.status !== "cancelled").length > 1;
+              return (
+                <Box key={d.id} className="space-y-2 rounded-md border border-line p-3.5" data-testid={`date-batches-${d.date}`}>
+                  <Box className="flex flex-wrap items-center gap-2">
+                    <Text as="p" className="text-[13px] font-semibold text-ink">{formatDayDate(d.date)}</Text>
+                    <DateChangeChip change={d.change} />
+                    {d.change && d.previous_date && (
+                      <Text as="span" className="text-[11px] text-text-3">moved from {formatDayDate(d.previous_date)}</Text>
+                    )}
+                    {!locked && (
+                      <CardBtn icon={Plus} onClick={() => { setTarget({ dateId: d.id }); setForm(EMPTY_BATCH); }}>
+                        Add batch
+                      </CardBtn>
+                    )}
+                  </Box>
+
+                  <Box className="divide-y divide-line border border-line">
+                    {d.batches.map((b) => (
+                      <Box key={b.batch_id} className="flex flex-wrap items-center gap-3 bg-surface px-3 py-2">
+                        <Text as="span" className="flex size-6 shrink-0 items-center justify-center bg-navy font-mono text-[11px] font-bold text-accent-soft">
+                          {b.batch_no}
+                        </Text>
+                        <Box className="min-w-0 flex-1">
+                          <Text as="p" className="truncate text-[12.5px] font-semibold text-ink">{b.name}</Text>
+                          <Text as="p" className="text-[11px] text-text-3">
+                            {b.start_time ?? session.start_time}–{b.end_time ?? session.end_time}
+                            {" · "}{seatsText(b)}
+                          </Text>
+                        </Box>
+                        {!locked && (
+                          <Box className="flex shrink-0 gap-1">
+                            <CardBtn icon={Pencil} onClick={() => {
+                              setTarget({ dateId: d.id, batch: b });
+                              setForm({ label: b.label ?? "", start_time: b.start_time ?? "", end_time: b.end_time ?? "", capacity: b.capacity ? String(b.capacity) : "" });
+                            }}>Edit</CardBtn>
+                            <CardBtn danger icon={Trash2} disabled={busy || d.batches.length <= 1}
+                              onClick={() => run(() => deleteSessionBatch({ batchId: b.batch_id }))}>
+                              Delete
+                            </CardBtn>
+                          </Box>
+                        )}
+                      </Box>
+                    ))}
+                  </Box>
+
+                  {target?.dateId === d.id && (
+                    <Box className="space-y-2 border border-line bg-surface-2 p-3">
+                      <Text as="p" className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-text-3">
+                        {target.batch ? `Edit ${target.batch.name}` : `Add a batch on ${formatDayDate(d.date)}`}
+                      </Text>
+                      <Box className="grid gap-2 sm:grid-cols-4">
+                        <Input aria-label="Batch label" placeholder="Label, e.g. Afternoon" maxLength={80} value={form.label}
+                          onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} className="h-8 text-xs" />
+                        <Input aria-label="Batch start" type="time" value={form.start_time}
+                          onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))} className="h-8 text-xs" />
+                        <Input aria-label="Batch end" type="time" value={form.end_time}
+                          onChange={(e) => setForm((p) => ({ ...p, end_time: e.target.value }))} className="h-8 text-xs" />
+                        <Input aria-label="Batch capacity" type="number" min="1" placeholder={`${session.capacity} seats`} value={form.capacity}
+                          onChange={(e) => setForm((p) => ({ ...p, capacity: e.target.value }))} className="h-8 text-xs" />
+                      </Box>
+                      <Text as="p" className="text-[10.5px] text-text-3">
+                        Blank times and capacity follow the session&apos;s. Nobody can be booked or moved into a full batch.
+                      </Text>
+                      <Box className="flex gap-2">
+                        <Button onClick={saveBatch} disabled={busy}
+                          className="h-8 cursor-pointer bg-navy text-[12.5px] text-accent-soft hover:bg-accent-blue hover:text-white">
+                          {busy ? "Saving…" : target.batch ? "Save batch" : "Add batch"}
+                        </Button>
+                        <Button variant="outline" className="h-8 text-[12.5px]" onClick={() => { setTarget(null); setForm(EMPTY_BATCH); }}>
+                          Cancel
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {choice && people.length > 0 && (
+                    <Box className="space-y-1.5" data-testid={`placements-${d.date}`}>
+                      <Text as="p" className="text-[11px] font-semibold text-text-2">Who is in which batch on this date</Text>
+                      {people.map((p) => {
+                        const day = (p.days || []).find((x) => x.session_date_id === d.id);
+                        return (
+                          <Box key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
+                            <Text as="span" className="text-[12px] text-ink">{p.first_name} {p.last_name}</Text>
+                            <Select
+                              value={day?.batch_id ? String(day.batch_id) : "none"}
+                              onValueChange={(v) => placeIn(p.user_id, d.id, v === "none" ? null : Number(v))}
+                              disabled={busy || locked || !canRoster}
+                            >
+                              <SelectTrigger aria-label={`Batch for ${p.first_name} ${p.last_name} on ${formatDayDate(d.date)}`} className="h-8 w-56 text-xs">
+                                <SelectValue>{day?.batch_name || "Not placed yet"}</SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Not placed yet</SelectItem>
+                                {d.batches.filter((b) => b.status !== "cancelled").map((b) => (
+                                  <SelectItem key={b.batch_id} value={String(b.batch_id)}>{b.name} · {seatsText(b)}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+
+            {notice && (
+              <Box className="border border-success/30 bg-success/10 px-3 py-2" role="status">
+                <Text as="p" className="text-[12.5px] text-success">{notice}</Text>
+              </Box>
+            )}
+            {error && (
+              <Box className="border border-danger/30 bg-danger/10 px-3 py-2">
+                <Text as="p" className="text-[12.5px] text-danger">{error}</Text>
+              </Box>
+            )}
+          </Box>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
@@ -1497,6 +1550,8 @@ function WaitlistDialog({ session, onClose, onChanged }) {
 function MarkAttendanceTab({ sessions, initialSessionId }) {
   const [selectedId,     setSelectedId]     = useState(initialSessionId || "");
   const [records,        setRecords]        = useState([]);
+  const [dates,          setDates]          = useState([]);
+  const [dateId,         setDateId]         = useState(null);
   const [isLocked,       setIsLocked]       = useState(false);
   const [loadingAtt,     setLoadingAtt]     = useState(false);
   const [saving,         setSaving]         = useState(false);
@@ -1507,22 +1562,55 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
 
   const selectedSession = sessions.find((s) => String(s.id) === selectedId);
 
+  /**
+   * Attendance is marked PER DATE (0076); the overall status each learner
+   * carries is the server's roll-up of their dates. The rows being edited are
+   * the selected date's marks, so switching date shows that day's.
+   */
+  const rowsFor = (recs, id) => recs.map((r) => {
+    const day = id ? (r.days || []).find((x) => x.session_date_id === id) : null;
+    const src = day || (id ? {} : r);
+    return {
+      user_id:   r.user_id,
+      status:    src.status || "",
+      join_time: src.join_time || "",
+      notes:     src.notes || "",
+    };
+  });
+
+  const pickDate = (ds, recs) => {
+    if (ds.length === 0) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const hit = ds.find((d) => d.date === today)
+      || ds.find((d) => recs.some((r) => !(r.days || []).find((x) => x.session_date_id === d.id)?.status))
+      || ds[0];
+    return hit.id;
+  };
+
+  const apply = (d, keepDate) => {
+    const ds = d.dates || [];
+    const recs = d.records || [];
+    const id = keepDate && ds.some((x) => x.id === keepDate) ? keepDate : pickDate(ds, recs);
+    setRecords(recs);
+    setDates(ds);
+    setDateId(id);
+    setIsLocked(!!d.is_locked);
+    setLocalRows(rowsFor(recs, id));
+  };
+
   useEffect(() => {
     if (!selectedId) return;
     setLoadingAtt(true);
     apiClient(`/api/admin/sessions/${selectedId}/attendance`)
-      .then((d) => {
-        setRecords(d.records || []);
-        setIsLocked(!!d.is_locked);
-        setLocalRows((d.records || []).map((r) => ({
-          user_id:   r.user_id,
-          status:    r.status || "",
-          join_time: r.join_time || "",
-          notes:     r.notes || "",
-        })));
-      })
+      .then((d) => apply(d, null))
       .finally(() => setLoadingAtt(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  const chooseDate = (id) => {
+    setDateId(id);
+    setLocalRows(rowsFor(records, id));
+  };
 
   const updateRow = (userId, field, value) => {
     setLocalRows((prev) => prev.map((r) => r.user_id === userId ? { ...r, [field]: value } : r));
@@ -1537,16 +1625,9 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
     try {
       const d = await apiClient(`/api/admin/sessions/${selectedId}/attendance`, {
         method: "PUT",
-        body: { records: localRows, lock },
+        body: { records: localRows, lock, ...(dateId ? { session_date_id: dateId } : {}) },
       });
-      setRecords(d.records || []);
-      setIsLocked(!!d.is_locked);
-      setLocalRows((d.records || []).map((r) => ({
-        user_id:   r.user_id,
-        status:    r.status || "",
-        join_time: r.join_time || "",
-        notes:     r.notes || "",
-      })));
+      apply(d, dateId);
     } finally { setSaving(false); }
   };
 
@@ -1597,7 +1678,7 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
               </Box>
               <Box>
                 <Text as="p" className="text-[10px] text-muted-foreground uppercase tracking-wide">Date</Text>
-                <Text as="p" className="text-sm font-semibold">{formatRange(selectedSession.date, selectedSession.end_date)}</Text>
+                <Text as="p" className="text-sm font-semibold">{sessionDatesText(selectedSession)}</Text>
               </Box>
               <Box>
                 <Text as="p" className="text-[10px] text-muted-foreground uppercase tracking-wide">Time</Text>
@@ -1630,6 +1711,29 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
           <SessionReportButtons sessionId={selectedSession.id} />
           <SessionSchedulePanel session={selectedSession} />
         </>
+      )}
+
+      {/* One tab per date: attendance is marked for each day (0076). */}
+      {selectedSession && dates.length > 1 && (
+        <Box className="flex flex-wrap gap-2" role="tablist" aria-label="Session dates">
+          {dates.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              role="tab"
+              aria-selected={d.id === dateId}
+              data-testid={`attendance-date-${d.id}`}
+              onClick={() => chooseDate(d.id)}
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                d.id === dateId ? "border-navy bg-navy text-white" : "border-line bg-surface text-ink hover:border-accent-blue",
+              )}
+            >
+              {formatDayDate(d.date)}
+              <DateChangeChip change={d.change} />
+            </button>
+          ))}
+        </Box>
       )}
 
       {/* Locked banner */}
@@ -1743,10 +1847,21 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
                   placeholder="Optional notes"
                 />
 
-                {/* Marked by */}
-                <Text as="span" className="text-xs text-muted-foreground">
-                  {rec.marker_name || "—"}
-                </Text>
+                {/* Marked by, and the overall status across every date */}
+                <Box className="min-w-0">
+                  <Text as="span" className="block text-xs text-muted-foreground">
+                    {rec.marker_name || "—"}
+                  </Text>
+                  {dates.length > 1 && (
+                    <Text as="span" className="block text-[10.5px] text-text-3">
+                      Overall: {ATTENDANCE_STATUS_CFG[rec.status]?.label || "Not marked"}
+                    </Text>
+                  )}
+                  {(() => {
+                    const day = (rec.days || []).find((x) => x.session_date_id === dateId);
+                    return day?.batch_name ? <Text as="span" className="block text-[10.5px] text-text-3">{day.batch_name}</Text> : null;
+                  })()}
+                </Box>
               </Box>
             );
           })}
@@ -1767,6 +1882,9 @@ function MarkAttendanceTab({ sessions, initialSessionId }) {
 
       {/* Every learner's feedback on this session (0074) */}
       {selectedSession && <SessionFeedbackPanel sessionId={selectedSession.id} />}
+
+      {/* Certificates issued on completion, with notification and email status (§10.66) */}
+      {selectedSession && <SessionCertificatesPanel sessionId={selectedSession.id} />}
     </Box>
   );
 }
@@ -2030,6 +2148,9 @@ export function AdminSessionsContent() {
       description:  s.description  || "",
       status:       s.status       || "upcoming",
       enroll_mode:  s.enroll_mode  || "assigned",
+      slots:        [],
+      // Every scheduled date (0076); edited in the dialog and saved as `dates`.
+      dates:        (s.schedule || []).map((d) => d.date),
     });
     setThumbnailFile(null);
     setThumbnailCleared(false);
@@ -2041,10 +2162,11 @@ export function AdminSessionsContent() {
     if (!form.title?.trim())      { setFormError("Session title is required");         return; }
     if (!form.trainer?.trim())    { setFormError("Trainer / Facilitator is required"); return; }
     if (!form.venue_url?.trim())  { setFormError("Venue / Platform URL is required");  return; }
-    if (!form.date?.trim())       { setFormError("Date is required");                  return; }
+    if (editTarget ? form.dates.length === 0 : !form.date?.trim()) { setFormError("Date is required"); return; }
     if (!form.start_time?.trim()) { setFormError("Start time is required");            return; }
     if (!form.end_time?.trim())   { setFormError("End time is required");              return; }
-    if (form.end_date && form.end_date < form.date) { setFormError("The end date cannot be before the start date"); return; }
+    if (!editTarget && form.end_date && form.end_date < form.date) { setFormError("The end date cannot be before the start date"); return; }
+    if (!editTarget && form.slots.some((x) => !x.start_time || !x.end_time)) { setFormError("Every time slot needs a start and an end time"); return; }
 
     setSaving(true); setFormError(null);
 
@@ -2060,7 +2182,23 @@ export function AdminSessionsContent() {
         const uploaded = await uploadCourseThumbnail({ file: thumbnailFile });
         uploadedUrl = uploaded.url;
       }
-      const body = { ...form, end_date: form.end_date && form.end_date !== form.date ? form.end_date : null, trainer_user_id: form.trainer_user_id ? Number(form.trainer_user_id) : null, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
+      const { slots: extraSlots, dates: pickedDates, slot1_label: slot1Label, ...rest } = form;
+      const body = { ...rest, end_date: form.end_date && form.end_date !== form.date ? form.end_date : null, trainer_user_id: form.trainer_user_id ? Number(form.trainer_user_id) : null, capacity: Number(form.capacity) || 20, course_id: form.course_id || null, department: form.department || null };
+      if (editTarget) {
+        // The dates the admin left in the editor. The server pairs a removed
+        // and an added date as a move (postponed or preponed) and tells people.
+        const dates = [...new Set(pickedDates)].sort();
+        body.dates = dates;
+        body.date = dates[0];
+        body.end_date = dates.length > 1 ? dates[dates.length - 1] : null;
+      } else if (extraSlots.length > 0) {
+        // Several time slots: the first is the Start/End time above. Each slot
+        // becomes a batch on every date.
+        body.slots = [
+          { label: slot1Label?.trim() || null, start_time: form.start_time, end_time: form.end_time, capacity: null },
+          ...extraSlots.map((x) => ({ label: x.label?.trim() || null, start_time: x.start_time, end_time: x.end_time, capacity: x.capacity ? Number(x.capacity) : null })),
+        ];
+      }
       if (uploadedUrl) body.thumbnail_url = uploadedUrl;
       else if (thumbnailCleared) body.thumbnail_url = null;
 
@@ -2374,30 +2512,84 @@ export function AdminSessionsContent() {
               <Input placeholder="Room name / Address — or paste Zoom/Teams/Meet URL" value={form.venue_url} onChange={set("venue_url")} className="h-10" />
             </Box>
 
-            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Box className="space-y-2">
-                <Label htmlFor="session-start-date" className="text-sm font-medium">Start date <Text as="span" className="text-error">*</Text></Label>
-                <Input id="session-start-date" type="date" value={form.date} onChange={set("date")} className="h-10" />
+            {editTarget ? (
+              <SessionScheduleEditor
+                saved={editTarget.schedule || []}
+                value={form.dates}
+                onChange={(dates) => setForm((p) => ({ ...p, dates }))}
+                disabled={saving || editTarget.status === "completed" || editTarget.status === "cancelled"}
+              />
+            ) : (
+              <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Box className="space-y-2">
+                  <Label htmlFor="session-start-date" className="text-sm font-medium">Start date <Text as="span" className="text-error">*</Text></Label>
+                  <Input id="session-start-date" type="date" value={form.date} onChange={set("date")} className="h-10" />
+                </Box>
+                <Box className="space-y-2">
+                  <Label htmlFor="session-end-date" className="text-sm font-medium">End date <Text as="span" className="text-text-3">(multi-day)</Text></Label>
+                  <Input id="session-end-date" type="date" value={form.end_date} min={form.date || undefined} onChange={set("end_date")} className="h-10" />
+                </Box>
               </Box>
-              <Box className="space-y-2">
-                <Label htmlFor="session-end-date" className="text-sm font-medium">End date <Text as="span" className="text-text-3">(multi-day)</Text></Label>
-                <Input id="session-end-date" type="date" value={form.end_date} min={form.date || undefined} onChange={set("end_date")} className="h-10" />
+            )}
+
+            <Box className="space-y-2">
+              <Box className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-4">
+                <Box className="space-y-2">
+                  <Label htmlFor="session-start-time" className="text-sm font-medium">Start Time <Text as="span" className="text-error">*</Text></Label>
+                  <Input id="session-start-time" type="time" value={form.start_time} onChange={set("start_time")} className="h-10" />
+                </Box>
+                <Box className="space-y-2">
+                  <Label htmlFor="session-end-time" className="text-sm font-medium">End Time <Text as="span" className="text-error">*</Text></Label>
+                  <Input id="session-end-time" type="time" value={form.end_time} onChange={set("end_time")} className="h-10" />
+                </Box>
               </Box>
+              {!editTarget && form.slots.length > 0 && (
+                <Input
+                  aria-label="Time slot 1 label"
+                  placeholder="Label for this time slot, e.g. Morning"
+                  value={form.slot1_label || ""}
+                  maxLength={80}
+                  onChange={set("slot1_label")}
+                  className="h-9 text-xs"
+                />
+              )}
             </Box>
 
-            <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Box className="space-y-2">
-                <Label className="text-sm font-medium">Start Time <Text as="span" className="text-error">*</Text></Label>
-                <Input type="time" value={form.start_time} onChange={set("start_time")} className="h-10" />
+            {!editTarget && (
+              <Box className="space-y-2" data-testid="time-slots">
+                {form.slots.map((slot, i) => (
+                  <Box key={i} className="grid grid-cols-2 gap-2 rounded-md border border-line bg-surface-2 p-2.5 sm:grid-cols-[1.4fr_1fr_1fr_0.8fr_auto]">
+                    <Input aria-label={`Time slot ${i + 2} label`} placeholder="Label, e.g. Afternoon" maxLength={80} value={slot.label}
+                      onChange={(e) => setForm((p) => ({ ...p, slots: p.slots.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) }))} className="h-9 text-xs" />
+                    <Input aria-label={`Time slot ${i + 2} start`} type="time" value={slot.start_time}
+                      onChange={(e) => setForm((p) => ({ ...p, slots: p.slots.map((x, j) => (j === i ? { ...x, start_time: e.target.value } : x)) }))} className="h-9 text-xs" />
+                    <Input aria-label={`Time slot ${i + 2} end`} type="time" value={slot.end_time}
+                      onChange={(e) => setForm((p) => ({ ...p, slots: p.slots.map((x, j) => (j === i ? { ...x, end_time: e.target.value } : x)) }))} className="h-9 text-xs" />
+                    <Input aria-label={`Time slot ${i + 2} capacity`} type="number" min={1} placeholder={`${form.capacity || 20} seats`} value={slot.capacity}
+                      onChange={(e) => setForm((p) => ({ ...p, slots: p.slots.map((x, j) => (j === i ? { ...x, capacity: e.target.value } : x)) }))} className="h-9 text-xs" />
+                    <Button type="button" variant="outline" size="sm" className="h-9"
+                      aria-label={`Remove time slot ${i + 2}`} title="Remove this time slot"
+                      onClick={() => setForm((p) => ({ ...p, slots: p.slots.filter((_, j) => j !== i) }))}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </Box>
+                ))}
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs"
+                  onClick={() => setForm((p) => ({ ...p, slots: [...p.slots, { label: "", start_time: "", end_time: "", capacity: "" }] }))}>
+                  + Add another time slot
+                </Button>
               </Box>
-              <Box className="space-y-2">
-                <Label className="text-sm font-medium">End Time <Text as="span" className="text-error">*</Text></Label>
-                <Input type="time" value={form.end_time} onChange={set("end_time")} className="h-10" />
-              </Box>
-            </Box>
-            <Text as="p" className="-mt-2 text-[11px] text-text-3">
-              The session runs at these times on every day from the start date to the end date. Leave the end date
-              blank for a one-day session. For several sittings with their own dates, times and capacity, add batches.
+            )}
+            <Text as="p" className="-mt-2 text-[11px] text-text-3" data-testid="schedule-summary">
+              {editTarget
+                ? "The times apply to every date. Each date keeps its own batches; manage them, and who is in which, from Batches on the session card."
+                : (() => {
+                    const days = datesInRange(form.date, form.end_date).length;
+                    const slots = 1 + form.slots.length;
+                    return days
+                      ? `Runs on ${days} date${days === 1 ? "" : "s"}${slots > 1 ? ` in ${slots} time slots: ${days * slots} batches, each with its own seats` : ""}. You can change single dates after creating it.`
+                      : "Pick a start date. Each date and time slot becomes its own batch.";
+                  })()}
             </Text>
 
             <Box className="grid grid-cols-1 sm:grid-cols-2 gap-4">

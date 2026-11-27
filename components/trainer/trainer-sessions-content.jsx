@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Box from "@/components/ui/box";
 import Text from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { DateChangeChip, SessionDateList } from "@/components/shared/session-dates";
 
 /**
  * The trainer's session list — `specs/rbac.md` §3.6.1.
@@ -36,16 +37,6 @@ const STATUS_CFG = {
   completed: { label: "Completed", cls: "bg-navy text-paper border-0" },
   cancelled: { label: "Cancelled", cls: "bg-error/10 text-error border-0" },
 };
-
-function formatDate(iso) {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function LoadingState() {
   return (
@@ -160,6 +151,15 @@ export function TrainerSessionsContent() {
                           {s.course_name}
                         </Badge>
                       )}
+                      {s.rescheduled && (
+                        <DateChangeChip
+                          change={
+                            [...(s.schedule || [])].filter((d) => d.change).sort((a, b) =>
+                              String(b.changed_at || "").localeCompare(String(a.changed_at || "")),
+                            )[0]?.change || "postponed"
+                          }
+                        />
+                      )}
                       {needsAttendance && (
                         <Badge className="border-0 bg-paper-cream text-[11px] font-medium text-ink">
                           Attendance not marked
@@ -171,11 +171,17 @@ export function TrainerSessionsContent() {
                       {s.title}
                     </Text>
 
+                    <Box className="flex items-start gap-1.5 text-muted-foreground">
+                      <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <SessionDateList session={s} compact />
+                    </Box>
+                    {s.rescheduled && (
+                      <Text as="p" className="text-xs font-medium text-warning">
+                        Rescheduled
+                      </Text>
+                    )}
+
                     <Box className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                      <Box className="flex items-center gap-1.5">
-                        <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                        <Text as="span">{formatDate(s.date)}</Text>
-                      </Box>
                       <Box className="flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5 shrink-0" />
                         <Text as="span">

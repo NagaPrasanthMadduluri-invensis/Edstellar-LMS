@@ -35,7 +35,7 @@ test('a full open session queues the next learner, the admin promotes them, and 
   await expect(openCard(p1)).toContainText('1 left');
   await openCard(p1).getByRole('button', { name: 'Book my place' }).click();
   await expect(p1.getByText(`Your place on "${title}" is booked`)).toBeVisible();
-  await expect(openCard(p1).getByRole('button', { name: /Booked — see My Sessions/ })).toBeVisible();
+  await expect(openCard(p1).getByRole('button', { name: /Booked, see My Sessions/ })).toBeVisible();
   await p1.context().close();
 
   // ── Second learner finds it full and joins the waitlist ──
@@ -74,7 +74,7 @@ test('a full open session queues the next learner, the admin promotes them, and 
   await expect(p2.getByRole('heading', { name: title })).toBeVisible();
   await p2.goto('/catalogue');
   await p2.getByPlaceholder('Search courses, tags…').fill(title);
-  await expect(openCard(p2).getByRole('button', { name: /Booked — see My Sessions/ })).toBeVisible();
+  await expect(openCard(p2).getByRole('button', { name: /Booked, see My Sessions/ })).toBeVisible();
   await openCard(p2).getByRole('button', { name: 'Give up my place' }).click();
   await expect(p2.getByText(`You have given up your place on "${title}".`)).toBeVisible();
 
